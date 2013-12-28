@@ -1,0 +1,4 @@
+# Written by Luca Saiu in 2013
+# I hereby release this file into the public domain, up to the extent
+# permitted by the law.
+ocamlc fibo.ml && time -p ./a.out

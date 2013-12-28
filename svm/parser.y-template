@@ -1,0 +1,371 @@
+/* SVM assembly file parser.
+
+   Copyright (C) 2012 Université Paris 13
+   Written by Luca Saiu
+
+   This file is part of GNU epsilon.
+
+   GNU epsilon is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   GNU epsilon is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>. */
+
+
+/* To do: I'm not sure at all that unsigned constants not fitting in signed longs
+   are handled correctly.  I think there should be a union somewhere with an unsigned
+   long case... */
+
+/* Note that svm_clone_string() creates copies of immediates in the heap. That does
+   not produce a memory leak because a pointer to the copy is *always* used in as part
+   of the unresolved immediate.  This invariant should not be broken. */
+%{
+  #include <stdio.h>
+  #include <stdlib.h>
+  #include <unistd.h>
+  #include <string.h>
+  #include <stdbool.h>
+  #include "frontend.h"
+  #include "instructions.h"
+
+  extern int svm_error(svm_unresolved_program_t, char*);
+  extern int svm_lex();
+  
+  extern char *svm_text;
+  extern int svm_leng;
+  extern int svm_lineno;
+  extern FILE *svm_in;
+
+  static char *svm_clone_string(const char *source_string);
+%}
+
+/* This is a reentrant parser: */
+%parse-param {svm_unresolved_program_t program}
+
+/* This must be included in the header: */
+%code requires {
+  #include "../utility/utility.h"
+  #include "frontend.h"
+
+  /* This is the nice interface, to be used externally: */
+  svm_unresolved_program_t svm_parse_stdin(void);
+  svm_unresolved_program_t svm_parse_file(const char *file_name);
+}
+
+%union {
+  epsilon_int epsilon_int;
+  svm_register_index svm_register_index;
+  char* identifier;
+  epsilon_float epsilon_float;
+  svm_unresolved_program_t svm_unresolved_program_t;
+  svm_unresolved_instruction_t svm_unresolved_instruction_t;
+  svm_unresolved_immediate_t svm_unresolved_immediate_t;
+}
+   
+%token IDENTIFIER
+%token UNSIGNED_DECIMAL_NUMBER DECIMAL_NUMBER OCTAL_NUMBER HEXADECIMAL_NUMBER BINARY_NUMBER WORD_NO
+%token FLOAT_NUMBER
+%token C_GLOBAL
+%token OPEN CLOSE
+%token GENERAL_REGISTER
+%token FP_REGISTER
+%token CONDITION_REGISTER
+%token DATA
+%token INITIALIZED UNINITIALIZED
+%token PLUS MINUS COLON
+
+%token DUMP_REGISTER DUMP HCF EXIT
+%token NOP COPY
+%token COMPARE BRANCH_ON_EQUAL BRANCH_ON_NOT_EQUAL
+%token BRANCH_ON_LESS BRANCH_ON_LESS_OR_EQUAL BRANCH_ON_GREATER BRANCH_ON_GREATER_OR_EQUAL
+%token ADD SUB MUL DIV MOD
+%token LOAD LOAD_IMMEDIATE STORE BRANCH BRANCH_AND_LINK
+
+%token LOAD_CONDITION LOAD_IMMEDIATE_CONDITION STORE_CONDITION
+
+%token COPY_FLOAT LOAD_IMMEDIATE_FLOAT LOAD_FLOAT STORE_FLOAT COMPARE_FLOAT
+%token ADD_FLOAT SUB_FLOAT MUL_FLOAT DIV_FLOAT
+
+CALL-INSTRUCTION-TOKENS
+
+%start program
+
+%type <epsilon_int> integer
+%type <epsilon_float> float_number
+%type <identifier> identifier
+%type <identifier> global
+%type <identifier> c_global
+%type <identifier> label
+%type <identifier> immediate_label
+%type <svm_register_index> general_register
+%type <svm_register_index> fp_register
+%type <svm_register_index> condition_register
+%type <svm_unresolved_instruction_t> instruction
+%type <svm_unresolved_immediate_t> immediate
+%type <svm_unresolved_program_t> program
+
+%%
+
+program:
+  /* nothing */ { $$ = program; }
+| program instruction { $$ = $1; svm_add_unresolved_instruction($1, $2); /* printf("Added an unresolved instruction\n"); */ }
+| program UNINITIALIZED identifier integer { $$ = $1;
+                                             if($4 < 0)
+                                               epsilon_fatal("%s has been declared to take %i words", $3, (int)$4);
+                                             svm_bind_global_name_to_the_next_global_word($3, $1);
+                                             epsilon_int i;
+                                             for(i = 0; i < $4; i ++)
+                                               svm_add_unresolved_global_zero_word($1); }
+| program INITIALIZED identifier OPEN
+                                 { svm_bind_global_name_to_the_next_global_word($3, $1); }
+                                 global_values
+                                 CLOSE
+                                 { $$ = $1; }
+| program label { $$ = $1;
+                  //printf("Bound the label %s to the index %i\n", $2, (int)next_instruction_index);
+                  svm_bind_label_name_to_the_next_instruction($2, $1); }
+;
+
+/*
+datum:
+  UNINITIALIZED number identifier {}
+| INITIALIZED identifier OPEN numbers CLOSE {}
+;
+*/
+
+identifier: IDENTIFIER { $$ = svm_clone_string(svm_text); }
+;
+
+integer:
+  DECIMAL_NUMBER { $$ = strtol(svm_text, NULL, 10); }
+| UNSIGNED_DECIMAL_NUMBER { $$ = strtoul(svm_text, NULL, 10); }
+| OCTAL_NUMBER { $$ = strtol(svm_text + 1, NULL, 8); }
+| HEXADECIMAL_NUMBER { $$ = strtol(svm_text + 2, NULL, 16); }
+| BINARY_NUMBER { $$ = strtol(svm_text + 2, NULL, 2); }
+| WORD_NO { $$ = strtol(svm_text, NULL, 10) * sizeof(epsilon_word); }
+;
+
+float_number:
+  FLOAT_NUMBER { $$ = (epsilon_float)strtod(svm_text, NULL); }
+;
+
+general_register: GENERAL_REGISTER { $$ = svm_resolve_register_name(svm_text); }
+;
+
+fp_register: FP_REGISTER { $$ = svm_resolve_register_name(svm_text); }
+;
+
+condition_register: CONDITION_REGISTER { $$ = svm_resolve_register_name(svm_text); }
+;
+
+global: identifier { $$ = $1; }
+;
+
+label: identifier COLON { $$ = $1; }
+;
+
+immediate_label:
+  identifier { $$ = $1; }
+
+c_global: C_GLOBAL { $$ = svm_clone_string(svm_text); }
+;
+
+immediate:
+  integer    { $$ = svm_make_unresolved_integer_immediate($1); }
+| identifier { $$ = svm_make_unresolved_global_immediate($1); }
+| label      { $$ = svm_make_unresolved_label_immediate($1); }
+| identifier PLUS integer { $$ = svm_make_unresolved_sum_immediate(svm_make_unresolved_global_immediate($1),
+                                                                  svm_make_unresolved_integer_immediate(sizeof(svm_word) * $3)); }
+| integer PLUS identifier { $$ = svm_make_unresolved_sum_immediate(svm_make_unresolved_integer_immediate(sizeof(svm_word) * $1),
+                                                                   svm_make_unresolved_global_immediate($3)); }
+| identifier MINUS integer { $$ = svm_make_unresolved_difference_immediate(svm_make_unresolved_global_immediate($1),
+                                                                           svm_make_unresolved_integer_immediate(sizeof(svm_word) * $3)); }
+| integer MINUS identifier { $$ = svm_make_unresolved_difference_immediate(svm_make_unresolved_integer_immediate(sizeof(svm_word) * $1),
+                                                                           svm_make_unresolved_global_immediate($3)); }
+| float_number { $$ = svm_make_unresolved_float_immediate($1); }
+| c_global   { $$ = svm_make_unresolved_c_global_immediate($1); }
+;
+
+global_values:
+  /* nothing */ {}
+| global_values immediate { svm_add_unresolved_global_word(program, $2); }
+;
+
+instruction:
+  NOP
+   { $$ = svm_make_unresolved_instruction_(svm_nop); }
+
+| HCF
+   { $$ = svm_make_unresolved_instruction_(svm_hcf); }
+| EXIT
+   { $$ = svm_make_unresolved_instruction_(svm_exit); }
+| DUMP
+   { $$ = svm_make_unresolved_instruction_(svm_dump); }
+| DUMP_REGISTER general_register
+   { $$ = svm_make_unresolved_instruction_s(svm_dump_general_register, $2); }
+| DUMP_REGISTER fp_register
+   { $$ = svm_make_unresolved_instruction_s(svm_dump_fp_register, $2); }
+| DUMP_REGISTER condition_register
+   { $$ = svm_make_unresolved_instruction_s(svm_dump_condition_register, $2); }
+
+| COPY general_register general_register
+   { $$ = svm_make_unresolved_instruction_st(svm_copy, $2, $3); }
+| ADD general_register general_register general_register
+   { $$ = svm_make_unresolved_instruction_sst(svm_add, $2, $3, $4); }
+| ADD general_register immediate general_register
+   { $$ = svm_make_unresolved_instruction_sit(svm_add_immediate, $2, $3, $4); }
+| SUB general_register general_register general_register
+   { $$ = svm_make_unresolved_instruction_sst(svm_subtract, $2, $3, $4); }
+| SUB general_register immediate general_register
+   { $$ = svm_make_unresolved_instruction_sit(svm_subtract_immediate, $2, $3, $4); }
+| MUL general_register general_register general_register
+   { $$ = svm_make_unresolved_instruction_sst(svm_multiply, $2, $3, $4); }
+| MUL general_register immediate general_register
+   { $$ = svm_make_unresolved_instruction_sit(svm_multiply_immediate, $2, $3, $4); }
+| DIV general_register general_register general_register
+   { $$ = svm_make_unresolved_instruction_sst(svm_divide, $2, $3, $4); }
+| DIV general_register immediate general_register
+   { $$ = svm_make_unresolved_instruction_sit(svm_divide_immediate, $2, $3, $4); }
+| MOD general_register general_register general_register
+   { $$ = svm_make_unresolved_instruction_sst(svm_modulo, $2, $3, $4); }
+| MOD general_register immediate general_register
+   { $$ = svm_make_unresolved_instruction_sit(svm_modulo_immediate, $2, $3, $4); }
+
+/*
+| LOAD OPEN immediate CLOSE general_register {}
+| LOAD OPEN immediate PLUS general_register CLOSE general_register {}
+*/
+
+| LOAD OPEN general_register CLOSE general_register
+   { $$ = svm_make_unresolved_instruction_st(svm_load, $3, $5); }
+| LOAD OPEN general_register PLUS immediate CLOSE general_register /* load with constant offset, in words */
+   { $$ = svm_make_unresolved_instruction_sit(svm_load, $3, $5, $7); }
+| LOAD_IMMEDIATE immediate general_register
+   { $$ = svm_make_unresolved_instruction_it(svm_load_immediate, $2, $3); }
+
+| STORE general_register OPEN general_register CLOSE
+   { $$ = svm_make_unresolved_instruction_st(svm_store, $2, $4); }
+| STORE general_register OPEN general_register PLUS immediate CLOSE /* store with constant offset, in words */
+   { $$ = svm_make_unresolved_instruction_sit(svm_store, $2, $6, $4); }
+
+| LOAD_CONDITION OPEN general_register CLOSE condition_register
+   { $$ = svm_make_unresolved_instruction_st(svm_load_condition, $3, $5); }
+| LOAD_CONDITION OPEN general_register PLUS immediate CLOSE condition_register /* load_condition with constant offset, in words */
+   { $$ = svm_make_unresolved_instruction_sit(svm_load_condition, $3, $5, $7); }
+| LOAD_IMMEDIATE_CONDITION immediate condition_register
+   { $$ = svm_make_unresolved_instruction_it(svm_load_immediate_condition, $2, $3); }
+
+| STORE_CONDITION condition_register OPEN general_register CLOSE
+   { $$ = svm_make_unresolved_instruction_st(svm_store_condition, $2, $4); }
+| STORE_CONDITION condition_register OPEN general_register PLUS immediate CLOSE /* store_condition with constant offset, in words */
+   { $$ = svm_make_unresolved_instruction_sit(svm_store_condition, $2, $6, $4); }
+
+/*
+| STORE general_register OPEN global CLOSE {}
+| STORE general_register OPEN global PLUS general_register CLOSE {}
+STORE general_register OPEN general_register PLUS global CLOSE
+*/
+
+| BRANCH general_register
+   { $$ = svm_make_unresolved_instruction_s(svm_branch, $2); }
+| BRANCH immediate_label
+   { $$ = svm_make_unresolved_instruction_i(svm_branch_immediate, svm_make_unresolved_label_immediate($2)); }
+
+| BRANCH_AND_LINK general_register
+   { $$ = svm_make_unresolved_instruction_s(svm_branch_and_link, $2); }
+| BRANCH_AND_LINK immediate_label
+   { $$ = svm_make_unresolved_instruction_i(svm_branch_and_link_immediate, svm_make_unresolved_label_immediate($2)); }
+
+| COMPARE general_register general_register condition_register
+   { $$ = svm_make_unresolved_instruction_sst(svm_compare, $2, $3, $4); }
+| COMPARE general_register immediate condition_register
+   { $$ = svm_make_unresolved_instruction_sit(svm_compare_immediate, $2, $3, $4); }
+| BRANCH_ON_EQUAL condition_register immediate_label
+   { $$ = svm_make_unresolved_instruction_si(svm_branch_on_equal, $2, svm_make_unresolved_label_immediate($3)); }
+| BRANCH_ON_NOT_EQUAL condition_register immediate_label
+   { $$ = svm_make_unresolved_instruction_si(svm_branch_on_not_equal, $2, svm_make_unresolved_label_immediate($3)); }
+| BRANCH_ON_LESS condition_register immediate_label
+   { $$ = svm_make_unresolved_instruction_si(svm_branch_on_less, $2, svm_make_unresolved_label_immediate($3)); }
+| BRANCH_ON_GREATER condition_register immediate_label
+   { $$ = svm_make_unresolved_instruction_si(svm_branch_on_greater, $2, svm_make_unresolved_label_immediate($3)); }
+| BRANCH_ON_LESS_OR_EQUAL condition_register immediate_label
+   { $$ = svm_make_unresolved_instruction_si(svm_branch_on_less_or_equal, $2, svm_make_unresolved_label_immediate($3)); }
+| BRANCH_ON_GREATER_OR_EQUAL condition_register immediate_label
+   { $$ = svm_make_unresolved_instruction_si(svm_branch_on_greater_or_equal, $2, svm_make_unresolved_label_immediate($3)); }
+
+
+| COPY_FLOAT fp_register fp_register
+   { $$ = svm_make_unresolved_instruction_st(svm_copy_float, $2, $3); }
+| LOAD_IMMEDIATE_FLOAT immediate fp_register
+   { $$ = svm_make_unresolved_instruction_it(svm_load_immediate_float, $2, $3); }
+| LOAD_FLOAT OPEN general_register CLOSE fp_register
+   { $$ = svm_make_unresolved_instruction_st(svm_load_float, $3, $5); }
+| STORE_FLOAT fp_register OPEN general_register CLOSE
+   { $$ = svm_make_unresolved_instruction_st(svm_store_float, $2, $4); }
+| COMPARE_FLOAT fp_register fp_register condition_register
+   { $$ = svm_make_unresolved_instruction_sst(svm_compare_float, $2, $3, $4); }
+| COMPARE_FLOAT fp_register immediate condition_register
+   { $$ = svm_make_unresolved_instruction_sit(svm_compare_float_immediate, $2, $3, $4); }
+| ADD_FLOAT fp_register fp_register fp_register
+   { $$ = svm_make_unresolved_instruction_sst(svm_add_float, $2, $3, $4); }
+| ADD_FLOAT fp_register immediate fp_register
+   { $$ = svm_make_unresolved_instruction_sit(svm_add_float_immediate, $2, $3, $4); }
+| SUB_FLOAT fp_register fp_register fp_register
+   { $$ = svm_make_unresolved_instruction_sst(svm_subtract_float, $2, $3, $4); }
+| SUB_FLOAT fp_register immediate fp_register
+   { $$ = svm_make_unresolved_instruction_sit(svm_subtract_float_immediate, $2, $3, $4); }
+| MUL_FLOAT fp_register fp_register fp_register
+   { $$ = svm_make_unresolved_instruction_sst(svm_multiply_float, $2, $3, $4); }
+| MUL_FLOAT fp_register immediate fp_register
+   { $$ = svm_make_unresolved_instruction_sit(svm_multiply_float_immediate, $2, $3, $4); }
+| DIV_FLOAT fp_register fp_register fp_register
+   { $$ = svm_make_unresolved_instruction_sst(svm_divide_float, $2, $3, $4); }
+| DIV_FLOAT fp_register immediate fp_register
+   { $$ = svm_make_unresolved_instruction_sit(svm_divide_float_immediate, $2, $3, $4); }
+CALL-INSTRUCTION-RULES
+
+%%
+
+static char *svm_clone_string(const char *source_string){
+  char *result = epsilon_xmalloc(1 + strlen(source_string));
+  strcpy(result, source_string);
+  return result;
+}
+
+int svm_error(svm_unresolved_program_t program, char *message){
+  printf("%i: %s near \'%s\'\n", svm_lineno, message, svm_text);
+  //printf("YYMAXDEPTH is %i\n", (int)(YYMAXDEPTH)); // To do: do I need this?
+  epsilon_fatal(message); // of course this doesn't return
+}
+
+static svm_unresolved_program_t svm_parse_FILE_star(FILE *file){
+  svm_unresolved_program_t program = svm_make_unresolved_program();
+  int return_code = svm_parse(program);
+  if(return_code == 0)
+    return program;
+  else
+    epsilon_fatal("parse error");
+}
+
+svm_unresolved_program_t svm_parse_stdin(void){
+  return svm_parse_FILE_star(stdin);
+}
+
+svm_unresolved_program_t svm_parse_file(const char *file_name){
+  /* To do: this is not reentrant.  Use "%define api.pure" in Bison, 
+     "%option reentrant" in flex, then fix the incompatibilities.
+     It should not be hard. */
+  svm_in = fopen(file_name, "r");
+  if(svm_in == NULL)
+    epsilon_fatal("could not open the file \"%s\"", file_name);
+  svm_unresolved_program_t result = svm_parse_FILE_star(svm_in);
+  fclose(svm_in);
+  return result;
+}

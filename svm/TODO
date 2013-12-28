@@ -1,0 +1,121 @@
+## [one-line description]
+
+## This file is part of GNU epsilon
+## Copyright (C) 2012 Université Paris 13
+
+## Written by Luca Saiu
+
+## This file is part of GNU epsilon.
+
+## GNU epsilon is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+
+## GNU epsilon is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+
+## You should have received a copy of the GNU General Public License
+## along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
+
+
+- Backend-dependent runtime:
+  use this (look for `.struct EXPRESSION' in the Gas manual) for accessing the
+  saved context in a higher-level way:
+              .struct 0
+     field1:
+             .struct field1 + 4
+     field2:
+             .struct field2 + 4
+     field3:
+  - The .struct definition should be automatically generated, if possible. But it
+    looks quite hard to extract struct information from C sources...
+    An easier solution: generate both the C code (I'm only speaking about the struct)
+    definitionxs and the assembly code from a file written in a simple declarative
+    language. Fuck, I use a lot of generated C code! But I don't see any simpler
+    alternative.
+- SVM threaded code:
+  benchmark with or without these GCC options (use mumble_CFLAGS, which should also
+  explcitly contain $(AM_CFLAGS), if default options should *also* be used):
+  - -fcrossjumping
+  - -fgcse-sm
+  - -fgcse-lm
+  - -fgcse-las
+  - -funsafe-loop-optimizations
+  - -fno-gcse (it's suggested when using computed gotos)
++ SVM frontend: prevent double definition of constants, globals and labels
+  - do it for constants too, after adding constant support
++ SVM: add float support (supporting just doubles is enough for immediates,
+  but not for C function calls)
+- SVM frontend: check for immediate overflow
+- SVM frontend: support bounds on immediate size (it's arbitrary for a software
+  implementation, but it will be useful for testing the compiler)
+- SVM frontend: add constant support
++ SVM frontend: factor duplicate code from the parser into
+  slow-virtual-machine-frontend.c, so that instructions with any given "shape" are
+  easier to create
+- SVM frontend: make hash tables containing definitions of labels, globals and
+  constants part of the unresolved program data structure; this will help to make
+  the frontend reentrant
+- SVM frontend: make the scanner reentrant (it *is* supported by flex).
++ SVM: understand how cmp instructions (and the corresponding conditional
+       jumps) works on real architectures, particularly when comparing a
+       register to zero; implement the same logic on the SVM.
++ SVM frontend: look at the possible memory leak in the parser; fix it if there
+  is a problem, and if it's correct write why it is so in a comment at the beginning
+  + (there was no problem)
++ Makefile.am: the output of makeinfo, flex and bison should not be cleaned by
+  clean-local (or whatever it's called)
+- SVM frontend: implement command-line options
++ utility: add singly-linked lists
+- utility: add doubly-linked lists
+- utility: add very efficient word-to-word hash table
++ add support for thread context creation (register file, stack and
+  anything else); I already have some code which is not in the repository yet.
+  Some parts are written in portable C, some are platform-dependent and/or written
+  in assembly
+    + find a decent directory layout
+    + Use thread context creating in the SVM (this will make multithreading easier)
+    - Thread context dumping and undumping must be implemented in assembly for each
+      architecture, and thread undumping can't be, unfortunately, just a procedure;
+      it must constist of two separate sequences of instructions at least in all the
+      architectures I know: at least one register has to be restored *after jumping*
+      to some code right before the restored instruction pointer. This might not be
+      needed in architectures with a jump delay slot but without a load delay slot,
+      but anyway it is not generalizable.
+      - Each architecture (including the SVM for its default usage) should have
+        well-defined assembly conventions, to be explicitly documented.
++ SVM: allow access to native functions and non-functions
++ SVM: allow native function calling
+  + I still have to do it for all possible type combinations, which are still many
+    even if I drastically restrict the set of permitted types
+    - They are actually too many. The current solution which may be applied with up to
+      2 parameters (up to 4 when severely restricting admissible types) is very, very
+      ugly even if possibly efficient. I have to find a way to generate stubs for given
+      C interfaces... Swig looks hard to modify, and I would prefer not to depend on it
+      for FFI. No ideas yet.
++ SVM: allow dynamic linking of native shared libraries
+- SVM: autoconfize (adding a configure-time option) the definition of epsilon_float
+- SVM: allow epsilon_float to be smaller than a word
++ SVM frontend: reimplement immediates by also including a tag, so that we can easily
+  represent 0.0 floats and resolve more cleanly, without those stupid asserts.
+  + Also supported sums, differences, products, quotients and modulos of immediates
+    - Also support these things in concrete syntax
+- SVM interpreter: think about type-punning in the new epsilon_word_or_float union,
+  and look for remaining cases where the union is not used. The union itself still
+  looks like a bad idea to me...
++ SVM: automatically generate repetitive code for C function calls
++ SVM: run a file specified in the command line, instead of (always) reading stdin
+- SVM: Make the scanner and parser interface reentrant (for future extensions; it's not
+  really needed now)
+
+Longer term:
+- SVM: superinstruction support, with code automatically generated after
+  benchmark analysis
+- SVM: add "stack+accumulator" (or accumulator*s*, with a number of accumulators less
+  than 4) instructions: use different opcodes, and *no* register index names to
+  encode instructions always operating on the same registers. This is different from
+  existing hardware architectures, but should make the implementation more
+  efficient

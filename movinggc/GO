@@ -1,0 +1,44 @@
+#!/bin/bash
+## This file is part of GNU epsilon.
+
+## Copyright (C) 2012 Université Paris 13
+## Written by Luca Saiu
+
+## GNU epsilon is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+
+## GNU epsilon is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+
+## You should have received a copy of the GNU General Public License
+## along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
+
+
+set -e
+
+#gcc -fverbose-asm -O2 -g -save-temps -Wall movinggc.c && ./a.out
+#OPTIMIZATIONFLAGS="-O2"
+OPTIMIZATIONFLAGS="-O3"
+OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -fomit-frame-pointer"
+#DEBUGFLAGS="-g"
+
+#DEBUGFLAGS="$DEBUGFLAGS -fno-inline" # This makes performance worse
+#PROFILEFLAGS="-p -pg"
+
+#OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -Os"
+CFLAGS="$OPTIMIZATIONFLAGS $DEBUGFLAGS $PROFILEFLAGS"
+
+CFLAGS="$CFLAGS -DMOVINGGC_ARCHITECTURE_"`uname --machine | sed s/-/_/g`" "
+
+CFLAGS="$CFLAGS -save-temps"
+
+echo COMPILING...
+gcc -fverbose-asm $CFLAGS -Wall movinggc.c driver.c
+echo FLUSHING...
+sync
+echo RUNNING...
+time -p ./a.out

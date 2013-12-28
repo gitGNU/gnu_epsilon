@@ -1,0 +1,221 @@
+TODO
+----
+
+- Apparently, and very surprisingly for me, inlining the allocation function is *not*
+  beneficial.
+  It sure *is* good to inline object_to_tag(), object_to_datum() and object_to_size().
+
++ Large objects: make stack blocks (this requires information from the user
+  about the number of pointers)
+- Allocation function: turn the loop into a conditional
+
++ Collect at large object allocation time, when needed
+- Garbage collect large objects in parallel
+- Rename set_of_pages: it's not just a set any more.
+
+- Remove the length feature of doubly-linked lists, if we don't use it. It may
+  win us a (small) performance boost.
+
+- Is epsilongc_update_heuristics() called from the right places?
+- Fix the two-collections-in-a-row problem, if it's still there.
+  It looks like it's not solved yet.
++ ENABLE_DESTROY_EMPTY_PAGES: use some heuristic to avoid destroying too early,
+  so that we avoid destroying and then re-creating pages when possible
+- Fix heuristics so that they try to make collections less frequent (and the heap
+  larger) when the alive objects are few (or when collections are frequent?).
+- Fix heuristics so that they only keep track of the payload, or only
+  of whole page sizes.
+- Fix heuristics so that they increase the heap size beyond the trashing
+  level, when it's really needed.
+
+- Deferred sweeping: make sweeper threads work also when mutating? This would
+  make more processors active when the mutator is sequential, but it risks to
+  completely trash the L2 cache.
+
++ Make aggressive inlining optional
+
++ Update stack blocks no at page creation time
++ Update stack blocks no at page destruction time
++ Update stack blocks no at page refurbish time
++ Actually create/destroy stack blocks when updating the stack blocks no
++ Destroy stack blocks at finalization time (from global_structures.c)
+
+- Make a spinning macro which is less "active" in active waiting; for example using
+  nanosleep with some small constant.
+  - It's not worth the trouble, if OProfile is accurate enough
+ 
++ Keep all the allocators currently holding a page in a global linked list and in
+  another thread-local list, and only scan that list when we're interested in
+  allocator pages, instead of scanning all the allocators or all the thread-local
+  allocators.
+  + This seems to be a performance win when we have a lot of threads in nanolisp.
+
+- Deferred sweeping: we should sweep also pages *not* in the pool we're using. This
+  should shorten pauses
+  - This is currently quite hard: I have to reconsider the whole idea of pages which
+    belong to exactly one list to do taht. Is the performance gain worth its price?
+
+- Parallel sweeping:
+  we can eliminate most of the locking within the collector by having per-collector-thread
+  lists in pools; only the final append requires syncrhonization.
+  - Can we also remove the global queue of the to-be-swept pages?
+    - Implement a list operation detaching k elements
+
++ Remove EPSILONGC_COLLECTOR_THREADS_NO:
+  + make it automatically computed
+  - also make it optionally overridable from:
+    - the shell environment
+    - API (before initialization)
+
++ Try to use spinlocks instead of mutexes for short critical sections (I'd say
+  all of them except for the ones within the collector itself)
+  + No, it's a good idea also within the collector: critical sections are extremely
+    short also in that case
+  - Don't use spinlocks on UMP
+
++ Sweeping must *not* be interrupted by a GC, because an incompletely-swept page can
+  prevent marking from finding all reachable objects.
+  + This is correct, but sweeps in a critical section.
+    + Use a different locking scheme preventing long critical sections!!!
+
+? Implement the kludge in pool.c (which creates empty pages at startup) in a clean
+  way, in a function callable by the user and which may be configured as the default.
+  I think it's always a win with SMPs.
+
+- Weak pointers
+
+- Memory regions (just like obstacks in GCC)
+
+- Immortal objects
+
+- Guardians
+  - They are very cool, but their implementation described in the paper assumes
+    a collector very different from mine, and I think I can't reuse any idea.
+    - I can build guardians *on* non-trivial finalization.
+
+- Trivial finalization (that's really trivial, I can implement it in ten minutes)
+
+- How to generalize finalization and guardians:
+  - I should just implement weak pointers, and allow the user to register a
+    procedure to be called when the weakly-pointed object dies, taking as arguments
+    the object and a pointer to the weak pointer; for "normal" weak pointers the
+    procedure will just set the weak pointer to NULL; for finalization, it can invoke
+    any procedure. For guardians it may move the object from the 'alive' to the
+    'dead' list. In any case the procedure can trace the dead object to resurrect it
+    and its children. The procedure should be callable after marking in my collector,
+    with or without deferred sweeping.
+    How to implement this: tracers should also push on a separate stack the pointers
+    to weak pointers found when marking objects (doing this while marking ensures that
+    exactly one copy of each weak pointer is pushed).
+    Finalizable objects should have associated a (hidden) guardian, which is traced
+    as a root and contains weak pointers to its guarded objects. Yes, finalization is
+    expensive.
+    - The paper is only cited three times
+
+- Real finalization, with unlimited resurrection; possibly inefficient, and only
+  supported when enabled at comfiguration time
+
++ Deferred sweeping
+  + Actually destroy empty pages when using deferred sweeping and
+    ENABLE_DESTROY_EMPTY_PAGES is #define'd. It's not hard.
+
++ Implement release_pages_from_thread_local_allocators()
+
+- Add ENABLE_KEEP_TIME_STATISTICS. Is disabling it a performance win?
+  - At least if collection are not very frequent (< 10 per second), definitely not
+
++ Restore all the locks removed for debugging the signal problem
+
+- Can we live without the field collection_state in mutator thread, and
+  remove the second active wait in the collector? The risk would be nesting signal
+  handlers in workers, with low probability. Would everything work in this case?
+  Mmm, I'm not sure, it's very complicated. Let's try that only if it's a big
+  performance improvement.
+  + It doesn't seem to cost anything in practice.
+
+- Make all worker threads behave the same way during collection, instead of making
+  a separate case for the triggerer each time.
+
+- Possibly very important optimization:
+  after receiving the *first* signal all mutators except the one who triggered the
+  collection can just return from the signal handler and resume their work, including
+  allocation, until they need a global collection lock -- in which case they will simply
+  block till the end of the collection.
+  Pages held by their allocators will be considered fully alive. This can potentially
+  generate an unbounded amount of unreclaimed garbage referred by false pointers in such
+  pages. Is this a problem in practice?
+  - No, it's unclear when to scan from held pages... Again after sweeping, when mutators
+    are blocked again by another signal? It could work. Is it worth the trouble?
+
++ By playing with futures in nanolisp I observed a strange bug: the list of all
+  allocators may become cyclic, and does not contain all the elements. The allocators in
+  the cyclic list are not contained in any thread-local list.
+  all_allocators->allocators_last_element is *NOT* the last element.
+  Is this a missed synchronization? It may also be a bug in the new list implementation.
+
++ Allow epsilongc_thread_t to represent also a non-mutator thread (this is important
+  for collector threads)
+  - The current solution is very ugly.
++ Fix the mark stack overflow check (the index is used in the wrong way, mixing byte
+  and element counts)
++ Make a global list of empty pages, to be destroyed later in a critical section.
+  + Not in a critical section, but a few pages at a time when requesting pages
+    to pools.
+  + Blank pages can also be refurbished into different kinds now.
++ unmmap() on exit, with atexit(). This is apparently needed. [no, this is now obsolete]
+  + no, I don't think any more it's needed.
++ Temporarily disable GC when creating new mutator threads at runtime. This will
+  allow us to create them at any time. But get synchronization right for this, as
+  we don't want that two concurrent thread creations disable GC for everyone.
+- display_kind_information(): fix the "overhead" field.
++ Benchmark nanolisp with a separate pool and allocator for *temporary* conses;
+  I suspect it's a big win
+  + It's very easy to distinguish "temporary" conses in nanolisp, and statistics
+    confirm this.
+  + It's a big *lose* with page destruction enabled: page destruction is in fact
+    much more frequent hence my intuition was correct, but *destroying pages is
+    expensive*
+  - It looks the same, or a very small win with page destruction disabled. To do: other benchmarks
+    + benchmark3.scm, with temporary-cons as a *user* primitive: the same, or very small win
+    + interactive.scm: smallish but measurable win with large pages (size 1Mb~16Mb)
+
+- Reimplement epsilongc_get_current_time()
++ There is __sync_fetch_and_or() for the parallel version with mark bits
++ It's relatively easy to make at least allocation multithreaded; how
+  does Boehm use signals? I need to do the same.
++ Support mark *bit* arrays.
++ Support mark *byte* arrays.
++ Also support mark *word* arrays, just for very exotic architectures.
++ Support mark *bit* arrays, using atomic operations when parallel tracing
+  is enabled; refuse to compile when both bit arrays and generational GC are
+  enabled.
+- Finalization
+- Large objects
++ Allow to allocate *also* by specifying a number of bytes or words, à-la-malloc()
+  (or à-la-Boehm)
+  + It's only very slightly slower. Very good!
+- Anyway: int pthread_attr_getattr (const pthread_attr_t *OBJ is a nice
+  way to get the stack bottom (but not the stack top) with POSIX threads
++ Root marking
+- Update license headers: the new version is under GPL version *3*
+  or later. I can copy from nanolisp's headers.
+- Write a nice manual in Texinfo (user interface *and* internals)
+- Update the GFDL if needed.
++ Support:
+  + custom roots
+  - mark hooks
+- Generational GC
+
+- Correctly handle syncrhonization when creating and destroying pools and allocators.
+  There's no need to do that for kinds.
+
+To do: write this in the paper
+==============================
+- ENABLE_OVERWRITE_DEAD_OBJECTS is a *big* win with non-deferred sweeping
+  (surely because of cache issues); it also seems essentially free with deferred
+  sweeping and it helps debugging, so it should always be enabled.
+  To do: Document it.
+
+- ENABLE_OUT_OF_PAGE_MARK_ARRAY is a win with non-deferred sweeping and parallel
+  collection; with that dead-object-overwriting is even more critical.
+  Mmm. Or maybe ENABLE_OUT_OF_PAGE_MARK_ARRAY changes nothing.

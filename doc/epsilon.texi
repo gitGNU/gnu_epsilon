@@ -1,0 +1,496 @@
+\input color % Incredibly, this kludge works. Oh, yes, this is -*- texinfo -*-...
+\input texinfo.tex @c ...indeed, it is Texinfo.
+
+@c This file is part of the GNU epsilon manual.
+@c Copyright (C) 2005, 2013  Luca Saiu
+@c Copyright (C) 2012  Université Paris 13
+@c Written by Luca Saiu
+
+@c Permission is granted to copy, distribute and/or modify this document
+@c under the terms of the GNU Free Documentation License, Version 1.3
+@c or any later version published by the Free Software Foundation;
+@c with no Invariant Sections, no Front-Cover Texts, and no Back-Cover
+@c Texts.  A copy of the license is included in the section entitled ``GNU
+@c Free Documentation License''.
+
+@c Written by Luca Saiu
+
+@c @@@@@ Header
+@c @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+@c %**start of header
+@setfilename epsilon.info
+@include version.texi
+@settitle epsilon @value{EDITION}
+
+@c %**end of header
+
+@c To do: when the current solution looks bad in Info, change @emph to
+@c @i and @strong to @b, and @code to @t.
+
+@c Before release run C-u C-c C-u C-a to fix the structure of nodes
+@c To do: replace @emph with @dfn where appropriate
+
+@setchapternewpage odd
+
+@c ------------------------------------------------------------------------
+@c %**end of header
+@c ------------------------------------------------------------------------
+
+@copying
+This is the manual documenting epsilon (version @value{VERSION},
+last updated on @value{UPDATED}).
+
+@c @c @mylambda{} @myepsilon{} @mytau{17} @mybottom @myarrow @mytailedarrow{}
+@c @c @mytimes @myrho 
+@c @c @myomega
+@c @c @w{@mylambda{} @math{x .}@mylambda{} @math{y . x + y}}
+
+epsilon is an extensible programming language.
+[FIXME: say something more]
+
+Copyright @copyright{} 2005, 2013 Luca Saiu
+
+Copyright @copyright{} 2012 Universit@'e Paris 13
+
+Written by Luca Saiu
+
+@quotation
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with the
+Invariant Sections being ``GNU General Public License'', with no
+Front-Cover texts and with the Back-Cover text being ``@emph{You have
+freedom to copy and modify this manual, like GNU software.}''.
+
+A copy of the license is included in the section entitled ``GNU Free
+Documentation License''. 
+@end quotation
+@end copying
+
+@dircategory Programming Languages
+@direntry
+* epsilon: (epsilon). A programming language
+@end direntry
+
+
+@c @@@@@ Macros
+@c @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+@ifhtml
+@rmacro mycolor{texr, texg, texb, htmlcolor, text}
+@inlineraw{html,<span style="color:\htmlcolor\;">}\text\@inlineraw{html,</span>}
+@end rmacro
+@end ifhtml
+@ifnothtml
+@iftex
+@c This is *really* horrible, but colors nest correctly: try @red{aa@green{bb}aa}
+@c @inlineraw{tex,@definecolor{thiscolor}{rgb}{\texr\,\texg\,\texb\}@textcolor{thiscolor}{\text\}}
+@c ???????
+@c @inlineraw{tex,@definecolor{thiscolor}{rgb}{\texr\,\texg\,\texb\}@textcolor{thiscolor}{\text\}}
+@rmacro mycolor{texr, texg, texb, htmlcolor, text}
+@inlineraw{tex,@definecolor{thiscolor}{rgb}{\texr\,\texg\,\texb\}@textcolor{thiscolor}{\text\}}
+@end rmacro
+@end iftex
+@ifnottex
+@rmacro mycolor{texr, texg, texb, htmlcolor, text}
+\text\
+@end rmacro
+@end ifnottex
+@end ifnothtml
+
+@c @mycolor{0.6,0,0,#cc0000,\text\}
+@c \text\
+@rmacro red{text}
+@mycolor{0.6, 0,   0,   #cc0000, @withcommas{\text\}}
+@end rmacro
+@rmacro green{text}
+@mycolor{0,   0.6, 0,   #00cc00, @withcommas{\text\}}
+@end rmacro
+@rmacro yellow{text}
+@mycolor{0.6, 0.6, 0,   #cccc00, @withcommas{\text\}}
+@end rmacro
+@rmacro purple{text}
+@mycolor{0.6, 0,   0.6, #cc00cc, @withcommas{\text\}}
+@end rmacro
+
+@iftex
+@macro epsilonsubscript{subscript}
+@inlineraw{tex,$@varepsilon_{\subscript\}$}@inlineraw{tex,{}}
+@end macro
+@end iftex
+
+@ifnottex
+@ifhtml
+@macro epsilonsubscript{subscript}
+@inlineraw{html,&epsilon;<sub>\subscript\</sub>}
+@end macro
+@end ifhtml
+@ifnothtml
+@macro epsilonsubscript{subscript}
+epsilon\subscript\
+@end macro
+@end ifnothtml
+@end ifnottex
+
+@macro epsilonzero{}
+@epsilonsubscript{0}
+@end macro
+
+@macro epsilonone{}
+@epsilonsubscript{1}
+@end macro
+
+@ifhtml
+@unmacro print
+@c ``⊣'' looks much nicer than the default ``-|'':
+@macro print
+⊣
+@end macro
+@end ifhtml
+
+@c This is useful to pass arguments containing commas to macros:
+@rmacro withcommas{text}
+\text\
+@end rmacro
+
+@c [@strong{\notice\}: @emph{\text\}]
+@rmacro metanotice{notice, text}
+@red{[@strong{\notice\}: @emph{\text\}]}
+@end rmacro
+
+@rmacro fixme{text}
+@metanotice{To do, @withcommas{\text\}}
+@end rmacro
+
+@rmacro maybe{text}
+@metanotice{Maybe, @withcommas{\text\}}
+@end rmacro
+
+@macro fill{}
+@todo{fill this}
+@end macro
+
+@rmacro move{text}
+@metanotice{Move this, @withcommas{\text\}}
+@end rmacro
+
+@c DEPRECATED
+@alias todo=fixme
+
+@macro bzz{text}
+\text\
+@end macro
+
+
+@c @@@@@ Title page
+@c @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+@titlepage
+@title GNU epsilon
+@subtitle an extensible programming language
+@subtitle For version @value{VERSION}, @value{UPDATED}
+@author Luca Saiu
+@c The following two commands start the copyright page.
+@page
+@vskip 0pt plus 1filll
+@insertcopying
+@end titlepage
+
+
+@c @@@@@ Contents
+@c @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+@c So the toc is printed in the right place.
+@contents
+
+@c If not generating TeX output, make this one the Top node and insert
+@c brief copying conditions:
+@ifnottex
+@top epsilon
+@insertcopying
+@end ifnottex
+
+@node Top
+@c @@@@@ Body
+@c @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+@c Main menu
+@menu
+* This manual is incomplete::  Please come back later -- unless you're curious
+@c * Introduction::               What epsilon is
+@c * Library::                    sdf..sad.sa.d.saed
+@c * Something::                  sdf..sad.sa.d.saed
+* Compilers::                  How to use and modify epsilon compilers
+@c * Appendices::                 Some stuff not fitting in the body
+@c * GNU General Public License:: The GNU General Public License says
+@c                                how you can copy and share epsilon
+@c * GNU Free Documentation License:: The GNU Free Documentation License
+@c * Index::                      Concept index
+@end menu
+
+@node This manual is incomplete
+@chapter This manual is incomplete
+
+This manual is @emph{very} incomplete, actually just a stub.  The
+project needs actual documentation, and I plan to write it --- but not
+before the implementation itself is in a stable state.
+
+At the present time I'm using this document mostly to try out ideas,
+for myself.  You're welcome to look if you're curious, but this is not
+really ready for users.
+
+As the document gradually converges to a stable state, the
+presentation style will get richer, and I'll write English in a more
+careful way.  I'm actually a perfectionist.  But I can't waste time on
+my literary ambitions when I'm writing braindumps.
+
+
+@section Where to look
+
+Ironically, I've already written at length about epsilon.
+
+I've described its formal syntax and semantics, along with its
+philosophy and rationale, in my PhD thesis.  It's available at
+@url{http://ageinghacker.net/publications#phd-thesis}, and you're very
+welcome to read it.  Anyway, even if it also describes some source
+code, a thesis is not software documentation.  The mathematical
+treatment is not very accessible, and there is barely any mention of
+the user interface.
+
+Essentially, my thesis provides a formal treatment of epsilon, also
+deriving some properties from its semantics, by formal proofs.  Such a
+formal system is inherently fragile, and can't be kept correct unless
+the language is frozen.  I don't plan any radical change
+in @epsilonzero at the current time, but I might see some change to
+make in the future.  This is definitely a @emph{The Right Thing} kind
+of project, and if it turns out that I have to destroy in order to
+build a better thing, I'm perfectly willing.  The thesis will stay as
+it is: it covers my language philosophy and describes very precisely a
+particular state in the language history.  At the present time, that
+state is a strict subset of the current state, which makes the
+description still very relevant.  In the future, this may change and
+the software may drift away into a different direction.
+
+I plan to use my blog to post updates about epsilon; again, mostly
+thinking of myself as the public.  Blog posts will show ideas in a
+less stable state than this document, and will also deal with failed
+attempts.  The blog address is @url{http://ageinghacker.net/blog}
+
+Of course you're welcome to write to the project mailing list (see
+@url{http://lists.gnu.org/mailman/listinfo/epsilon-devel}), or to
+me personally if you have questions.
+
+Thanks.
+@flushright
+--- Luca Saiu
+@end flushright
+
+@c ==============================================================
+@node Compilers
+@chapter Compilers
+
+Thanks to its architecture, compilers for epsilon are simply sets of
+ordinary procedures, technically part of its library.  There is no
+magic external program called a compiler: compilation is simply a
+functionality available to program, which can decide at some point to
+dump their state into a native executable file during their execution.
+
+As a consequence of epsilon's architecture, its compilers are
+whole-program.
+
+At the present time I'm working on the @emph{trivial compiler}.  A more
+ambitious compiler, likely using GCC as the middle-end, will come
+later.
+
+@c @section Trivial compiler
+The trivial compiler is conceived to be very simple and easy to
+retarget, while still generating code good enough to beat an interpreter
+in performance.
+
+As a slogan or design goal for the trivial compiler we could say
+@emph{100,000 times smaller than GCC, only 10 times slower code}.  The
+efficiency goal has not been attained yet.
+
+A frontend translates @epsilonzero, to an intermediate stack-based
+language.  Several different backends exist to translate the
+intermediate code to either machine code, or to code for our custom
+SVM virtual machine.
+
+@section Frontend
+@fixme{It works and it doesn't really need much maintaining, but is
+currently the ugliest part of the compiler.  I'd like to rewrite
+that.}
+
+@section Intermediate language
+The intermediate language has a very uniform behavior: parameters and
+results are passed through a thread-local stack.  Each procedure
+activation has a stack frame containing slots for input and output,
+for local variables, and scratch space.  The exact stack layout is
+specific to each backend.
+
+Primitives may be implemented in portable C or in assembly.  In either
+case, they operate on the stack, popping parameters off the top of the
+stack, and pushing back results.  It is reasonable that a new backend
+starts with all primitives implemented in C, with the user replacing
+the most used ones with assembly implementations, for better performance.
+
+At all moments the stack height relative to the currently procedure
+frame is known at compilation time, which enables backends to
+translate stack accesses into memory read and writes using a frame
+pointer plus constant offsets, with no need for a stack pointer at run
+time.
+
+Such frame-pointer-relative operations are more efficient than the
+naïve alternative, but all the reading, writing and copying of
+intermediate data through memory (rather than registers) is the main
+reason the trivial compiler generates inefficient code.
+
+@fixme{Some} backends may use a second stack per thread to hold return
+addresses and some temporaries which are only needed at procedure call
+time; since everything on the main stack gets to be data, having such
+a @emph{return stack} simplifies the garbage collection interface.  As
+a secondary advantage, the return stack may be used for keeping some
+temporaries which are only needed at call time, which saves some
+shuffling on indirect calls.
+
+The intermediate code distinguishes tail and non-tail calls.
+
+@fixme{add an example}
+
+@c @subsection Backend-dependant runtime
+
+@section Backends
+
+@subsection The Slow Virtual Machine
+@fixme{The SVM exists, but it was conceived for a previous iteration
+of the architecture.  I have to adapt it a little, which will result in
+simpler code, and likely in better performance as well.}
+
+@subsection C backend
+This was actually the first backend I wrote.  It works, but I don't
+think it will scale to large programs (even if people tell me that
+recent GCCs are very good at compiling huge C source files made of
+small function, which is my case).  More importantly, the problem of
+sibling-call compilation is entirely delegated to GCC.
+
+@fixme{I will replace this with the SVM}
+
+@subsection MIPS backend
+@fixme{This already generates working code, even if the interface is kinda ugly}
+
+@subsubsection Register map
+We use registers which are callee-save according to C ABIs:
+@code{$16}-@code{$23}.  They should be plenty.
+
+I don't reserve for our internal purposes the registers used for
+passing parameters (@code{$4}-@code{$7} on the o32 ABI,
+@code{$4}-@code{$11} on n32 and n64) or returning results
+(@code{$2}-@code{$3}) in C, nor C the stack pointer @code{$29} or the
+global pointer @code{$28}.
+
+The global pointer @code{$29} can be trashed by C functions under the
+o32 ABI.  All the more recent ABIs have since fixed that, but o32 is
+still widespread.  I currently restore @code{$29} after calling C
+functions, without conditionalizing on the ABI.
+
+@table @code
+@item $2-$3
+scratch
+@item $16
+epsilon stack pointer
+@item $21
+a valid copy of the global pointer, to restore @code{$29}
+@item $22
+@code{epsilon_c_primitive_functions} base.
+@item $23
+pointer to the C @code{struct thread_context} structure for the current thread.
+@end table
+Easily available for future use:
+@table @code
+@item $17-$20
+available for future use
+@item $12-$15
+(caller-save) available as scratch for future use
+@item $24-$25
+(caller-save) available as scratch for future use
+@end table
+
+@subsection x86_64 backend
+There are two completely different calling conventions.  If I also have to support the microsoft convention, I will have to conditionalize a little.
+
+@table @emph
+@item GNU (actually system V, also used by the other Unix systems)
+parameters @code{%rdi}, @code{%rsi}, @code{%rdx}, @code{%rcx}, @code{%r8}, and @code{%r9} --- results @code{%rax}, @code{%rdx}
+@item microsoft
+parameters @code{%rcx}, @code{%rdx}, @code{%r8}, @code{%r9} --- result @code{%rax}
+@end table
+I'll completely ignore the microsoft convention for the time being.
+
+Again, I'm only reserving callee-save registers.
+In the SysV ABI, callee-save registers are
+@code{%rbx}, @code{%r12}, @code{%r13}, @code{%r14}, @code{%r15}.
+@code{%rsp} is also technically callee-save, but I don't want to use it.  The same holds for @code{%rbp}; that should be less critical, but I still won't use it.
+
+So, here's my tentative register map for the SysV ABI:
+@table @code
+@item %rax %r11
+scratch
+@item %rbx
+epsilon stack pointer
+@item %r12
+@code{epsilon_c_primitive_functions} base.
+@item %r13
+pointer to the C @code{struct thread_context} structure for the current thread.
+@end table
+
+Easily available for future use:
+@table @code
+@item %r14 %r15
+available for future use
+@end table
+
+I use the C stack for return addresses, and for return addresses only.
+This comes for free when using @code{callq}, which pushes a return
+address to @code{%rsp}.
+
+@subsection Future backends
+@fixme{I plan to write a backends for PowerPC and x86 as well.  I
+don't have access to hardware implementations of other architectures at
+the present time, but I know where to ask when the time comes.}
+
+@c @c ==============================================================
+@c @node Appendices
+@c @c @unnumbered Appendices
+@c @c Blah.  sdajfsdjkfh sjkd fhjksdfjk sdfjksdjkf jksdf jksd fjksd f.
+@c @c Blah.  sdajfsdjkfh sjkd fhjksdfjk sdfjksdjkf jksdf jksd fjksd f.
+@c @c Blah.  sdajfsdjkfh sjkd fhjksdfjk sdfjksdjkf jksdf jksd fjksd f.
+@c @c Blah.  sdajfsdjkfh sjkd fhjksdfjk sdfjksdjkf jksdf jksd fjksd f.
+@c @c Blah.  sdajfsdjkfh sjkd fhjksdfjk sdfjksdjkf jksdf jksd fjksd f.
+@c @c Blah.  sdajfsdjkfh sjkd fhjksdfjk sdfjksdjkf jksdf jksd fjksd f.
+@c @c Blah.  sdajfsdjkfh sjkd fhjksdfjk sdfjksdjkf jksdf jksd fjksd f.
+@c @c Blah.  sdajfsdjkfh sjkd fhjksdfjk sdfjksdjkf jksdf jksd fjksd f.
+
+@c @menu
+@c * GNU General Public License::      License for the software
+@c * GNU Free Documentation License::  License for this manual.
+@c @end menu
+
+@c @node GNU General Public License
+@c @appendix GNU General Public License
+@c @cindex GNU General Public License
+@c @include gpl.texi
+
+@c @node GNU Free Documentation License
+@c @appendix GNU Free Documentation License
+@c @include fdl.texi
+
+@c @node Index
+@c @unnumbered Index
+@c @printindex cp
+
+@c @example
+@c aa@red{bb}aa
+@c @end example
+
+@bye

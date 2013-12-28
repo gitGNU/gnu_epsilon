@@ -1,0 +1,4 @@
+# Written by Luca Saiu in 2013
+# I hereby release this file into the public domain, up to the extent
+# permitted by the law.
+make -C ~/epsilon bin/epsilon-c-test-untagged && time -p ~/epsilon/bin/epsilon-c-test-untagged

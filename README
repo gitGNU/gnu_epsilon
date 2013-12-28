@@ -1,0 +1,60 @@
+Copyright (C) 2012 Université Paris 13
+Copyright (C) 2013 Luca Saiu
+Written by Luca Saiu
+
+This file is part of GNU epsilon.
+
+GNU epsilon is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+GNU epsilon is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
+
+
+
+The Scheme files in bootstrap/scheme depend on guile+whatever.
+When linked against Guile 2.x, guile+whatever should always be called *with* the option
+--no-auto-compile .
+
+guile+whatever should always be called from the directory
+bootstrap/scheme -- hence *not* from the directory where its compiled
+executable file resides.
+
+From guile+whatever (using the load procedure or from the shell
+command line), you can load:
+
+* bootstrap.scm
+* quick-start.scm (same effect as bootstrap.scm but faster, using exec: it
+                   only works after bootstrap.scm has been run with success:
+                   bootstrap.scm also does unexec during startup)
+* cps-repl.scm    (experimental CPS transform)
+
+
+epsilon1
+--------
+bootstrap.scm and quick-start.scm do not load the epsilon1 REPL, but
+epsilon1 expressions can be evaluated with the macro e1:toplevel.  For example:
+
+  (e1:toplevel (cons:cons 1 2))
+
+will return a whatever cons.
+
+
+epsilon1 with the experimental CPS transform
+--------------------------------------------
+
+The REPL is automatically started, so it is not possible to use Guile commands.
+
+All toplevel expressions must currently have dimension at least one.
+Results after the first one are silently ignored.
+
+For example:
+  (e1:let/cc k (fixnum:+ 1 2 3 (e1:call-closure k 4) 5))
+will return the whatever 4.

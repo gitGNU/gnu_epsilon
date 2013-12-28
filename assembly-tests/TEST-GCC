@@ -1,0 +1,12 @@
+#!/bin/bash
+# Written by Luca Saiu in 2013
+# I hereby release this file into the public domain, up to the extent
+# permitted by the law.
+
+CFLAGS="-O3 -fno-inline-functions -fno-unroll-loops -fverbose-asm"
+if [[ `hostname` == sussman ]]; then
+    CFLAGS="$CFLAGS -mtune=loongson2f -march=loongson2f"
+fi
+for source in fibo.c test_c_abi.c; do
+    gcc -save-temps -I .. $CFLAGS -save-temps $source && time -p ./a.out
+done

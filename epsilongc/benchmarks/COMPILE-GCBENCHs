@@ -1,0 +1,29 @@
+#!/bin/sh
+## This file is part of GNU epsilon.
+
+## Copyright (C) 2012 Université Paris 13
+## Written by Luca Saiu
+
+## GNU epsilon is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+
+## GNU epsilon is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+
+## You should have received a copy of the GNU General Public License
+## along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
+
+rm *-ported-*gc
+gcc -lm -pthread -I ~/usr/include/gc -DHOLES -DGC -O3 GCBench-ported.c -lm -lgc -o GCBench-ported-boehmgc
+gcc -lm -pthread -I ~/usr/include/gc -DHOLES -DGC -O3 MT_GCBench-ported.c -lm -lgc -o MT_GCBench-ported-boehmgc
+gcc -lm -pthread -I ~/usr/include/gc -DHOLES -DGC -O3 MT_GCBench2-ported.c -lm -lgc -o MT_GCBench2-ported-boehmgc
+
+gcc -lm -pthread -I ~/usr/include/gc -DHOLES -DGC -DEPSILONGC -DGC_pthread_create=pthread_create -O3 GCBench-ported.c ~/usr/lib/libepsilongc.a -lm -o GCBench-ported-epsilongc
+gcc -lm -pthread -I ~/usr/include/gc -DHOLES -DGC -DEPSILONGC -DGC_pthread_create=pthread_create -O3 MT_GCBench-ported.c ~/usr/lib/libepsilongc.a -lm -o MT_GCBench-ported-epsilongc
+gcc -lm -pthread -I ~/usr/include/gc -DHOLES -DGC -DEPSILONGC -DGC_pthread_create=pthread_create -O3 MT_GCBench2-ported.c ~/usr/lib/libepsilongc.a -lm -o MT_GCBench2-ported-epsilongc
+
+echo Ok

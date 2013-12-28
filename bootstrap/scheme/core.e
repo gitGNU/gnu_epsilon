@@ -1728,6 +1728,7 @@
 
 ;;;; Add primitive reflective information:
 
+;;                                                  in-dim.      out-dim.     side effects  reflective
 (state:primitive-set! (e0:value whatever:eq?)       (e0:value 2) (e0:value 1) (e0:value #f) (e0:value #f))
 (state:primitive-set! (e0:value whatever:zero?)     (e0:value 1) (e0:value 1) (e0:value #f) (e0:value #f))
 (state:primitive-set! (e0:value whatever:make-zero) (e0:value 0) (e0:value 1) (e0:value #f) (e0:value #f))

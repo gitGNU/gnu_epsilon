@@ -2284,6 +2284,10 @@
 (e1:define (sexpression:cons x y)
   (sexpression:make sexpression:cons-tag
                     (cons:make x y)))
+(e1:define (sexpression:cons-with-locus x y locus)
+  (sexpression:make-with-locus sexpression:cons-tag
+                               (cons:make x y)
+                               locus))
 (e1:define (sexpression:singleton x)
   (sexpression:make sexpression:cons-tag
                     (cons:make x sexpression:nil)))

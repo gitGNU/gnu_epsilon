@@ -1,7 +1,7 @@
 ;;;;; This is -*- epsilon -*- with just a little Scheme, if any
 ;;;;; Tentative code
 
-;;;;; Copyright (C) 2013  Luca Saiu
+;;;;; Copyright (C) 2013, 2014  Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
 

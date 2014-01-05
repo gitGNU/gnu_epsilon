@@ -886,11 +886,37 @@
   prefix-regexp
   closure) ;; (prefix-string s-expression) -> s-expression reader:result
 
-;;; An item list of prefix cases
+;;; An item list of prefix cases.
 (e1:define reader:prefix-item-list-box
   (box:make item-list:nil))
 
+;;; The simplest and most common prefix case, recognizing PREFIX e
+;;; as the two-element s-list (SYMBOL e).
+(e1:define (reader:simple-prefix-case prefix-regexp symbol-name)
+  (reader:prefix-case
+   prefix-regexp
+   (e1:lambda (prefix-string prefix-locus sexpression)
+     ;;; If the prefix regexp matched, we always succeed:
+     (e1:let* ((ssymbol (sexpression:make-with-locus sexpression:symbol-tag
+                                                     symbol-name
+                                                     prefix-locus))
+               (sexpression-locus (sexpression:get-locus sexpression))
+               (empty-slist (sexpression:make-with-locus sexpression:empty-list-tag
+                                                         0
+                                                         sexpression-locus))
+               (joined-locus (locus:join prefix-locus sexpression-locus)))
+       (reader:result-success
+        (sexpression:cons-with-locus ssymbol
+                                     (sexpression:cons-with-locus sexpression
+                                                                  empty-slist
+                                                                  sexpression-locus)
+                                     joined-locus))))))
 
+;;; A prefix case always ignoring the prefixed regexp
+(e1:define (reader:ignore-prefix-case prefix-regexp)
+  (reader:prefix-case regexp:comment-prefix
+                      (e1:lambda (prefix-string prefix-locus sexpression)
+                        (reader:result-ignore))))
 
 ;; FIXME: hide the backtrackable port from the user: she should only
 ;; see a generic input port, and be able to change it; ideally, in a
@@ -1006,8 +1032,8 @@
                   (sexpression-locus (sexpression:get-locus sexpression))
                   (rest (reader:read-rest bp))
                   (rest-locus (sexpression:get-locus rest)))
-          (sexpression:make-with-locus sexpression:cons-tag
-                                       (cons:make sexpression rest)
+          (sexpression:cons-with-locus sexpression
+                                       rest
                                        (locus:join sexpression-locus
                                                    rest-locus))))))))
 
@@ -1123,38 +1149,24 @@
 
   (item-list:add-last!
      reader:prefix-item-list-box
-     (e1:value quote)
-     (reader:prefix-case regexp:quote-prefix
-                         (e1:lambda (prefix-string prefix-locus sexpression) ;; the locus [will be] added by the caller
-                           (reader:result-success (sexpression:list (sexpression:with-locus 'quote prefix-locus)
-                                                                    sexpression)))))
-  (item-list:add-last!
-     reader:prefix-item-list-box
      (e1:value quasiquote)
-     (reader:prefix-case regexp:quasiquote-prefix
-                         (e1:lambda (prefix-string prefix-locus sexpression) ;; the locus [will be] added by the caller
-                           (reader:result-success (sexpression:list (sexpression:with-locus 'quasiquote prefix-locus)
-                                                                    sexpression)))))
+     (reader:simple-prefix-case regexp:quasiquote-prefix (e1:value quasiquote)))
   (item-list:add-last!
      reader:prefix-item-list-box
      (e1:value unquote)
-     (reader:prefix-case regexp:unquote-prefix
-                         (e1:lambda (prefix-string prefix-locus sexpression) ;; the locus [will be] added by the caller
-                           (reader:result-success (sexpression:list (sexpression:with-locus 'unquote prefix-locus)
-                                                                    sexpression)))))
+     (reader:simple-prefix-case regexp:unquote-prefix (e1:value unquote)))
   (item-list:add-first! ;; ",@" needs to come before ","
      reader:prefix-item-list-box
      (e1:value unquote-splicing)
-     (reader:prefix-case regexp:unquote-splicing-prefix
-                         (e1:lambda (prefix-string prefix-locus sexpression) ;; the locus [will be] added by the caller
-                           (reader:result-success (sexpression:list (sexpression:with-locus 'unquote-splicing prefix-locus)
-                                                                    sexpression)))))
+     (reader:simple-prefix-case regexp:unquote-splicing-prefix (e1:value unquote-splicing)))
   (item-list:add-last!
      reader:prefix-item-list-box
      (e1:value comment-prefix)
-     (reader:prefix-case regexp:comment-prefix
-                         (e1:lambda (prefix-string prefix-locus sexpression)
-                           (reader:result-ignore))))
+     (reader:ignore-prefix-case regexp:comment-prefix))
+  (item-list:add-first! ;; "'" should be the most common case.  Make it the first.
+     reader:prefix-item-list-box
+     (e1:value quote)
+     (reader:simple-prefix-case regexp:quote-prefix (e1:value quote)))
 
   (item-list:add-first!
      reader:atom-item-list-box
@@ -1195,8 +1207,6 @@
 (a)     ;; line 2
 (a . b) ;; line 3
 abc     ;; line 4
-(a)     ;; line 5
-(a . b) ;; line 6
 (a b)   ;; line 7
 \"abcd\"
 `((a . b) ,c ((a (d e . f)) h) ,@g)

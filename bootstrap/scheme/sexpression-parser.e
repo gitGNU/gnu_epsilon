@@ -307,7 +307,7 @@
 ;;; containing the first and last character of a range.
 
 (e1:define range-set:minimum-character
-  0) ;; FIXME: is 0 actually a valid code point?
+  0) ;; 0 is actually a valid code point
 (e1:define range-set:maximum-character
   1114111) ;; or #x10FFFF: the last valid Unicode code point
 

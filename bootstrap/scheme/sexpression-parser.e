@@ -433,7 +433,7 @@
 ;;; s-expression representation (similar to sugared range sets with
 ;;; trivial variadic extensions).
 
-;;; Let C, C1, C2... be characters and R, R1, R2... be s-range-sets.
+;;; Let C, C1, C2... be characters and R1, R2... be s-range-sets.
 ;;; Then a s-range-set may be any of the following s-expressions:
 ;;; * empty
 ;;; * universe

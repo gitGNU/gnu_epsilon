@@ -88,7 +88,7 @@
   (box:set! bil (item-list:remove (box:get bil) key)))
 
 
-;;;;; Generic scanning utilities
+;;;;; Locus support
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (e1:define-sum locus:locus
@@ -146,21 +146,6 @@
 ;;; associative.
 
 ;;; FIXME: write a locus->string procedure.
-
-;; (e1:define-record locus:locus
-;;   file-name-option
-;;   start-row
-;;   start-column
-;;   end-row
-;;   end-column
-;;   description)
-
-;; ;; Most likely overkill
-;; (e1:define-sum locus:locus
-;;   (unknown)
-;;   (interval interval)
-;;   (join first second)
-;;   (trace locus-stack))
 
 
 ;;;;; Buffered backtrackable input port
@@ -427,9 +412,9 @@
                                          second)))
 
 ;;; FIXME: given a range set, generate a more efficient testing
-;;; procedure.  I can do better than partial evaluation by hand,
-;;; exploiting the ordering invariants to make a balanced comparison
-;;; tree.
+;;; procedure.  I can do even better than "partial evaluation by
+;;; hand", exploiting the ordering invariants to make a balanced
+;;; comparison tree.
 (e1:define (range-set:has? range-set character)
   (e1:match range-set
     ((list:list-nil)
@@ -513,28 +498,11 @@
      (e1:error "unknown symbol"))))
 
 
-;; ;;;;; Handy range sets
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; (e1:define range-set:digits
-;;   (range-set:srange-set->range-set
-;;    '(range #\0 #\9)))
-;; (e1:define range-set:lowercase-latin-letters
-;;   (range-set:srange-set->range-set
-;;    '(range #\a #\z)))
-;; (e1:define range-set:uppercase-latin-letters
-;;   (range-set:srange-set->range-set
-;;    '(range #\A #\Z)))
-;; (e1:define range-set:whitespace
-;;   (range-set:srange-set->range-set
-;;    '(union #\space #\tab #\newline #\cr)))
-
-
 ;;;;; Regular expressions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (e1:define-sum regexp:regexp
-  (empty) ;; very different from an empty rangeset! [FIXME: shall I eliminate the empty rangeset to remove ambiguity?]
+  (empty) ;; very different from an empty rangeset! [FIXME: shall I eliminate the empty rangeset to remove ambiguity?  Do I need to add a "fail" case? [probably not the empty rangeset, should have the same effect]]
   (range-set range-set) ;; of course a *non-sugared* range set
   (sequence first second)
   (or first second)
@@ -615,8 +583,7 @@
 ;;; * an s-range-set, encoding a range-set
 ;;; * an s-string, encoding a sequence of single-character range sets;
 ;;; * an s-list of s-regexps, encoding a (possibly empty) sequence;
-;;; * an s-list of the s-symbol | and one or more s-regexps, encoding
-;;;   an or;
+;;; * an s-list of the s-symbol | and one or more s-regexps, encoding an or;
 ;;; * an s-list of the s-symbol * and an s-regexp, encoding a star;
 ;;; * an s-list of the s-symbol ? and an s-regexp, encoding an option;
 ;;; * an s-list of the s-symbol + and an s-regexp, encoding a plus;
@@ -781,9 +748,6 @@
 ;;;;; reusable]
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; FIXME: add file-name-option.  I probably need to add it to
-;; backtrackable ports.
-
 (e1:define-sum regexp:result
   (failure)
   ;; the "final" position is the location of the last character.  FIXME: verify in every case.
@@ -791,69 +755,6 @@
 
 (e1:define (regexp:characters->string cc)
   (vector:list->vector (list:reverse cc)))
-
-;; (e1:define (regexp:read-regexp bp regexp)
-;;   (e1:let ((beginning-state (backtrackable-port:backtrackable-port->state bp))
-;;            (result (regexp:read-regexp-helper
-;;                        bp
-;;                        regexp
-;;                        (backtrackable-port:backtrackable-port-get-row bp)
-;;                        (backtrackable-port:backtrackable-port-get-column bp)
-;;                        list:nil)))
-;;     (e1:match result
-;;       ((regexp:result-success initial-row initial-column final-row final-column characters)
-;;        (regexp:result-success initial-row initial-column final-row final-column
-;;                               (regexp:characters->string characters)))
-;;       ((regexp:result-failure)
-;;        (backtrackable-port:backtrack! bp beginning-state)
-;;        result))))
-;; (e1:define (regexp:read-regexp-helper bp regexp initial-row initial-column characters)
-;;   ;; FIXME: only compute beginning-state, row and column where needed, in each case.  This might be an important optimization.
-;;   (e1:let ((beginning-state (backtrackable-port:backtrackable-port->state bp))
-;;            (row (backtrackable-port:backtrackable-port-get-row bp))
-;;            (column (backtrackable-port:backtrackable-port-get-column bp))
-;;            (eof (backtrackable-port:eof? bp)))
-;;     (e1:match regexp
-;;       ((regexp:regexp-empty)
-;;        (regexp:result-success initial-row
-;;                               initial-column
-;;                               row
-;;                               column
-;;                               characters))
-;;       ((regexp:regexp-range-set rs)
-;;        (e1:if eof
-;;          (regexp:result-failure)
-;;          (e1:let* ((c (backtrackable-port:read-character bp)))
-;;            (e1:if (range-set:has? rs c)
-;;              (regexp:result-success initial-row
-;;                                     initial-column
-;;                                     row
-;;                                     column
-;;                                     (list:cons c characters))
-;;              (e1:begin
-;;                (backtrackable-port:backtrack! bp beginning-state)
-;;                (regexp:result-failure))))))
-;;       ((regexp:regexp-sequence first second)
-;;        (e1:match (regexp:read-regexp-helper bp first initial-row initial-column characters)
-;;          ((regexp:result-failure)
-;;           (backtrackable-port:backtrack! bp beginning-state)
-;;           (regexp:result-failure))
-;;          ((regexp:result-success _ _ _ _ new-characters)
-;;           (regexp:read-regexp-helper bp second initial-row initial-column new-characters))))
-;;       ((regexp:regexp-or first second)
-;;        (e1:match (regexp:read-regexp-helper bp first initial-row initial-column characters)
-;;          ((regexp:result-failure)
-;;           (backtrackable-port:backtrack! bp beginning-state) ;; FIXME: unneeded?  The recursive call has alraeady backtracked
-;;           (regexp:read-regexp-helper bp second initial-row initial-column characters))
-;;          (success
-;;           success)))
-;;       ((regexp:regexp-plus plussed)
-;;        (regexp:read-regexp-helper
-;;            bp
-;;            (regexp:regexp-sequence plussed
-;;                                    (regexp:regexp-or regexp
-;;                                                      (regexp:regexp-empty)))
-;;            initial-row initial-column characters)))))
 
 (e1:define (regexp:read-regexp bp regexp)
   (e1:let* ((beginning-state (backtrackable-port:backtrackable-port->state bp))
@@ -866,20 +767,16 @@
                                                list:nil)))
     (e1:match result
       ((regexp:result-success initial-row initial-column final-row final-column characters)
-       ;;(fio:write "A final-row: " (i final-row) ", final-column: " (i final-column) "\n")
        (regexp:result-success initial-row initial-column final-row final-column
                               (regexp:characters->string characters)))
       ((regexp:result-failure)
        (backtrackable-port:backtrack! bp beginning-state)
        result))))
-;;;??????????????????
 (e1:define (regexp:read-regexp-helper bp regexp initial-row initial-column final-row final-column characters)
   ;; FIXME: only compute beginning-state, row and column where needed, in each case.  This might be an important optimization.
   ;;(fio:write "@ initial-row: " (i initial-row) ", initial-column: " (i initial-column) "\n")
   ;;(fio:write "@ final-row: " (i final-row) ", final-column: " (i final-column) "\n")
   (e1:let ((beginning-state (backtrackable-port:backtrackable-port->state bp))
-;           (row (backtrackable-port:backtrackable-port-get-row bp)))
-;           (column (backtrackable-port:backtrackable-port-get-column bp))
            (eof (backtrackable-port:eof? bp)))
     (e1:match regexp
       ((regexp:regexp-empty)
@@ -894,16 +791,12 @@
          (e1:let* ((c-row (backtrackable-port:backtrackable-port-get-row bp))
                    (c-column (backtrackable-port:backtrackable-port-get-column bp))
                    (c (backtrackable-port:read-character bp)))
-           ;;(fio:write "@ c-row: " (i c-row) ", c-column: " (i c-column) ", c: " (c c) "\n")
            (e1:if (range-set:has? rs c)
-(e1:begin
-  ;;(fio:write "Q c-row: " (i c-row) ", c-column: " (i c-column) "\n")
              (regexp:result-success initial-row
                                     initial-column
                                     c-row
                                     c-column
                                     (list:cons c characters))
-)
              (e1:begin
                (backtrackable-port:backtrack! bp beginning-state)
                (regexp:result-failure))))))
@@ -975,7 +868,7 @@
 ;;; case failed recognition; otherwise its content is the recognized
 ;;; s-expression.
 (e1:define-record reader:case
-  closure) ;; (backtrackable-input-port) -> reader:result
+  closure) ;; backtrackable-input-port -> reader:result
 
 ;;; An item list of reader cases
 (e1:define reader:item-list-box
@@ -1292,105 +1185,9 @@
                                                       locus)))))
 
 
-;;;;; Tentative s-expression recognizer
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;; This of course is just a test.  The real recognizer will be
-;;; dynamically updatable.
-
-;; s-expression ::=
-;;   atom                  { atom }
-;; | ( <rest>              { rest }
-;; | prefix <s-expression> { lookup-procedure(prefix)(s-expression, scanner-state) }
-
-;; rest ::=
-;;   )                     { () }
-;; | . <s-expression> )    { s-expression }
-;; | <s-expression> <rest> { s-cons(s-expression, rest) }
-
-
-
-;; ;;;;; An s-expression scanner
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; (e1:define-sum sexpression:token
-;;   (atom locus sexpression)
-;;   (open locus)
-;;   (close locus)
-;;   (dot locus)
-;;   (prefix locus string)
-;;   (end locus))
-
-
-;; ;;;;; A hand-written recursive-descent parser for s-expressions
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; ;; s-expression ::=
-;; ;;   atom                  { atom }
-;; ;; | ( <rest>              { rest }
-;; ;; | prefix <s-expression> { lookup-procedure(prefix)(s-expression, scanner-state) }
-
-;; ;; rest ::=
-;; ;;   )                     { () }
-;; ;; | . <s-expression> )    { s-expression }
-;; ;; | <s-expression> <rest> { s-cons(s-expression, rest) }
-
-
-;; ;; (e1:define-sum sexpressionparser:result
-;; ;;   (success sepxression)
-;; ;;   (error locus))
-
-;; (e1:define (sexpressionparser:parse-sexpression input-state)
-;;   (e1:let* ((token (sexpressionscanner:scan input-state))
-;;             (result (sexpression-parser:parse-sexpression-with token input-state)))
-;;     (sexpression-scanner:commit! input-state)
-;;     result))
-
-;; (e1:define (sexpression-parser:parse-rest-with token input-state)
-;;   (e1:match token
-;;     ((sexpression:token-end locus)
-;;      (sexpression-scanner:backtrack! input-state)
-;;      (e1:error "parse error at EOF"))
-;;     ((sexpression:token-close locus)
-;;      sexpression:nil)
-;;     ((sexpression:token-dot locus)
-;;      (sexpression (sexpressionparser:parse-sexpression-with (sexpressionscanner:scan input-state)
-;;                                                             input-state)))
-;;     (else
-;;      (e1:let* ((sexpression (sexpressionparser:parse-sexpression-with (sexpressionscanner:scan input-state)
-;;                                                                       input-state))
-;;                (rest (sexpressionparser:parse-rest-with (sexpressionscanner:scan input-state)
-;;                                                         input-state)))
-;;        (sexpression:cons sexpresion rest)))))
-
-;; (e1:define (sexpression-parser:parse-sexpression-with token input-state)
-;;   (e1:match token
-;;     ((sexpression:token-end locus)
-;;      (sexpression-scanner:backtrack! input-state)
-;;      (e1:error "parse error at EOF"))
-;;     ((sexpression:token-atom locus sexpression)
-;;      sexpression)
-;;     ((sexpression:token-open locus)
-;;      (sexpressionparser:parse-rest-with (sexpressionscanner:scan input-state)
-;;                                         input-state))
-;;     ((sexpression:token-prefix locus string)
-;;      (e1:let ((procedure-name (sexpression:prefix-string->procedure string))
-;;               (sexpression (sexpressionparser:parse-sexpression-with (sexpressionscanner:scan input-state)
-;;                                                                      input-state)))
-;;        (e1:call-indirect procedure-name sexpression scanner-state)))
-;;     (else
-;;      (sexpression-scanner:backtrack! input-state)
-;;      (e1:error "parse error"))))
-
 ;;;;; Scratch
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;(e1:define s1 "bccceffefffcbefe")
-;;(e1:define s1 "aabc;;CCC\nhjashdkjashd\nabcdefghijklmnopq")
-;; (e1:define s1 "(define (fact n)
-;;   (if (zero? n)
-;;      1
-;;      (* n (fact (1- n)))))")
 (e1:define s1_
 ;0123456789
 "abc def g ")

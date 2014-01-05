@@ -924,7 +924,9 @@
 (e1:define (reader:eof? bp)
   (e1:or (backtrackable-port:eof? bp)
          (e1:begin
-           (regexp:read-regexp bp (regexp:sregexp->regexp 'sexpression:ignorable))
+           (regexp:eat-ignorables bp)
+           ;; FIXME: is this somehow different from eat-ignorables?  I think not
+           ;;(regexp:read-regexp bp (regexp:sregexp->regexp 'sexpression:ignorable))
            (backtrackable-port:eof? bp))))
 (e1:define (reader:read bp)
   (reader:read-helper (box:get reader:item-list-box) bp))

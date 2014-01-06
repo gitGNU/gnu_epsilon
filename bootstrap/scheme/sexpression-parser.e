@@ -1042,9 +1042,9 @@
 
 ;; s-expression ::=
 ;; | prefix <s-expression> { lookup-procedure(prefix)(s-expression, scanner-state) }
-(e1:define (reader:get-prefixed bp)
-  (reader:get-prefixed-helper bp (box:get reader:prefix-item-list-box)))
-(e1:define (reader:get-prefixed-helper bp item-list)
+(e1:define (reader:recognize-prefixed bp)
+  (reader:recognize-prefixed-helper bp (box:get reader:prefix-item-list-box)))
+(e1:define (reader:recognize-prefixed-helper bp item-list)
   (e1:if (list:null? item-list)
     (reader:result-failure)
     (e1:let* ((prefix-case (cons:get-cdr (list:head item-list)))
@@ -1053,7 +1053,7 @@
       ;;(fio:write "* prefix recognizer: trying " (sy (cons:get-car (list:head item-list))) "\n") ;;;
       (e1:match (regexp:read-regexp bp regexp)
         ((regexp:result-failure)
-         (reader:get-prefixed-helper bp (list:tail item-list)))
+         (reader:recognize-prefixed-helper bp (list:tail item-list)))
         ((regexp:result-success initial-row initial-column final-row final-column prefix-string)
          (e1:let ((read-sexpression (reader:read bp))
                   (prefix-locus (locus:locus-known (backtrackable-port:backtrackable-port-get-file-name-option bp)
@@ -1110,7 +1110,7 @@
      reader:item-list-box (e1:value parenthesized)
      (e1:value prefix)
      (e1:lambda (bp)
-       (reader:get-prefixed bp)))
+       (reader:recognize-prefixed bp)))
 
   (item-list:add-after!
      reader:item-list-box (e1:value parenthesized)

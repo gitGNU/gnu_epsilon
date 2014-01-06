@@ -1075,7 +1075,7 @@
 ;;; and keep eating until possible.  I've not thought how to do this
 ;;; yet.  Test case: "(a #;q)" should yield (a).
 (e1:define (regexp:eat-ignorables bp)
-  (regexp:read-regexp bp regexp:ignorable))
+  (regexp:read-regexp bp regexp:ignorable)) ;; ignore failure
 
 (e1:toplevel
   (item-list:add-first!
@@ -1207,9 +1207,10 @@
 "abc def g ")
 (e1:define s1 "'a     ;; line 1
 (a)     ;; line 2
-(a . b) ;; line 3
-abc     ;; line 4
-(a b)   ;; line 7
+(a #;q) ;; line 3
+(a . b) ;; line 4
+abc     ;; line 5
+(a b)   ;; line 6
 \"abcd\"
 `((a . b) ,c ((a (d e . f)) h) ,@g)
 #t;; a comment right after the atom

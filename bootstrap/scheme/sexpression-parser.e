@@ -774,8 +774,6 @@
        result))))
 (e1:define (regexp:read-regexp-helper bp regexp initial-row initial-column final-row final-column characters)
   ;; FIXME: only compute beginning-state, row and column where needed, in each case.  This might be an important optimization.
-  ;;(fio:write "@ initial-row: " (i initial-row) ", initial-column: " (i initial-column) "\n")
-  ;;(fio:write "@ final-row: " (i final-row) ", final-column: " (i final-column) "\n")
   (e1:let ((beginning-state (backtrackable-port:backtrackable-port->state bp))
            (eof (backtrackable-port:eof? bp)))
     (e1:match regexp
@@ -874,6 +872,12 @@
 (e1:define reader:item-list-box
   (box:make item-list:nil))
 
+;;; An item list of reader cases to be ignored, or fail: none of these
+;;; cases can successfully recognize anything.  Each case is a
+;;; reader:case.
+(e1:define reader:ignore-item-list-box
+  (box:make item-list:nil))
+
 (e1:define-record reader:atom-case
   regexp
   closure) ;; (string locus) -> s-expression
@@ -912,19 +916,13 @@
                                                                   sexpression-locus)
                                      joined-locus))))))
 
-;;; A prefix case always ignoring the prefixed regexp
-(e1:define (reader:ignore-prefix-case prefix-regexp)
-  (reader:prefix-case regexp:comment-prefix
-                      (e1:lambda (prefix-string prefix-locus sexpression)
-                        (reader:result-ignore))))
-
 ;; FIXME: hide the backtrackable port from the user: she should only
 ;; see a generic input port, and be able to change it; ideally, in a
 ;; stack fashion.
 (e1:define (reader:eof? bp)
   (e1:or (backtrackable-port:eof? bp)
          (e1:begin
-           (regexp:eat-ignorables bp)
+           (reader:eat-ignorables bp)
            ;; FIXME: is this somehow different from eat-ignorables?  I think not
            ;;(regexp:read-regexp bp (regexp:sregexp->regexp 'sexpression:ignorable))
            (backtrackable-port:eof? bp))))
@@ -938,7 +936,6 @@
             (e1:error "all rules failed"))
            (else
             (backtrackable-port:commit! bp)
-            ;;(fio:write "* reader: trying " (sy (cons:get-car (list:head item-list))) "\n") ;;;;
             (e1:match (e1:call-closure (cons:get-cdr (list:head item-list)) bp)
               ((reader:result-ignore)
                (reader:read bp))
@@ -960,7 +957,6 @@
     (e1:let* ((atom-case (cons:get-cdr (list:head item-list)))
               (regexp (reader:atom-case-get-regexp atom-case))
               (closure (reader:atom-case-get-closure atom-case)))
-      ;;(fio:write "* atom recognizer: trying " (sy (cons:get-car (list:head item-list))) "\n") ;;;;
       (e1:match (regexp:read-regexp bp regexp)
         ((regexp:result-failure)
          (reader:recognize-atom-helper (list:tail item-list) bp state locus))
@@ -1002,7 +998,7 @@
 ;; | . <s-expression> )    { s-expression }
 ;; | <s-expression> <rest> { s-cons(s-expression, rest) }
 (e1:define (reader:read-rest bp)
-  (regexp:eat-ignorables bp)
+  (reader:eat-ignorables bp)
   (e1:match (regexp:read-regexp bp regexp:close)
     ((regexp:result-success initial-row initial-column final-row final-column _)
      (sexpression:make-with-locus
@@ -1015,9 +1011,9 @@
     ((regexp:result-failure)
      (e1:match (regexp:read-regexp bp regexp:dot)
        ((regexp:result-success _ _ _ _ _)
-        (regexp:eat-ignorables bp)
+        (reader:eat-ignorables bp)
         (e1:let ((sexpression (reader:read bp)))
-          (regexp:eat-ignorables bp)
+          (reader:eat-ignorables bp)
           (e1:match (regexp:read-regexp bp regexp:close)
             ((regexp:result-failure)
              (e1:error "expected closed parens"))
@@ -1050,7 +1046,6 @@
     (e1:let* ((prefix-case (cons:get-cdr (list:head item-list)))
               (regexp (reader:prefix-case-get-prefix-regexp prefix-case))
               (closure (reader:prefix-case-get-closure prefix-case)))
-      ;;(fio:write "* prefix recognizer: trying " (sy (cons:get-car (list:head item-list))) "\n") ;;;
       (e1:match (regexp:read-regexp bp regexp)
         ((regexp:result-failure)
          (reader:recognize-prefixed-helper bp (list:tail item-list)))
@@ -1071,19 +1066,49 @@
                 (reader:result-success (sexpression:with-locus result-sexpression
                                                                result-locus)))))))))))
 
-;;; FIXME: this is not general enough: it should also eat #; comments,
-;;; and keep eating until possible.  I've not thought how to do this
-;;; yet.  Test case: "(a #;q)" should yield (a).
-(e1:define (regexp:eat-ignorables bp)
-  (regexp:read-regexp bp regexp:ignorable)) ;; ignore failure
+(e1:define (reader:eat-ignorables bp)
+  ;; Keep eating until we fail:
+  (e1:match (reader:eat-ignorables-helper bp (box:get reader:ignore-item-list-box))
+    ((reader:result-ignore)
+     (backtrackable-port:commit! bp)
+     (reader:eat-ignorables bp))
+    ((reader:result-failure)
+     (reader:result-failure))))
+(e1:define (reader:eat-ignorables-helper bp item-list)
+  (e1:if (list:null? item-list)
+    (reader:result-failure)
+    (e1:match (e1:call-closure (cons:get-cdr (list:head item-list)) bp)
+      ((reader:result-ignore)
+       (reader:result-ignore))
+      ((reader:result-failure)
+       (reader:eat-ignorables-helper bp (list:tail item-list)))
+      ((reader:result-success _)
+       (e1:error "eat-ignorables: not supposed to succeed")))))
 
 (e1:toplevel
   (item-list:add-first!
      reader:item-list-box
      (e1:value ignorable)
      (e1:lambda (bp)
+       (reader:eat-ignorables bp)))
+
+  (item-list:add-first!
+     reader:ignore-item-list-box
+     (e1:value ignorable-regexp)
+     (e1:lambda (bp)
        (e1:match (regexp:read-regexp bp regexp:ignorable)
          ((regexp:result-success _ _ _ _ _)
+          (reader:result-ignore))
+         ((regexp:result-failure)
+          (reader:result-failure)))))
+
+  (item-list:add-last!
+     reader:ignore-item-list-box
+     (e1:value comment-prefix)
+     (e1:lambda (bp)
+       (e1:match (regexp:read-regexp bp regexp:comment-prefix)
+         ((regexp:result-success _ _ _ _ _)
+          (reader:read bp) ;; eat and ignore this
           (reader:result-ignore))
          ((regexp:result-failure)
           (reader:result-failure)))))
@@ -1147,8 +1172,6 @@
                                               string:empty)))
             (reader:result-success (reader:recognize-atom string locus)))))))
 
-  ;; FIXME: factor common code in prefix handling
-
   (item-list:add-last!
      reader:prefix-item-list-box
      (e1:value quasiquote)
@@ -1161,10 +1184,6 @@
      reader:prefix-item-list-box
      (e1:value unquote-splicing)
      (reader:simple-prefix-case regexp:unquote-splicing-prefix (e1:value unquote-splicing)))
-  (item-list:add-last!
-     reader:prefix-item-list-box
-     (e1:value comment-prefix)
-     (reader:ignore-prefix-case regexp:comment-prefix))
   (item-list:add-first! ;; "'" should be the most common case.  Make it the first.
      reader:prefix-item-list-box
      (e1:value quote)

@@ -21,7 +21,10 @@ along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 The Scheme files in bootstrap/scheme depend on guile+whatever.
 When linked against Guile 2.x, guile+whatever should always be called *with* the option
---no-auto-compile .
+--no-auto-compile .  Setting the stack size to unlimited might be needed as well (under
+GNU Bash, run
+  ulimit -s unlimited
+in the interactive shell before launching guile+whatever).
 
 guile+whatever should always be called from the directory
 bootstrap/scheme -- hence *not* from the directory where its compiled

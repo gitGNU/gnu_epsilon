@@ -674,16 +674,37 @@
   (\| (range #\a #\z)
       (range #\A #\Z)))
 
-(e1:define-regexp sexpression:digit
+(e1:define-regexp sexpression:decimal-digit
   (range #\0 #\9))
 
 (e1:define-regexp sexpression:sign
   (\| #\+
       #\-))
 
+(e1:define-regexp sexpression:radix-prefix
+  (#\# (\| (union #\b
+                  #\o
+                  #\d
+                  #\x)
+           ;; #Dr, with D in [2, 9]
+           ((range #\2 #\9)
+            #\r)
+           ;; #DDr, with DD in [10, 29]
+           ((range #\1 #\2)
+            (range #\0 #\9)
+            #\r)
+           ;; #DDr, with DD in [30, 36]
+           (#\3
+            (range #\0 #\6)
+            #\r))))
+
 (e1:define-regexp sexpression:fixnum
-  ((? sexpression:sign)
-   (+ sexpression:digit)))
+  (\| ((? sexpression:sign)
+       (+ sexpression:decimal-digit))
+      (sexpression:radix-prefix
+       (? sexpression:sign)
+       (+ (\| (range #\0 #\9)
+              (range #\a #\z))))))
 
 (e1:define-regexp sexpression:comment
   (+ (#\;
@@ -727,7 +748,8 @@
                      #\'
                      #\"
                      #\,
-                     #\#)
+                     ;;#\# ;; this is used in some atoms
+                     )
          "#t"
          "#f"
          (#\\ (\| #\space
@@ -741,7 +763,8 @@
                   #\'
                   #\"
                   #\,
-                  #\#)))))
+                  ;;#\#
+                  )))))
 
 
 ;;;;; Regexp recognizer [FIXME: this is tentative and must be made
@@ -826,31 +849,69 @@
 ;;;;; String-to-fixnum parsing
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;; FIXME: support alternate bases
-
+;;; This assumes that the radix prefix, if any, is well-formed; we're
+;;; supposed to call this after recognizing a regexp.  However this
+;;; recognizes out-of-range character digits.
 (e1:define (reader:string->fixnum s)
-  (e1:if (fixnum:zero? (string:length s))
-    (e1:error "empty string")
-    (e1:case (string:get s 0)
-      ((#\-)
-       (reader:string->fixnum-helper s 1 0 -1))
-      ((#\+)
-       (reader:string->fixnum-helper s 1 0 1))
-      (else
-       (reader:string->fixnum-helper s 0 0 1)))))
-(e1:define (reader:string->fixnum-helper s i acc sign)
+  (e1:if (whatever:eq? (string:get s 0) #\#)
+    (e1:case (string:get s 1)
+      ((#\b) ; #b[s]MMM binary
+       (reader:string->fixnum-sign-and-magnitude-helper s 2 2))
+      ((#\o) ; #o[s]MMM octal
+       (reader:string->fixnum-sign-and-magnitude-helper s 2 8))
+      ((#\d) ; #o[s]MMM decimal
+       (reader:string->fixnum-sign-and-magnitude-helper s 2 10))
+      ((#\x) ; #o[s]MMM hexadecimal
+       (reader:string->fixnum-sign-and-magnitude-helper s 2 16))
+      ((#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9)
+       (e1:if (whatever:eq? (string:get s 2) #\r)
+         ;; #Rr[s]MMM R in radix 10
+         (e1:let ((radix (reader:character-value (string:get s 1) 10)))
+           (reader:string->fixnum-sign-and-magnitude-helper s 3 radix))
+         ;; #RRr[s]MMM RR in radix 10
+         (e1:let ((radix (fixnum:+ (fixnum:* 10 (reader:character-value (string:get s 1) 10))
+                                   (reader:character-value (string:get s 2) 10))))
+           (reader:string->fixnum-sign-and-magnitude-helper s 4 radix)))))
+    (reader:string->fixnum-sign-and-magnitude-helper s 0 10)))
+
+(e1:define (reader:string->fixnum-sign-and-magnitude-helper s i radix)
+  (e1:case (string:get s i)
+    ((#\-)
+     (fixnum:negate (reader:string->fixnum-magnitude-helper s (fixnum:1+ i) 0 radix)))
+    ((#\+)
+     (reader:string->fixnum-magnitude-helper s (fixnum:1+ i) 0 radix))
+    (else
+     (reader:string->fixnum-magnitude-helper s i 0 radix))))
+
+(e1:define (reader:string->fixnum-magnitude-helper s i acc radix)
   (e1:if (fixnum:= i (string:length s))
-    (fixnum:* sign acc)
+    acc
     (e1:let ((c (string:get s i)))
-      (e1:case c
-        ((#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9)
-         (reader:string->fixnum-helper s
-                                       (fixnum:1+ i)
-                                       (fixnum:+ (fixnum:* 10 acc)
-                                                 (fixnum:- c #\0))
-                                       sign))
-        (else
-         (e1:error "bad character"))))))
+      (e1:if (reader:valid-for-radix? c radix)
+        (reader:string->fixnum-magnitude-helper s
+                                                (fixnum:1+ i)
+                                                (fixnum:+ (fixnum:* radix acc)
+                                                          (reader:character-value c radix))
+                                                radix)
+        (e1:error "bad character")))))
+
+(e1:define (reader:valid-for-radix? character radix)
+  (e1:if (fixnum:<= radix 10)
+    (e1:and (fixnum:<= #\0 character)
+            (fixnum:< character (fixnum:+ #\0 radix)))
+    (e1:or (e1:and (fixnum:<= #\0 character)
+                   (fixnum:<= character #\9))
+           (e1:and (fixnum:<= #\a character)
+                   (fixnum:<  character (fixnum:+ #\a radix -10))))))
+
+;;; This assumes that the given character be valid for the given radix.
+(e1:define (reader:character-value character radix)
+  (e1:if (e1:or (fixnum:<= radix 10)
+                (e1:and (fixnum:<= #\0 character)
+                        (fixnum:<= character #\9)))
+    (fixnum:- character #\0)
+    (fixnum:+ (fixnum:- character #\a)
+              10)))
 
 
 ;;;;; Reader programmable interface

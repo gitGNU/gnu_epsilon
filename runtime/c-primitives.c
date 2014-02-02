@@ -30,6 +30,8 @@
 #include <unistdio.h>
 #endif // #ifdef HAVE_LIBUNISTRING
 #include <string.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 
 /* #ifndef EPSILON_RUNTIME_SMOB */
 /* #define GC_THREADS */
@@ -248,6 +250,33 @@ static void epsilon_primitive_io_read_character(epsilon_value *stack){
   //    result_as_epsilon_int = 0; // we return 0 as the EOF marker
   stack[0] = epsilon_int_to_epsilon_value(result_as_epsilon_int);
 }
+static void epsilon_primitive_io_readline(epsilon_value *stack){
+  FILE* old_readline_input_stream = rl_instream;
+  FILE* old_readline_output_stream = rl_outstream;
+  rl_instream = stdin;
+  rl_outstream = stdout;
+  char* c_string = readline(NULL);
+  rl_instream = old_readline_input_stream;
+  rl_outstream = old_readline_output_stream;
+  if (c_string == NULL){
+    stack[0] = epsilon_int_to_epsilon_value(0);
+    return;
+  }
+  if (c_string[0] != '\0')
+    add_history(c_string);
+  size_t length = strlen(c_string);
+  epsilon_word buffer =
+    epsilon_gc_allocate_with_epsilon_int_length(length + 1);
+  int i;
+  epsilon_store_with_epsilon_int_offset(buffer, 0,
+                                        epsilon_int_to_epsilon_value(length));
+  for (i = 0; i < length; i ++)
+    epsilon_store_with_epsilon_int_offset(buffer,
+                                          i + 1,
+                                          epsilon_int_to_epsilon_value(c_string[i]));
+  free(c_string);
+  stack[0] = buffer;
+}
 static void epsilon_primitive_io_write_character(epsilon_value *stack){
   FILE *file_star = epsilon_value_to_foreign_pointer(stack[0]);
   epsilon_int character_as_epsilon_int = epsilon_value_to_epsilon_int(stack[1]);
@@ -459,6 +488,7 @@ void epsilon_c_primitives_initialize(void){
   epsilon_initialize_c_primitive("io:close-file", epsilon_primitive_io_close_file, 1, 0);
   epsilon_initialize_c_primitive("io:eof?", epsilon_primitive_io_eof_p, 1, 0);
   epsilon_initialize_c_primitive("io:read-character", epsilon_primitive_io_read_character, 1, 1);
+  epsilon_initialize_c_primitive("io:readline", epsilon_primitive_io_readline, 0, 1);
   epsilon_initialize_c_primitive("io:write-character", epsilon_primitive_io_write_character, 2, 0);
   epsilon_initialize_c_primitive("io:read-32-bit-big-endian", epsilon_primitive_io_read_32bit_bigendian, 1, 1);
   epsilon_initialize_c_primitive("io:write-32-bit-big-endian", epsilon_primitive_io_write_32bit_bigendian, 2, 0);

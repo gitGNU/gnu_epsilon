@@ -722,6 +722,10 @@
 (e1:define (io:read-character file)
   (e0:primitive io:read-character file))
 
+;;; Return 0 on failure
+(e1:define (io:readline)
+  (e0:primitive io:readline))
+
 (e1:define (io:write-character file character)
   (e0:primitive io:write-character file character))
 
@@ -1768,6 +1772,7 @@
 (state:primitive-set! (e0:value io:write-character) (e0:value 2) (e0:value 0) (e0:value #t) (e0:value #f))
 (state:primitive-set! (e0:value io:read-32-bit-big-endian) (e0:value 1) (e0:value 1) (e0:value #t) (e0:value #f))
 (state:primitive-set! (e0:value io:write-32-bit-big-endian)(e0:value 2) (e0:value 0) (e0:value #t) (e0:value #f))
+(state:primitive-set! (e0:value io:readline)        (e0:value 0) (e0:value 1) (e0:value #t) (e0:value #f))
 
 ;;; FIXME: this relies on Guile, and of course I must re-implement it
 (state:primitive-set! (e0:value io:read-sexpression)(e0:value 1) (e0:value 1) (e0:value #t) (e0:value #f))

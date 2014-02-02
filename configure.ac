@@ -3,7 +3,7 @@
 
 ## Copyright (C) 2002, 2003, 2005, 2006, 2007, 2008 Luca Saiu
 ## Copyright (C) 2012 Université Paris 13
-## minor updates by Luca Saiu in 2004 and 2013
+## minor updates by Luca Saiu in 2004, 2013 and 2014
 
 ## Written by Luca Saiu
 ## (based on old GNU epsilon's configure.ac and NAUSEA's configure.ac,
@@ -194,9 +194,14 @@ if test "$DONTHAVEIT" == "yes"; then
   AC_MSG_ERROR([could not find the m library (for math)])
 fi
 
-# We like GNU readline, and GNU readline depends on an implementation of curses:
-#AC_CHECK_LIB([curses], [intrflush])
-#AC_CHECK_LIB([readline], [readline])
+# We like GNU readline:
+AC_CHECK_LIB([ncurses], [main])
+AC_CHECK_LIB([termcap], [main])
+AC_CHECK_LIB([tinfo], [main])
+AC_CHECK_LIB([readline], [readline], , AC_SUBST([DONTHAVEIT], [yes]))
+if test "$DONTHAVEIT" == "yes"; then
+  AC_MSG_ERROR([GNU readline was not found; please install it, along with its headers.])
+fi
 
 # We need pthreads:
 AC_CHECK_LIB([pthread], [pthread_mutex_lock], , AC_SUBST([NO_PTHREAD], [yes]))

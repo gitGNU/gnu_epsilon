@@ -65,3 +65,82 @@
 
 ;;(load "compiler.e")
 ;;(load "formatted-output.e")
+
+
+;;;;; Readline input port
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Make an input port reading from stdin with, readline line editing.
+;;; FIXME: use a prompt, as directly supported by the readline C API.
+(e1:define (input-port:readline-input-port)
+  (e1:let ((buffer-option
+            (box:make (option:option-none)))
+           (eof
+            (box:make (io:eof? (io:standard-input))))
+           (next-character-index
+            (box:make 0)))
+    (input-port:port (e1:lambda ()
+                       (box:get eof))
+                     (e1:lambda ()
+                       (readline-input-port:get-character buffer-option eof next-character-index)))))
+(e1:define (readline-input-port:get-character buffer-option-box eof-box next-character-index-box)
+  (e1:match (box:get buffer-option-box)
+    ((option:option-none)
+     (readline-input-port:get-chunk! buffer-option-box eof-box next-character-index-box)
+     (readline-input-port:get-character buffer-option-box eof-box next-character-index-box))
+    ((option:option-some string)
+     (e1:if (fixnum:= (box:get next-character-index-box)
+                      (string:length string))
+       (e1:begin
+         (readline-input-port:get-chunk! buffer-option-box eof-box next-character-index-box)
+         (readline-input-port:get-character buffer-option-box eof-box next-character-index-box))
+       (e1:let ((result (string:get string (box:get-and-bump! next-character-index-box))))
+         (box:set! eof-box (io:eof? (io:standard-input)))
+         result)))))
+
+(e1:define (readline-input-port:get-chunk! buffer-option-box eof-box index-box)
+  (e1:let ((readline-result (io:readline)))
+    (e1:if (fixnum:zero? readline-result)
+      (e1:error "readline-input-port:get-chunk: read on EOF")
+      (e1:begin
+        (box:set! buffer-option-box (option:option-some readline-result))
+        (box:set! eof-box (io:eof? (io:standard-input)))
+        (box:set! index-box 0)))))
+
+
+;;;;; REPL
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (repl:repl)
+  (e1:let* ((input-port (input-port:readline-input-port))
+            (backtrackable-input-port
+             (backtrackable-port:input-port->backtrackable-port input-port
+                                                                (option:option-none))))
+    (repl:repl-helper backtrackable-input-port)))
+(e1:define (repl:repl-helper bp)
+  (e1:if (backtrackable-port:eof? bp)
+    (e1:bundle)
+    (e1:let ((sexpression (reader:read bp)))
+      ;;(fio:write "You wrote ")
+      (sexpression:write sexpression)
+      ;;(fio:write "Macroexpanding, transforming and interpreting... ")
+      (e1:let ((expression (repl:macroexpand-and-transform sexpression)))
+        ;;(fio:write "The macroexpand and tranformation part is done.\n")
+        (e1:let ((results (e0:eval-ee expression)))
+          ;;(fio:write "There are " (i (list:length results)) " results\n")
+          (e1:dolist (result results)
+            (e1:primitive io:write-value (io:standard-output) result)
+            (fio:write "\n"))
+          (repl:repl-helper bp))))))
+
+
+;;;;; Scratch
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define p
+  0)
+(define (test)
+  (when (whatever->guile-boolean (fixnum:zero? (e1:toplevel p)))
+    (e1:define p (input-port:readline-input-port)))
+  (e1:toplevel (input-port:read-character p)))
+;;  (load "quick-start.scm") (load "scratch.scm")

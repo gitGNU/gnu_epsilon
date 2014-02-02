@@ -850,8 +850,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; This assumes that the radix prefix, if any, is well-formed; we're
-;;; supposed to call this after recognizing a regexp.  However this
-;;; recognizes out-of-range character digits.
+;;; supposed to call this only *after* recognizing a fixnum as
+;;; well-formed, thru a regexp.  Anyway this code checks for
+;;; out-of-range character digits, so the regexp can be kept simple.
 (e1:define (reader:string->fixnum s)
   (e1:if (whatever:eq? (string:get s 0) #\#)
     (e1:case (string:get s 1)
@@ -1287,9 +1288,9 @@
 "abc def g ")
 (e1:define s1 "'a     ;; line 1
 (a)     ;; line 2
-(a #;q) ;; line 3
+(a #;(all of this is ignored (cool ,is not it?))) ;; line 3
 (a . b) ;; line 4
-abc     ;; line 5
+#b1110  ;; line 5
 (a b)   ;; line 6
 \"abcd\"
 `((a . b) ,c ((a (d e . f)) h) ,@g)
@@ -1320,6 +1321,11 @@ a-b
   (if (zero? n)
      1
      (* n (fact (1- n)))))
+(THIS IS THE LAST S-EXPRESSION)
+;; a little whitespace
+;; and
+;; some
+;; comments
 ")
 ;;(e1:define s1 "aaaaab")
 ;(e1:define s1 "one (#t ()) two (a b . c) #f three four five six seven")

@@ -234,9 +234,9 @@ static void epsilon_primitive_io_eof_p(epsilon_value *stack){
   FILE *file_star = EPSILON_EPSILON_INT_TO_EPSILON_WORD(epsilon_value_to_epsilon_int(stack[0]));
   /* Read a character (and then unread it), just to have feof return
      the result we want: */
-  int c = getc(file_star);
+  //int c = getc(file_star);
   int result_as_int = feof(file_star);
-  ungetc(c, file_star);
+  //ungetc(c, file_star);
   stack[0] = epsilon_bool_to_epsilon_value(result_as_int);
 }
 static void epsilon_primitive_io_read_character(epsilon_value *stack){
@@ -255,7 +255,7 @@ static void epsilon_primitive_io_readline(epsilon_value *stack){
   FILE* old_readline_output_stream = rl_outstream;
   rl_instream = stdin;
   rl_outstream = stdout;
-  char* c_string = readline(NULL);
+  char* c_string = readline("> ");
   rl_instream = old_readline_input_stream;
   rl_outstream = old_readline_output_stream;
   if (c_string == NULL){
@@ -266,14 +266,16 @@ static void epsilon_primitive_io_readline(epsilon_value *stack){
     add_history(c_string);
   size_t length = strlen(c_string);
   epsilon_word buffer =
-    epsilon_gc_allocate_with_epsilon_int_length(length + 1);
+    epsilon_gc_allocate_with_epsilon_int_length(length + 2);
   int i;
   epsilon_store_with_epsilon_int_offset(buffer, 0,
-                                        epsilon_int_to_epsilon_value(length));
+                                        epsilon_int_to_epsilon_value(length + 1));
   for (i = 0; i < length; i ++)
     epsilon_store_with_epsilon_int_offset(buffer,
                                           i + 1,
                                           epsilon_int_to_epsilon_value(c_string[i]));
+  epsilon_store_with_epsilon_int_offset(buffer, length + 1,
+                                        epsilon_int_to_epsilon_value('\n'));
   free(c_string);
   stack[0] = buffer;
 }
@@ -435,7 +437,11 @@ static void epsilon_primitive_state_update_globals_and_procedures(epsilon_value 
 static void epsilon_primitive_io_write_value(epsilon_value *stack){
   epsilon_value file = epsilon_value_to_foreign_pointer(stack[0]);
   epsilon_value value = stack[1];
+#ifdef EPSILON_RUNTIME_UNTAGGED
+  fprintf(file, "%li", (long)epsilon_value_to_epsilon_int(value));
+#else
   epsilon_dump_value(value, file);
+#endif // #ifdef EPSILON_RUNTIME_UNTAGGED
 }
 
 ///////////////////////////////////////////////////////////////////

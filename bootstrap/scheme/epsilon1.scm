@@ -2878,8 +2878,7 @@
   (printer:write-sexpression sexpression port))
 
 (e1:define (sexpression:write sexpression)
-  (printer:write-sexpression (io:standard-output) sexpression)
-  (string:write "\n"))
+  (printer:write-sexpression (io:standard-output) sexpression))
 
 (e1:define (printer:write-sexpression port sexpression)
   (e1:let* ((tag (sexpression:get-tag sexpression))

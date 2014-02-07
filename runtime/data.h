@@ -109,13 +109,13 @@ void epsilon_runtime_appropriate_fail(char *reason) // Fail in a runtime-appropr
 // FIXME: use macros when possible instead of this ugly kludge
 #ifdef EPSILON_RUNTIME_UNTAGGED
 #define epsilon_value_to_epsilon_int(X) ((long)(X))
-#define epsilon_int_to_epsilon_value(X) ((epsilon_value)(X))
+#define epsilon_int_to_epsilon_value(X) ((epsilon_value)(long)(X))
 #define epsilon_value_to_bool(X) ((long)(X))
 #define epsilon_bool_to_epsilon_value(X) ((epsilon_value)(long)(X))
 #define epsilon_value_is_zero(X) ((long)(X) == 0)
-#define epsilon_value_eq(X, Y) ((long)(X) == (long)(Y))
-#define epsilon_load_with_epsilon_int_offset(P, O) (((epsilon_value*)(P))[(long)(O)])
-#define epsilon_store_with_epsilon_int_offset(P, O, D) ((epsilon_value*)(P))[(long)(O)]=((epsilon_value)(D))
+#define epsilon_value_eq(X, Y) ((epsilon_int)((epsilon_value)(long)(X) == (epsilon_value)(long)(Y)))
+#define epsilon_load_with_epsilon_int_offset(P, O) (((epsilon_value*)(long)(P))[(long)(O)])
+#define epsilon_store_with_epsilon_int_offset(P, O, D) ((epsilon_value*)(long)(P))[(long)(O)]=((epsilon_value)(long)(D))
 #define epsilon_load_with_value_offset(P, O) (epsilon_load_with_epsilon_int_offset(P, epsilon_value_to_epsilon_int(O)))
 #define epsilon_store_with_value_offset(P, O, D) epsilon_store_with_epsilon_int_offset(P, epsilon_value_to_epsilon_int(O), D)
 #endif //#ifdef EPSILON_RUNTIME_UNTAGGED

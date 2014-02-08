@@ -22,16 +22,28 @@
 
 
 #include "c-primitives.h"
+#include "data.h"
 #include "../utility/utility.h"
 #include "marshal.h"
 #include "epsilon0-interpreter.h"
+
+#include <iconv.h>
 #include <stdint.h>
-#ifdef HAVE_LIBUNISTRING
-#include <unistdio.h>
-#endif // #ifdef HAVE_LIBUNISTRING
 #include <string.h>
+
+#ifdef HAVE_LIBUNISTRING
+#include <locale.h>
+#include <unistdio.h>
+#include <uniconv.h>
+#endif // #ifdef HAVE_LIBUNISTRING
+
 #include <readline/readline.h>
 #include <readline/history.h>
+
+#ifdef HAVE_LIBUNISTRING
+// The current locale, as identified by iconv.
+static const char* epsilon_locale_charset;
+#endif // #ifdef HAVE_LIBUNISTRING
 
 /* #ifndef EPSILON_RUNTIME_SMOB */
 /* #define GC_THREADS */
@@ -262,9 +274,28 @@ static void epsilon_primitive_io_readline(epsilon_value *stack){
     stack[0] = epsilon_int_to_epsilon_value(0);
     return;
   }
-  if (c_string[0] != '\0')
+  size_t nul_offset = strlen(c_string), length;
+  if (nul_offset > 0)
     add_history(c_string);
-  size_t length = strlen(c_string);
+  uint32_t *wide_string;
+#ifdef HAVE_LIBUNISTRING
+  wide_string = u32_conv_from_encoding (epsilon_locale_charset,
+                                        iconveh_escape_sequence, //iconveh_question_mark,
+                                        c_string,
+                                        nul_offset,
+                                        NULL,
+                                        NULL,
+                                        &length);
+  if (wide_string == NULL)
+    epsilon_runtime_appropriate_fail("converstion to Unicode string failed");
+#else
+  length = nul_offset;
+  wide_string = epsilon_xmalloc(sizeof(uint32_t) * (nul_offset + 1));
+  int j;
+  for (j = 0; j < nul_offset; j ++)
+    wide_string[j] = c_string[j];
+#endif // #ifdef HAVE_LIBUNISTRING
+  free(c_string);
   epsilon_word buffer =
     epsilon_gc_allocate_with_epsilon_int_length(length + 2);
   int i;
@@ -273,10 +304,10 @@ static void epsilon_primitive_io_readline(epsilon_value *stack){
   for (i = 0; i < length; i ++)
     epsilon_store_with_epsilon_int_offset(buffer,
                                           i + 1,
-                                          epsilon_int_to_epsilon_value(c_string[i]));
+                                          epsilon_int_to_epsilon_value(wide_string[i]));
   epsilon_store_with_epsilon_int_offset(buffer, length + 1,
                                         epsilon_int_to_epsilon_value('\n'));
-  free(c_string);
+  free(wide_string);
   stack[0] = buffer;
 }
 static void epsilon_primitive_io_write_character(epsilon_value *stack){
@@ -292,11 +323,6 @@ static void epsilon_primitive_io_write_character(epsilon_value *stack){
 #else
   /* Naively use one byte per character: */
   if(putc(character_as_epsilon_int, file_star) == EOF)
-    /* value_error(value_from_locale_symbol("misc-error"), */
-    /*           "io:write-character", */
-    /*           "putc failed", */
-    /*           epsilon_int_to_epsilon_value(0), */
-    /*           epsilon_int_to_epsilon_value(0)); */
     epsilon_runtime_appropriate_fail("io:write-character");
 #endif // #ifdef HAVE_LIBUNISTRING
 }
@@ -448,8 +474,22 @@ static void epsilon_primitive_io_write_value(epsilon_value *stack){
 // Primitive definitions: end
 
 void epsilon_c_primitives_initialize(void){
+// FIXME: move away into a separate initialization function.
+#ifdef HAVE_LIBUNISTRING
+  /* Set the current locale according to environment variables.  This
+     is apparently required to have locale_charset return the right
+     charset. */
+  setlocale(LC_ALL, "");
+  epsilon_locale_charset = locale_charset();
+#ifdef ENABLE_VERBOSE_DEBUG
+  fprintf(stderr, "[The locale charset as a pointer is %p]\n", epsilon_locale_charset);
+  fprintf(stderr, "[its string length is %i]\n", (int)strlen(epsilon_locale_charset));
+  fprintf(stderr, "[The locale charset is %s]\n", epsilon_locale_charset);
+#endif // #ifdef ENABLE_VERBOSE_DEBUG
+#endif // #ifdef HAVE_LIBUNISTRING
+
   epsilon_initialize_string_hash(& epsilon_c_primitive_hash);
-  
+
   /* Now initialize primitives one by one: */
   epsilon_initialize_c_primitive("whatever:zero?", epsilon_primitive_zero_p, 1, 1);
   epsilon_initialize_c_primitive("whatever:eq?", epsilon_primitive_whatever_eq_p, 2, 1);

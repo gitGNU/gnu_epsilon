@@ -27,6 +27,7 @@
 #include "marshal.h"
 #include "epsilon0-interpreter.h"
 
+#include <errno.h>
 #include <iconv.h>
 #include <stdint.h>
 #include <string.h>
@@ -279,15 +280,33 @@ static void epsilon_primitive_io_readline(epsilon_value *stack){
     add_history(c_string);
   uint32_t *wide_string;
 #ifdef HAVE_LIBUNISTRING
-  wide_string = u32_conv_from_encoding (epsilon_locale_charset,
-                                        iconveh_escape_sequence, //iconveh_question_mark,
-                                        c_string,
-                                        nul_offset,
-                                        NULL,
-                                        NULL,
-                                        &length);
-  if (wide_string == NULL)
-    epsilon_runtime_appropriate_fail("converstion to Unicode string failed");
+  if (nul_offset == 0)
+    {
+      wide_string = NULL;
+      length = 0;
+    }
+  else
+    {
+      if (NULL == (wide_string
+                   = u32_conv_from_encoding (epsilon_locale_charset,
+                                             iconveh_error,
+                                             c_string,
+                                             nul_offset,
+                                             NULL,
+                                             NULL,
+                                             &length)))
+        switch (errno)
+          {
+          case EILSEQ:
+            epsilon_runtime_appropriate_fail("converstion to Unicode string failed");
+          case EINVAL:
+            epsilon_runtime_appropriate_fail("invalid value during Unicode conversion");
+          case ENOMEM:
+            epsilon_runtime_appropriate_fail("out-of-memory during Unicode conversion");
+          default:
+            epsilon_runtime_appropriate_fail("unknown failure during Unicode conversion");
+          }
+    }
 #else
   length = nul_offset;
   wide_string = epsilon_xmalloc(sizeof(uint32_t) * (nul_offset + 1));

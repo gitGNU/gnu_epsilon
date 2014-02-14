@@ -750,8 +750,6 @@
                      #\,
                      ;;#\# ;; this is used in some atoms
                      )
-         "#t"
-         "#f"
          (#\\ (\| #\space
                   #\tab
                   #\cr
@@ -764,7 +762,8 @@
                   #\"
                   #\,
                   ;;#\#
-                  )))))
+                  ))
+         )))
 
 
 ;;;;; Regexp recognizer [FIXME: this is tentative and must be made

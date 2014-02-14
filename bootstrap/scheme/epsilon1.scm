@@ -2943,11 +2943,16 @@
     (else
      (io:write-character port value))))
 
+;; This is useful to test wide characters: 中, 日本語.
 (e1:define (printer:write-string port value)
-  (io:write-string port "#<string>")) ;; FIXME: implement
+  (io:write-character port #\")
+  ;; FIXME: unescape
+  (io:write-string port value)
+  (io:write-character port #\"))
 
 (e1:define (printer:write-symbol port value)
-  (io:write-string port "#<symbol>")) ;; FIXME: implement
+  ;; FIXME: unescape
+  (io:write-string port (symbol:symbol->string value)))
 
 (e1:define (printer:write-fixed-point port value)
   (io:write-string port "#<fixed-point>")) ;; FIXME: implement

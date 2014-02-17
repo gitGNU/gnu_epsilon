@@ -2928,31 +2928,68 @@
     (printer:write-sexpression port left)
     (printer:write-rest port right)))
 
+(e1:define sexpression:character-escape-table   ;; character-to-string
+  (unboxed-hash:make))
+(e1:define sexpression:character-unescape-table ;; string-to-character
+  (string-hash:make))
+
+(e1:define sexpression:string-escape-table   ;; character->character
+  (unboxed-hash:make))
+(e1:define sexpression:string-unescape-table ;; character->character
+  (unboxed-hash:make))
+
+(e1:define (sexpression:set-character-escape! character string)
+  (unboxed-hash:set! sexpression:character-escape-table
+                     character string)
+  (string-hash:set! sexpression:character-unescape-table
+                    string character)
+  (item-list:add-before! ;; better than add-after!: misbehavior will be more evident
+     reader:atom-item-list-box
+     (e1:value unescaped-character)
+     (symbol:string->symbol string)
+     (reader:atom-case (regexp:sregexp->regexp (sexpression:inject-string
+                                                   (string:append "#\\" string)))
+                       (e1:lambda (_ locus)
+                         (sexpression:make-with-locus sexpression:character-tag
+                                                      character
+                                                      locus)))))
+
+(e1:define (sexpression:set-string-escape! character escape)
+  (unboxed-hash:set! sexpression:string-escape-table
+                     character escape)
+  (unboxed-hash:set! sexpression:string-unescape-table
+                     escape character))
+
 (e1:define (printer:write-character port value)
   (io:write-character port #\#)
   (io:write-character port #\\)
-  (e1:case value
-    ((#\newline)
-     (io:write-string port "newline"))
-    ((#\space)
-     (io:write-string port "space"))
-    ((#\tab)
-     (io:write-string port "tab"))
-    ((#\cr)
-     (io:write-string port "cr"))
-    (else
-     (io:write-character port value))))
+  (e1:if (unboxed-hash:has? sexpression:character-escape-table
+                            value)
+    (io:write-string port (unboxed-hash:get sexpression:character-escape-table
+                                            value))
+    (io:write-character port value)))
+
+(e1:define (printer:escaping-write-string port string from-index)
+  (e1:if (fixnum:= from-index (string:length string))
+    (e1:bundle)
+    (e1:let ((c (string:get string from-index)))
+      ;; FIXME: handle non-printable non-escaped characters in a different way.
+      (e1:if (unboxed-hash:has? sexpression:string-escape-table c)
+        (e1:let ((e (unboxed-hash:get sexpression:string-escape-table c)))
+          (io:write-character port #\\)
+          (io:write-character port e))
+        (io:write-character port c)))
+    (printer:escaping-write-string port string (fixnum:1+ from-index))))
 
 ;; This is useful to test wide characters: 中, 日本語.
 (e1:define (printer:write-string port value)
   (io:write-character port #\")
-  ;; FIXME: unescape
-  (io:write-string port value)
+  (printer:escaping-write-string port value 0)
   (io:write-character port #\"))
 
 (e1:define (printer:write-symbol port value)
-  ;; FIXME: unescape
-  (io:write-string port (symbol:symbol->string value)))
+  ;; FIXME: shall I *also* unescape some other (Scheme-compatible) way?
+  (printer:escaping-write-string port (symbol:symbol->string value) 0))
 
 (e1:define (printer:write-fixed-point port value)
   (io:write-string port "#<fixed-point>")) ;; FIXME: implement

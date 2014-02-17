@@ -706,6 +706,9 @@
        (+ (\| (range #\0 #\9)
               (range #\a #\z))))))
 
+(e1:define-regexp sexpression:unescaped-character
+  (#\# #\\ universe)) ;; escaped characters are recognized *before* this.
+
 (e1:define-regexp sexpression:comment
   (+ (#\;
       (* (complement #\newline))
@@ -1268,6 +1271,15 @@
                                                       (reader:string->fixnum string)
                                                       locus))))
 
+  (item-list:add-first!
+     reader:atom-item-list-box
+     (e1:value unescaped-character)
+     (reader:atom-case (regexp:sregexp->regexp 'sexpression:unescaped-character)
+                       (e1:lambda (string locus)
+                         (sexpression:make-with-locus sexpression:character-tag
+                                                      (string:get string 2) ;; #\a
+                                                      locus))))
+
   (item-list:add-last!
      reader:atom-item-list-box
      (e1:value symbol)
@@ -1277,6 +1289,25 @@
                          (sexpression:make-with-locus sexpression:symbol-tag
                                                       (symbol:string->symbol string)
                                                       locus)))))
+
+
+;;;;; Character and string escaping
+;;;;; FIXME: move the rest of the implementation here.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:toplevel
+  (sexpression:set-character-escape! #\nul "nul")
+  (sexpression:set-character-escape! #\space "space")
+  (sexpression:set-character-escape! #\tab "tab")
+  (sexpression:set-character-escape! #\newline "newline")
+  (sexpression:set-character-escape! #\cr "cr")
+
+  (sexpression:set-string-escape! #\" #\")
+  (sexpression:set-string-escape! #\\ #\\)
+  (sexpression:set-string-escape! #\tab #\t)
+  (sexpression:set-string-escape! #\newline #\n)
+  (sexpression:set-string-escape! #\cr #\c)
+  )
 
 
 ;;;;; Scratch
@@ -1367,3 +1398,14 @@ a-b
     (format #t "Locus:\n  ~s\n" locus)
     (format #t "~s\n" q)
     (values)))
+
+;;;;;;;;;;;;
+(e1:define s "a")
+(e1:define (test new-character)
+  (string:set! s 0 new-character)
+  (printer:write-string (io:standard-output) s)
+  (io:write-character (io:standard-output) 10)
+  (io:write-string (io:standard-output) "The first character of the string is ")
+  (printer:write-character (io:standard-output) (string:get s 0))
+  (io:write-character (io:standard-output) 10)
+  )

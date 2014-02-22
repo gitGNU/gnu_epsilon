@@ -2938,6 +2938,40 @@
 (e1:define sexpression:string-unescape-table ;; character->character
   (unboxed-hash:make))
 
+(e1:define (reader:unescape-string-literal quoted-escaped-string)
+  (e1:let* ((length (fixnum:- (string:length quoted-escaped-string) 2))
+            (limit (fixnum:1+ length))
+            (result-to-cut (vector:make length))
+            (used-character-no (reader:unescape-string-literal-helper result-to-cut quoted-escaped-string 0 1 limit)))
+    (e1:if (fixnum:= used-character-no length)
+      result-to-cut
+      (e1:let ((result (vector:make used-character-no)))
+        (vector:blit result 0 result-to-cut 0 used-character-no)
+        (buffer:destroy result-to-cut)
+        result))))
+(e1:define (reader:unescape-string-literal-helper target source target-i source-i source-limit)
+  (e1:cond ((fixnum:= source-i source-limit)
+            target-i)
+           ((whatever:eq? (string:get source source-i) #\\)
+            (e1:cond ((fixnum:= (fixnum:1+ source-i) source-limit)
+                      (e1:error "trailing #\\\\ in string literal")) ;; impossible if recognized by the regexp
+                     ((unboxed-hash:has? sexpression:string-unescape-table
+                                         (string:get source (fixnum:1+ source-i)))
+                      (string:set! target
+                                   target-i
+                                   (unboxed-hash:get sexpression:string-unescape-table
+                                                     (string:get source (fixnum:1+ source-i))))
+                      (reader:unescape-string-literal-helper target
+                                                             source
+                                                             (fixnum:1+ target-i)
+                                                             (fixnum:+ source-i 2)
+                                                             source-limit))
+                     (else
+                      (e1:error "unknown string escape"))))
+           (else
+            (string:set! target target-i (string:get source source-i))
+            (reader:unescape-string-literal-helper target source (fixnum:1+ target-i) (fixnum:1+ source-i) source-limit))))
+
 (e1:define (sexpression:set-character-escape! character string)
   (unboxed-hash:set! sexpression:character-escape-table
                      character string)

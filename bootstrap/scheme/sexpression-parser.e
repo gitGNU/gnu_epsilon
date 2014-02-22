@@ -1207,9 +1207,7 @@
          ((regexp:result-failure)
           (reader:result-failure))
          ((regexp:result-success initial-row initial-column final-row final-column string)
-          ;; FIXME: unescape
-          (e1:let* ((list (vector:vector->list string))
-                    (result-string (vector:list->vector (list:tail (list:reverse (list:tail (list:reverse list))))))
+          (e1:let* ((result-string (reader:unescape-string-literal string))
                     (file-name-option (backtrackable-port:backtrackable-port-get-file-name-option bp))
                     (locus (locus:locus-known file-name-option
                                               initial-row initial-column

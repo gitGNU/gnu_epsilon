@@ -734,10 +734,7 @@
 (e1:define-regexp sexpression:string
   (#\"
    (* (\| (complement #\" #\\)
-          (#\\ #\")
-          (#\\ #\\)
-          (#\\ #\n)
-          (#\\ #\t)))
+          (#\\ universe)))
    #\"))
 
 (e1:define-regexp sexpression:atom

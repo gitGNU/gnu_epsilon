@@ -2996,15 +2996,18 @@
 (e1:define (reader:unescape-string-literal-helper target source target-i source-i source-limit)
   (e1:cond ((fixnum:= source-i source-limit)
             target-i)
-           ((whatever:eq? (string:get source source-i) #\\)
-            (e1:cond ((fixnum:= (fixnum:1+ source-i) source-limit)
+           (bind (source-c (string:get source source-i))
+                 (source-next-i (fixnum:1+ source-i)))
+           ((whatever:eq? source-c #\\)
+            (e1:cond ((fixnum:= source-next-i source-limit)
                       (e1:error "trailing #\\\\ in string literal")) ;; impossible if recognized by the regexp
+                     (bind (source-next-c (string:get source source-next-i)))
                      ((unboxed-hash:has? sexpression:string-unescape-table
-                                         (string:get source (fixnum:1+ source-i)))
+                                         source-next-c)
                       (string:set! target
                                    target-i
                                    (unboxed-hash:get sexpression:string-unescape-table
-                                                     (string:get source (fixnum:1+ source-i))))
+                                                     source-next-c))
                       (reader:unescape-string-literal-helper target
                                                              source
                                                              (fixnum:1+ target-i)
@@ -3013,7 +3016,7 @@
                      (else
                       (e1:error "unknown string escape"))))
            (else
-            (string:set! target target-i (string:get source source-i))
+            (string:set! target target-i source-c)
             (reader:unescape-string-literal-helper target source (fixnum:1+ target-i) (fixnum:1+ source-i) source-limit))))
 
 (e1:define (sexpression:set-character-escape! character string)

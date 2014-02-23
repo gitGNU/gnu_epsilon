@@ -2521,10 +2521,14 @@
   (sexpression:inject-boolean (e0:value #f)))
 
 (e1:define (sexpression:eq? s1 s2)
-  (e1:and (whatever:eq? (sexpression:get-tag s1)
-                        (sexpression:get-tag s2))
-          (whatever:eq? (sexpression:eject s1)
-                        (sexpression:eject s2))))
+  ;; We don't have a good e1:and macro yet, and we don't want to use
+  ;; boolean:and2 for efficiency's sake.
+  (e0:if-in (whatever:eq? (sexpression:get-tag s1)
+                          (sexpression:get-tag s2))
+            (#f)
+    (e0:value #f)
+    (whatever:eq? (sexpression:eject s1)
+                  (sexpression:eject s2))))
 
 
 ;;;;; Macros

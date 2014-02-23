@@ -2245,6 +2245,50 @@
          ,@body-forms))))
 
 
+;;;;; A multi-way conditional including local bindings
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Sometimes I feel the need for a let or let* block spanning thru
+;;; multiple cond condition and bodies; having a block out of the cond
+;;; may not be an option because of efficiency, or preconditions to be
+;;; tested.
+;;; This new definition of e1:cond is a backwards-compatible extension.
+;;;
+;;; Example:
+;;; (e1:cond ((list:null? list)
+;;;           'something)
+;;;          (bind (head (list:head list))
+;;;                (tail (list:tail list)))
+;;;          ((fixnum:even? head)
+;;;           (something-even head tail))
+;;;          (else
+;;;           (something-odd head tail)))
+;;;
+;;; A bind* clause with the same syntax as bind is also available,
+;;; generating sequential bindings in the style of let*.
+(e1:define-macro (e1:cond . cond-items)
+  (e1:if (sexpression:null? cond-items)
+    '(e1:bundle)
+    (e1:if (e1:not (sexpression:cons? (sexpression:car cond-items)))
+      (e1:error "cond item is not a cons")
+      (e1:let ((caar (sexpression:caar cond-items))
+               (cdar (sexpression:cdar cond-items))
+               (cdr (sexpression:cdr cond-items)))
+        (e1:if (sexpression:eq? caar 'else)
+          (e1:if (sexpression:null? cdr)
+            `(e1:begin ,@cdar)
+            (e1:error "else cond item not at the end"))
+          (e1:if (sexpression:eq? caar 'bind)
+            `(e1:let (,@cdar)
+               (e1:cond ,@cdr))
+            (e1:if (sexpression:eq? caar 'bind*)
+              `(e1:let* (,@cdar)
+                 (e1:cond ,@cdr))
+              `(e1:if ,caar
+                 (e1:begin ,@cdar)
+                 (e1:cond ,@cdr)))))))))
+
+
 ;;;;; Futures
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

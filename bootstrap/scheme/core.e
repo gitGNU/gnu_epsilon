@@ -1352,6 +1352,9 @@
 ;;; fixed-point number, in the the least significant part of the word.
 ;;; All the other bits will be used for the integer part and the sign
 ;;; bit; we assume two's complement representation for integers.
+;;; Warning: using more than 30 bits causes the bitmask to be
+;;; undumptable in the current system based on 32-bit words for all
+;;; architactures.
 (e1:define fixedpoint:fractional-bit-no
   (e0:value 16))
 

@@ -1415,11 +1415,15 @@
 (e1:define (fixedpoint:<> a b)
   (fixnum:<> a b))
 
+;;; Conversion:
+(e1:define (fixedpoint:fixedpoint->fixnum fixed)
+  (fixnum:right-shift fixed fixedpoint:fractional-bit-no))
+
 ;;; More computation:
 (e1:define (fixedpoint:mod a)
   (fixnum:mod a))
 
-;;; Particularly useful for printing:
+;;; Particularly useful for printing: [FIXME: get rid of this crap]
 (e1:define (fixedpoint:get-integer-part fixed)
   (fixnum:right-shift fixed fixedpoint:fractional-bit-no))
 (e1:define (fixedpoint:get-fractional-part fixed digit-no)

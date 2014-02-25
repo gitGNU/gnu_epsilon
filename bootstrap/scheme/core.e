@@ -2,7 +2,7 @@
 ;;;;; e0 global state, interpreter and macros defined in epsilon0 plus e1:define
 
 ;;;;; Copyright (C) 2012 Université Paris 13
-;;;;; Copyright (C) 2013 Luca Saiu
+;;;;; Copyright (C) 2013, 2014 Luca Saiu
 ;;;;; Written by Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
@@ -135,6 +135,13 @@
   (fixnum:bitwise-and a (e0:value 1)))
 (e1:define (fixnum:even? a)
   (boolean:not (fixnum:odd? a)))
+
+(e1:define (fixnum:sign a)
+  (e0:if-in a (0)
+    (e0:value 0)
+    (e0:if-in (fixnum:< a 0) (#f)
+      (e0:value 1)
+      (e0:value -1))))
 
 ;;; Useful for backends with no hardware multiplication. [FIXME: use it]
 (e1:define (fixnum:non-primitive-* a b)
@@ -666,10 +673,12 @@
       (string:append2 (e0:value "-")
                       (string:positive-fixnum->string (fixnum:negate fixnum))))
     (e0:value "0")))
+(e1:define (fixnum:digit-no fixnum)
+  (e0:if-in fixnum (0)
+    (e0:value 1)
+    (fixnum:1+ (fixnum:log10 fixnum))))
 (e1:define (string:positive-fixnum->string fixnum)
-  (e0:let (digit-no) (e0:if-in fixnum (0)
-                       (e0:value 1)
-                       (fixnum:1+ (fixnum:log10 fixnum)))
+  (e0:let (digit-no) (fixnum:digit-no fixnum)
     (e0:let (result) (vector:make digit-no)
       (e0:let () (string:fill-with-positive-fixnum-digits! result fixnum digit-no)
         result))))
@@ -1350,6 +1359,7 @@
 (e1:define fixedpoint:fractional-bitmask
   (fixnum:1- (fixnum:left-shift (e0:value 1) fixedpoint:fractional-bit-no)))
 
+;;; FIXME: remove this crap
 ;;; Useful for building small constants.  All fixnums must be zero or
 ;;; positive; the others must be in [0, 10). For example, supplying
 ;;; the fixnums 1, 192, 0, 3 and 2 we get the fixed-point result
@@ -1385,6 +1395,22 @@
   (fixnum:right-shift (fixnum:* a b) fixedpoint:fractional-bit-no))
 (e1:define (fixedpoint:/ a b)
   (fixnum:/ (fixnum:left-shift a fixedpoint:fractional-bit-no) b))
+(e1:define (fixedpoint:sign a)
+  (fixnum:sign a))
+
+;;; Comparisons:
+(e1:define (fixedpoint:< a b)
+  (fixnum:< a b))
+(e1:define (fixedpoint:> a b)
+  (fixnum:> a b))
+(e1:define (fixedpoint:<= a b)
+  (fixnum:<= a b))
+(e1:define (fixedpoint:>= a b)
+  (fixnum:>= a b))
+(e1:define (fixedpoint:= a b)
+  (fixnum:= a b))
+(e1:define (fixedpoint:<> a b)
+  (fixnum:<> a b))
 
 ;;; More computation:
 (e1:define (fixedpoint:mod a)

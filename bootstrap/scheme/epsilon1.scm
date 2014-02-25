@@ -2688,6 +2688,8 @@
                  `(io:write-symbol ,file ,@args))
                 ((i)
                  `(io:write-fixnum ,file ,@args))
+                ((f)
+                 `(printer:write-fixed-point ,file ,@args))
                 ((b)
                  `(io:write-boolean ,file ,@args))
                 (else

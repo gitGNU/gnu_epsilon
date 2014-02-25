@@ -706,6 +706,13 @@
        (+ (\| (range #\0 #\9)
               (range #\a #\z))))))
 
+(e1:define-regexp sexpression:fixed-point-in-simple-dot-notation
+  (\| ((? sexpression:sign)
+       (* sexpression:decimal-digit)
+       #\.
+       (* sexpression:decimal-digit))))
+;; FIXME: add scientific notation as well
+
 (e1:define-regexp sexpression:unescaped-character
   (#\# #\\ universe)) ;; escaped characters are recognized *before* this.
 
@@ -913,6 +920,61 @@
     (fixnum:- character #\0)
     (fixnum:+ (fixnum:- character #\a)
               10)))
+
+
+;;;;; Fixed-point parsing and printing
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (reader:string-in-simple-dot-notation->fixed-point s)
+  (e1:let ((c (string:get s 0))
+           (limit (string:length s)))
+    (e1:case c
+      ((#\+)
+       (reader:string-in-simple-dot-notation->fixed-point-helper s 1 limit 0))
+      ((#\-)
+       (fixedpoint:negate
+        (reader:string-in-simple-dot-notation->fixed-point-helper s 1 limit 0))
+       )
+      (else
+       (reader:string-in-simple-dot-notation->fixed-point-helper s 0 limit 0)))))
+;; FIXME: this handling of the fractional part is fundamentally wrong:
+;; I should just add the positional value of each digit to an
+;; accumulator, so that excess digits on the right are ignored,
+;; instead of causing wraparounds.
+(e1:define (reader:string-in-simple-dot-notation->fixed-point-helper s i limit acc)
+  (e1:let ((c (string:get s i)))
+    (e1:if (whatever:eq? c #\.)
+      (e1:let* ((fractional-part-as-fixnum
+                 (reader:string->fixnum-magnitude-helper s (fixnum:1+ i) 0 10))
+                (fractional-part-digit-no (fixnum:- (string:length s) i 1))
+                (fractional-part-denominator-as-fixnum (fixnum:** 10 fractional-part-digit-no))
+                (fractional-part
+                 (fixedpoint:/ (fixedpoint:fixnum->fixedpoint fractional-part-as-fixnum)
+                               (fixedpoint:fixnum->fixedpoint fractional-part-denominator-as-fixnum)))
+                (integer-part (fixedpoint:fixnum->fixedpoint acc)))
+        (fixnum:bitwise-or integer-part fractional-part))
+      (e1:let ((c-digit (reader:character-value c 10)))
+        (reader:string-in-simple-dot-notation->fixed-point-helper s (fixnum:1+ i) limit (fixnum:+ c-digit (fixnum:* acc 10)))))))
+
+(e1:define (printer:write-fixed-point port fp)
+  (e1:if (fixnum:= (fixedpoint:sign fp) -1)
+    (e1:begin
+      (io:write-character port #\-)
+      (printer:write-fixed-point port (fixedpoint:negate fp)))
+    (e1:begin
+      (printer:write-fixnum port (fixedpoint:get-integer-part fp))
+      (io:write-character port #\.)
+      (printer:write-fixed-point-fractional-part port (fixnum:bitwise-and fixedpoint:fractional-bitmask fp)))))
+(e1:define (printer:write-fixed-point-fractional-part port fractional-part-only)
+  (e1:if (fixnum:zero? fractional-part-only)
+    (e1:bundle)
+    (e1:let* ((decimal-digit
+               (fixnum:bitwise-and (fixnum:bitwise-not fixedpoint:fractional-bitmask)
+                                   (fixnum:* fractional-part-only 10)))
+              (digit-as-fixnum
+               (fixnum:right-shift decimal-digit fixedpoint:fractional-bit-no)))
+      (io:write-character port (fixnum:+ #\0 digit-as-fixnum))
+      (printer:write-fixed-point-fractional-part port (fixnum:bitwise-and fixedpoint:fractional-bitmask (fixnum:* fractional-part-only 10))))))
 
 
 ;;;;; Reader programmable interface
@@ -1265,6 +1327,15 @@
                        (e1:lambda (string locus)
                          (sexpression:make-with-locus sexpression:fixnum-tag
                                                       (reader:string->fixnum string)
+                                                      locus))))
+
+  (item-list:add-first!
+     reader:atom-item-list-box
+     (e1:value fixed-point)
+     (reader:atom-case (regexp:sregexp->regexp 'sexpression:fixed-point-in-simple-dot-notation)
+                       (e1:lambda (string locus)
+                         (sexpression:make-with-locus sexpression:fixed-point-tag
+                                                      (reader:string-in-simple-dot-notation->fixed-point string)
                                                       locus))))
 
   (item-list:add-first!

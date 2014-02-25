@@ -3,6 +3,7 @@
 
 ;;;;; Copyright (C) 2012 Université Paris 13
 ;;;;; Copyright (C) 2013 Luca Saiu
+;;;;; Updated in 2014 by Luca Saiu
 ;;;;; Written by Luca Saiu
 
 ;;;;; Copyright (C) 2013 Jérémie Koenig
@@ -3062,7 +3063,7 @@
         (io:write-character port c)))
     (printer:escaping-write-string port string (fixnum:1+ from-index))))
 
-;; This is useful to test wide characters: 中, 日本語.
+;; This is useful to test wide characters: 中国、日本語。
 (e1:define (printer:write-string port value)
   (io:write-character port #\")
   (printer:escaping-write-string port value 0)
@@ -3071,9 +3072,6 @@
 (e1:define (printer:write-symbol port value)
   ;; FIXME: shall I *also* unescape some other (Scheme-compatible) way?
   (printer:escaping-write-string port (symbol:symbol->string value) 0))
-
-(e1:define (printer:write-fixed-point port value)
-  (io:write-string port "#<fixed-point>")) ;; FIXME: implement
 
 (e1:define (printer:write-expression port value)
   (io:write-string port "#<expression>")) ;; FIXME: implement

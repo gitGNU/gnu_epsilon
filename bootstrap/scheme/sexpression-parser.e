@@ -926,35 +926,48 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (e1:define (reader:string-in-simple-dot-notation->fixed-point s)
-  (e1:let ((c (string:get s 0))
-           (limit (string:length s)))
+  (e1:let ((c (string:get s 0)))
     (e1:case c
       ((#\+)
-       (reader:string-in-simple-dot-notation->fixed-point-helper s 1 limit 0))
+       (reader:string-in-simple-dot-notation->fixed-point-helper s 1 0))
       ((#\-)
        (fixedpoint:negate
-        (reader:string-in-simple-dot-notation->fixed-point-helper s 1 limit 0))
+        (reader:string-in-simple-dot-notation->fixed-point-helper s 1 0))
        )
       (else
-       (reader:string-in-simple-dot-notation->fixed-point-helper s 0 limit 0)))))
-;; FIXME: this handling of the fractional part is fundamentally wrong:
-;; I should just add the positional value of each digit to an
-;; accumulator, so that excess digits on the right are ignored,
-;; instead of causing wraparounds.
-(e1:define (reader:string-in-simple-dot-notation->fixed-point-helper s i limit acc)
+       (reader:string-in-simple-dot-notation->fixed-point-helper s 0 0)))))
+(e1:define (reader:string-in-simple-dot-notation->fixed-point-helper s i acc)
   (e1:let ((c (string:get s i)))
     (e1:if (whatever:eq? c #\.)
-      (e1:let* ((fractional-part-as-fixnum
-                 (reader:string->fixnum-magnitude-helper s (fixnum:1+ i) 0 10))
-                (fractional-part-digit-no (fixnum:- (string:length s) i 1))
-                (fractional-part-denominator-as-fixnum (fixnum:** 10 fractional-part-digit-no))
-                (fractional-part
-                 (fixedpoint:/ (fixedpoint:fixnum->fixedpoint fractional-part-as-fixnum)
-                               (fixedpoint:fixnum->fixedpoint fractional-part-denominator-as-fixnum)))
-                (integer-part (fixedpoint:fixnum->fixedpoint acc)))
-        (fixnum:bitwise-or integer-part fractional-part))
+      (e1:let ((integer-part (fixedpoint:fixnum->fixedpoint acc)))
+        (reader:string-in-simple-dot-notation->fixed-point-fractional-helper
+         s
+         (fixnum:1+ i)
+         fixedpoint:1/10
+         integer-part))
       (e1:let ((c-digit (reader:character-value c 10)))
-        (reader:string-in-simple-dot-notation->fixed-point-helper s (fixnum:1+ i) limit (fixnum:+ c-digit (fixnum:* acc 10)))))))
+        (reader:string-in-simple-dot-notation->fixed-point-helper
+         s
+         (fixnum:1+ i)
+         (fixnum:+ c-digit (fixnum:* acc 10)))))))
+(e1:define (reader:string-in-simple-dot-notation->fixed-point-fractional-helper s i weight acc)
+  (e1:if (fixnum:= i (string:length s))
+    acc
+    (e1:let* ((digit-as-fixnum (reader:character-value (string:get s i) 10))
+              (digit (fixedpoint:fixnum->fixedpoint digit-as-fixnum))
+              (weighted-digit (fixedpoint:* weight digit)))
+      (reader:string-in-simple-dot-notation->fixed-point-fractional-helper
+       s
+       (fixnum:1+ i)
+       (fixedpoint:10/ weight)
+       (fixedpoint:+ acc weighted-digit)))))
+(e1:define fixedpoint:10
+  (fixedpoint:fixnum->fixedpoint 10))
+(e1:define fixedpoint:1/10
+  (fixedpoint:/ fixedpoint:1
+                fixedpoint:10))
+(e1:define (fixedpoint:10/ x)
+  (fixedpoint:* x fixedpoint:1/10))
 
 (e1:define (printer:write-fixed-point port fp)
   (e1:if (fixnum:= (fixedpoint:sign fp) -1)

@@ -138,17 +138,22 @@
 ;;;;; Debugging
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; FIXME: the following procedures are currently written in Guile.
-;; Reimplement them in epsilon1 as well.
-;; * meta:print-macro-definition
-;; * meta:print-macro-procedure-name
-
 (e1:define (debug:print-procedure-definition name)
   (e1:let ((p (io:standard-output)))
     (io:write-string p "Formals: ")
     (printer:write-symbols p (state:procedure-get-formals name))
     (io:write-string p "\nBody: ")
     (printer:write-expression p (state:procedure-get-body name))
+    (io:write-string p "\n")))
+
+(e1:define (debug:print-macro-definition name)
+  (e1:let ((p (io:standard-output)))
+    (printer:write-sexpression p  (state:macro-get-body name))
+    (io:write-string p "\n")))
+
+(e1:define (debug:print-macro-procedure-name macro-name)
+  (e1:let ((p (io:standard-output)))
+    (printer:write-symbol p (state:macro-get-macro-procedure-name macro-name))
     (io:write-string p "\n")))
 
 

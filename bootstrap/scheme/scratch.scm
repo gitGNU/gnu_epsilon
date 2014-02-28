@@ -135,6 +135,23 @@
           (repl:repl-helper bp))))))
 
 
+;;;;; Debugging
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; FIXME: the following procedures are currently written in Guile.
+;; Reimplement them in epsilon1 as well.
+;; * meta:print-macro-definition
+;; * meta:print-macro-procedure-name
+
+(e1:define (debug:print-procedure-definition name)
+  (e1:let ((p (io:standard-output)))
+    (io:write-string p "Formals: ")
+    (printer:write-symbols p (state:procedure-get-formals name))
+    (io:write-string p "\nBody: ")
+    (printer:write-expression p (state:procedure-get-body name))
+    (io:write-string p "\n")))
+
+
 ;;;;; Scratch
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

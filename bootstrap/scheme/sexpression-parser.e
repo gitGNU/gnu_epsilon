@@ -1365,9 +1365,9 @@
      (e1:value symbol)
      (reader:atom-case regexp:anything ;; this always matches
                        (e1:lambda (string locus)
-                         ;; FIXME: unescape
                          (sexpression:make-with-locus sexpression:symbol-tag
-                                                      (symbol:string->symbol string)
+                                                      (symbol:string->symbol
+                                                       (reader:unescape-symbol-literal string))
                                                       locus)))))
 
 
@@ -1387,6 +1387,11 @@
   (sexpression:set-string-escape! #\tab #\t)
   (sexpression:set-string-escape! #\newline #\n)
   (sexpression:set-string-escape! #\cr #\c)
+
+  ;;; No, this is unsatisfactory.  It would be nice to be able to
+  ;;; support *symbol* names including spaces, but I don't want to pay
+  ;;; the price of having escaped spaces in printed *strings*.
+  ;; (sexpression:set-string-escape! #\space #\space)
   )
 
 

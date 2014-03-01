@@ -2991,11 +2991,25 @@
 (e1:define sexpression:string-unescape-table ;; character->character
   (unboxed-hash:make))
 
-(e1:define (reader:unescape-string-literal quoted-escaped-string)
-  (e1:let* ((length (fixnum:- (string:length quoted-escaped-string) 2))
-            (limit (fixnum:1+ length))
+;;; Take a string, return a string
+(e1:define (reader:unescape-symbol-literal escaped-string)
+  (reader:unescape-possibly-quoted-string-literal escaped-string #f))
+
+(e1:define (st x) (reader:unescape-string-literal x))
+(e1:define (sy x) (reader:unescape-symbol-literal x))
+
+;;; Take a string with surrounding #\" characters, return a string
+;;; without them.
+(e1:define (reader:unescape-string-literal escaped-string)
+  (reader:unescape-possibly-quoted-string-literal escaped-string #t))
+
+(e1:define (reader:unescape-possibly-quoted-string-literal escaped-string
+                                                           quoted) ;; surrounded by #\"?
+  (e1:let* ((length (fixnum:- (string:length escaped-string)
+                              (e1:if quoted 2 0)))
+            (limit (fixnum:+ length (e1:if quoted 1 0)))
             (result-to-cut (vector:make length))
-            (used-character-no (reader:unescape-string-literal-helper result-to-cut quoted-escaped-string 0 1 limit)))
+            (used-character-no (reader:unescape-string-literal-helper result-to-cut escaped-string 0 (e1:if quoted 1 0) limit)))
     (e1:if (fixnum:= used-character-no length)
       result-to-cut
       (e1:let ((result (vector:make used-character-no)))
@@ -3008,9 +3022,7 @@
            (bind (source-c (string:get source source-i))
                  (source-next-i (fixnum:1+ source-i)))
            ((whatever:eq? source-c #\\)
-            (e1:cond ((fixnum:= source-next-i source-limit)
-                      (e1:error "trailing #\\\\ in string literal")) ;; impossible if recognized by the regexp
-                     (bind (source-next-c (string:get source source-next-i)))
+            (e1:cond (bind (source-next-c (string:get source source-next-i)))
                      ((unboxed-hash:has? sexpression:string-unescape-table
                                          source-next-c)
                       (string:set! target

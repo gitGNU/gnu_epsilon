@@ -2684,6 +2684,8 @@
                  `(io:write-character ,file ,@args))
                 ((C)
                  `(printer:write-character ,file ,@args))
+                ((se)
+                 `(printer:write-sexpression ,file ,@args))
                 ((s st)
                  `(io:write-string ,file ,@args))
                 ((S st)

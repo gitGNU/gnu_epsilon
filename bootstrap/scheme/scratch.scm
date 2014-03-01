@@ -156,6 +156,11 @@
     (printer:write-symbol p (state:macro-get-macro-procedure-name macro-name))
     (io:write-string p "\n")))
 
+(e1:define (debug:macroexpand sexpression)
+  (e1:let ((p (io:standard-output)))
+    (printer:write-expression p (e1:macroexpand sexpression))
+    (io:write-string p "\n")))
+
 
 ;;;;; Scratch
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

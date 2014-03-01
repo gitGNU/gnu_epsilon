@@ -2682,8 +2682,12 @@
               (e1:case name
                 ((c)
                  `(io:write-character ,file ,@args))
+                ((C)
+                 `(printer:write-character ,file ,@args))
                 ((s st)
                  `(io:write-string ,file ,@args))
+                ((S st)
+                 `(printer:write-string ,file ,@args))
                 ((sy)
                  `(io:write-symbol ,file ,@args))
                 ((i)

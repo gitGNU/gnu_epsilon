@@ -628,6 +628,15 @@
 (e1:define character:newline
   (e0:value 10))
 
+;;; The eof value, returned as an invalid character by some read
+;;; operations.
+(e1:define io:eof
+  (e0:value -1))
+
+;; The name io:eof? would be too error-prone.
+(e1:define (io:eof-object? character-or-eof)
+  (whatever:eq? character-or-eof io:eof))
+
 (e1:define (character:write character)
   (e0:primitive io:write-character (io:standard-output) character))
 (e1:define (character:read character)

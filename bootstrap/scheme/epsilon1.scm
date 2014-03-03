@@ -2889,7 +2889,7 @@
 (e1:define (input-port:eof? p)
   (e1:call-closure (input-port:port-get-eof?-closure p)))
 
-;;; This only works if the port is not on EOF
+;;; Return either a valid character or io:eof.
 (e1:define (input-port:read-character p)
   (e1:call-closure (input-port:port-get-read-character-closure p)))
 
@@ -2903,8 +2903,11 @@
     (input-port:port (e1:lambda () (fixnum:= (box:get next-character-index)
                                              length))
                      (e1:lambda () (e1:let ((used-index (box:get next-character-index)))
-                                     (box:set! next-character-index (fixnum:1+ used-index))
-                                     (string:get s used-index))))))
+                                     (e1:if (fixnum:= used-index length)
+                                       io:eof
+                                       (e1:begin
+                                         (box:set! next-character-index (fixnum:1+ used-index))
+                                         (string:get s used-index))))))))
 
 ;;;;; List element selectors
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

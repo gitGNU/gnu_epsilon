@@ -322,6 +322,9 @@
   (list:list (cons:make range-set:minimum-character
                         range-set:maximum-character)))
 
+(e1:define (range-set:singleton character)
+  (list:list (cons:make character character)))
+
 ;;; A user-friendly way of describing a range set, to be automatically
 ;;; rewritten into the efficient version
 (e1:define-sum range-set:sugared
@@ -1061,20 +1064,10 @@
 ;; FIXME: hide the backtrackable port from the user: she should only
 ;; see a generic input port, and be able to change it; ideally, in a
 ;; stack fashion.
-(e1:define (reader:eof? bp)
-  (e1:or (backtrackable-port:eof? bp)
-         (e1:begin
-           (reader:eat-ignorables bp)
-           ;; FIXME: is this somehow different from eat-ignorables?  I think not
-           ;;(regexp:read-regexp bp (regexp:sregexp->regexp 'sexpression:ignorable))
-           (backtrackable-port:eof? bp))))
 (e1:define (reader:read bp)
   (reader:read-helper (box:get reader:item-list-box) bp))
-
 (e1:define (reader:read-helper item-list bp)
-  (e1:cond ((backtrackable-port:eof? bp)
-            (e1:error "end of input"))
-           ((list:null? item-list)
+  (e1:cond ((list:null? item-list)
             (e1:error "all rules failed"))
            (else
             (backtrackable-port:commit! bp)
@@ -1139,6 +1132,7 @@
 ;;   )                     { () }
 ;; | . <s-expression> )    { s-expression }
 ;; | <s-expression> <rest> { s-cons(s-expression, rest) }
+;;;; s-expressions occurring in rest must *not* be #<eof>'s.
 (e1:define (reader:read-rest bp)
   (reader:eat-ignorables bp)
   (e1:match (regexp:read-regexp bp regexp:close)
@@ -1154,7 +1148,7 @@
      (e1:match (regexp:read-regexp bp regexp:dot)
        ((regexp:result-success _ _ _ _ _)
         (reader:eat-ignorables bp)
-        (e1:let ((sexpression (reader:read bp)))
+        (e1:let ((sexpression (reader:identity-unless-eof (reader:read bp))))
           (reader:eat-ignorables bp)
           (e1:match (regexp:read-regexp bp regexp:close)
             ((regexp:result-failure)
@@ -1168,7 +1162,7 @@
                (sexpression:with-locus sexpression
                                        (locus:join sexpression-locus close-locus)))))))
        ((regexp:result-failure) ;; we didn't recognize "."
-        (e1:let* ((sexpression (reader:read bp))
+        (e1:let* ((sexpression (reader:identity-unless-eof (reader:read bp)))
                   (sexpression-locus (sexpression:get-locus sexpression))
                   (rest (reader:read-rest bp))
                   (rest-locus (sexpression:get-locus rest)))
@@ -1177,6 +1171,10 @@
                                        (locus:join sexpression-locus
                                                    rest-locus))))))))
 
+(e1:define (reader:identity-unless-eof sexpression)
+  (e1:if (sexpression:eof-object? sexpression)
+    (e1:error "eof within parenthesized sexpression")
+    sexpression))
 
 ;; s-expression ::=
 ;; | prefix <s-expression> { lookup-procedure(prefix)(s-expression, scanner-state) }
@@ -1256,7 +1254,8 @@
           (reader:result-failure)))))
 
   (item-list:add-after!
-     reader:item-list-box (e1:value ignorable)
+     reader:item-list-box
+     (e1:value ignorable)
      (e1:value parenthesized)
      (e1:lambda (bp)
        (e1:match (regexp:read-regexp bp regexp:open)
@@ -1311,6 +1310,19 @@
                                               final-row final-column
                                               string:empty)))
             (reader:result-success (reader:recognize-atom string locus)))))))
+
+  (item-list:add-last!
+     reader:item-list-box
+     (e1:value eof)
+     (e1:lambda (bp)
+       (e1:let ((s (backtrackable-port:backtrackable-port->state bp))
+                (c (backtrackable-port:read-character bp)))
+         (backtrackable-port:backtrack! bp s)
+         (e1:if (whatever:eq? c io:eof)
+           ;; FIXME: add locus, if needed.  However I'd say that '#<eof>
+           ;; is already informative enough.
+           (reader:result-success sexpression:eof)
+           (reader:result-failure)))))
 
   (item-list:add-last!
      reader:prefix-item-list-box
@@ -1375,7 +1387,6 @@
                                                        (reader:unescape-symbol-literal string))
                                                       locus)))))
 
-
 ;;;;; Character and string escaping
 ;;;;; FIXME: move the rest of the implementation here.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1386,6 +1397,7 @@
   (sexpression:set-character-escape! #\tab "tab")
   (sexpression:set-character-escape! #\newline "newline")
   (sexpression:set-character-escape! #\cr "cr")
+  (sexpression:set-character-escape! io:eof "eof")
 
   (sexpression:set-string-escape! #\" #\")
   (sexpression:set-string-escape! #\\ #\\)

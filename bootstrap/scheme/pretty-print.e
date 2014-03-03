@@ -3,6 +3,7 @@
 ;;;;; Tentative code
 
 ;;;;; Copyright (C) 2013  Jérémie Koenig
+;;;;; Updated in 2014 by Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
 
@@ -304,6 +305,9 @@
 
 (e1:define (pp:character value)
   (pp:text (string:character->string value)))
+
+(e1:define (pp:eof value)
+  (pp:text "#<eof>"))
 
 (e1:define (pp:string value)
   (pp:<> (pp:character #\")

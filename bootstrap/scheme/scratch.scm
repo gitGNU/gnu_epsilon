@@ -67,6 +67,34 @@
 ;;(load "formatted-output.e")
 
 
+;;;;; The EOF object as an s-expression
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define sexpression:eof-tag
+  (sexpression:define-base-type "eof"
+                                0
+                                (e0:value pp:eof)
+                                (e0:value sexpression:leaf-quoter)
+                                (e0:value sexpression:leaf-quasiquoter)
+                                (e0:value sexpression:literal-expression-expander)
+                                alist:nil))
+
+(e1:define sexpression:eof
+  (sexpression:make sexpression:eof-tag io:eof))
+(e1:define (sexpression:eof)
+  sexpression:eof)
+(e1:define (sexpression:eof? s)
+  (sexpression:has-tag? s sexpression:eof-tag))
+
+;; Harmless aliases:
+(e1:define sexpression:eof-object
+  sexpression:eof)
+(e1:define (sexpression:eof-object)
+  (sexpression:eof))
+(e1:define (sexpression:eof-object? s) ;; A harmless alias.
+  (sexpression:eof? s))
+
+
 ;;;;; Readline input port
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -124,15 +152,18 @@
       (fio:write "[You wrote: ")
       (sexpression:write sexpression)
       (fio:write "]\n")
-      ;;(fio:write "Macroexpanding, transforming and interpreting... ")
-      (e1:let ((expression (repl:macroexpand-and-transform sexpression)))
-        ;;(fio:write "The macroexpand and tranformation part is done.\n")
-        (e1:let ((results (e0:eval-ee expression)))
-          ;;(fio:write "There are " (i (list:length results)) " results\n")
-          (e1:dolist (result results)
-            (e1:primitive io:write-value (io:standard-output) result)
-            (fio:write "\n"))
-          (repl:repl-helper bp))))))
+      (e1:if (sexpression:eof-object? sexpression)
+        (fio:write "Goodbye\n")
+        (e1:begin
+          ;;(fio:write "Macroexpanding, transforming and interpreting... ")
+          (e1:let ((expression (repl:macroexpand-and-transform sexpression)))
+            ;;(fio:write "The macroexpand and tranformation part is done.\n")
+            (e1:let ((results (e0:eval-ee expression)))
+              ;;(fio:write "There are " (i (list:length results)) " results\n")
+              (e1:dolist (result results)
+                (e1:primitive io:write-value (io:standard-output) result)
+                (fio:write "\n"))
+              (repl:repl-helper bp))))))))
 
 
 ;;;;; Debugging

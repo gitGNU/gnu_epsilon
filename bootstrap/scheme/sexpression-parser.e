@@ -275,6 +275,11 @@
        (backtrackable-port:backtrackable-port-set-column! bp (fixnum:1+ column))))))
 
 (e1:define (backtrackable-port:read-character bp)
+  (e1:if (backtrackable-port:eof? bp)
+    io:eof
+    (backtrackable-port:read-non-eof-character bp)))
+
+(e1:define (backtrackable-port:read-non-eof-character bp)
   (e1:let ((p (backtrackable-port:backtrackable-port-get-input-port bp))
            (buffereds (backtrackable-port:backtrackable-port-get-buffered-characters bp))
            (uncommitteds (backtrackable-port:backtrackable-port-get-uncommitted-characters bp)))

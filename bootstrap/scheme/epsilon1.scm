@@ -3038,6 +3038,7 @@
                                                              (fixnum:+ source-i 2)
                                                              source-limit))
                      (else
+                      (fio:write "About the escape character " (C source-next-c) "\n")
                       (e1:error "unknown string escape"))))
            (else
             (string:set! target target-i source-c)

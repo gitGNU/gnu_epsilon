@@ -757,7 +757,6 @@
                      #\tab
                      #\cr
                      #\newline
-                     #\| ;; for Scheme compatibility
                      #\(
                      #\)
                      #\;
@@ -1404,6 +1403,7 @@
   (sexpression:set-string-escape! #\tab #\t)
   (sexpression:set-string-escape! #\newline #\n)
   (sexpression:set-string-escape! #\cr #\c)
+  (sexpression:set-string-escape! #\| #\|) ;; for Guile compatibility only
 
   ;;; No, this is unsatisfactory.  It would be nice to be able to
   ;;; support *symbol* names including spaces, but I don't want to pay

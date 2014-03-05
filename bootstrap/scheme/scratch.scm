@@ -149,11 +149,11 @@
   (e1:if (backtrackable-port:eof? bp)
     (e1:bundle)
     (e1:let ((sexpression (reader:read bp)))
-      (fio:write "[You wrote: ")
-      (sexpression:write sexpression)
-      (fio:write "]\n")
+      (e1:when (box:get repl:debug)
+        (fio:write "[You wrote: " (se sexpression) "]\n"))
       (e1:if (sexpression:eof-object? sexpression)
-        (fio:write "Goodbye.\n")
+        (e1:when (box:get repl:debug)
+          (fio:write "Goodbye.\n"))
         (e1:begin
           ;;(fio:write "Macroexpanding, transforming and interpreting... ")
           (e1:let ((expression (repl:macroexpand-and-transform sexpression)))
@@ -164,6 +164,28 @@
                 (e1:primitive io:write-value (io:standard-output) result)
                 (fio:write "\n"))
               (repl:repl-helper bp))))))))
+
+(e1:define (repl:load file-name)
+  (e1:let* ((f (io:open-file file-name io:read-mode))
+            (p (input-port:file->input-port f))
+            (bp (backtrackable-port:input-port->backtrackable-port
+                    p
+                    (option:option-some file-name))))
+    (repl:load-helper file-name bp)))
+(e1:define (repl:load-helper file-name bp)
+  (e1:let ((s (reader:read bp)))
+    (e1:unless (sexpression:eof-object? s)
+      (e1:when (box:get repl:debug)
+        (fio:write "[Read from " (st file-name)": " (se s) "]\n"))
+      (repl:macroexpand-transform-and-execute s)
+      (repl:load-helper file-name bp))))
+
+;; Handy alias.
+(e1:define (e1:load file-name)
+  (repl:load file-name))
+
+(e1:define repl:debug
+  (box:make #t))
 
 
 ;;;;; Debugging

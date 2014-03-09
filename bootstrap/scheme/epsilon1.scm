@@ -4740,9 +4740,19 @@
       (repl:macroexpand-transform-and-execute s)
       (repl:load-helper file-name bp))))
 
-;; Handy alias.
+;;; Handy alias.
 (e1:define (e1:load file-name)
   (repl:load file-name))
 
 (e1:define repl:debug
   (box:make #t))
+
+
+;;;;; Guile-compatibility macro to help bootstrap
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; e1:toplevel was needed in Guile; in epsilon1 it's essentially
+;;; useless, but we want to temporarily keep it just to be able to
+;;; read the same files with Guile's load and with epsilon1's e1:load.
+(e1:define-macro (e1:toplevel . forms)
+  `(e1:begin ,@forms))

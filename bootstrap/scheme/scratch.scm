@@ -3,6 +3,7 @@
 
 ;;;;; Copyright (C) 2012 Université Paris 13
 ;;;;; Copyright (C) 2012, 2013 Luca Saiu
+;;;;; Updated in 2014 by Luca Saiu
 ;;;;; Written by Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
@@ -20,6 +21,9 @@
 ;;;;; You should have received a copy of the GNU General Public License
 ;;;;; along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
+
+;;;;; Scratch
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;(load "cps.scm")
 ;;(load "compiler.scm")
@@ -60,161 +64,3 @@
 (e1:define (average a b) (fixnum:/ (fixnum:+ a b) 2))
 (e1:define (call-indirect-1 f x) (e0:primitive fixnum:1+ (e0:call-indirect f x)))
 (e1:define (call-indirect-2 f x) (e0:call-indirect f x))
-
-;;(load "parallel-test.e")
-
-;;(load "compiler.e")
-;;(load "formatted-output.e")
-
-
-;;;;; The EOF object as an s-expression
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(e1:define sexpression:eof-tag
-  (sexpression:define-base-type "eof"
-                                0
-                                (e0:value pp:eof)
-                                (e0:value sexpression:leaf-quoter)
-                                (e0:value sexpression:leaf-quasiquoter)
-                                (e0:value sexpression:literal-expression-expander)
-                                alist:nil))
-
-(e1:define sexpression:eof
-  (sexpression:make sexpression:eof-tag io:eof))
-(e1:define (sexpression:eof)
-  sexpression:eof)
-(e1:define (sexpression:eof? s)
-  (sexpression:has-tag? s sexpression:eof-tag))
-
-;; Harmless aliases:
-(e1:define sexpression:eof-object
-  sexpression:eof)
-(e1:define (sexpression:eof-object)
-  (sexpression:eof))
-(e1:define (sexpression:eof-object? s) ;; A harmless alias.
-  (sexpression:eof? s))
-
-
-;;;;; Readline input port
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;; Make an input port reading from stdin with, readline line editing.
-;;; FIXME: change the primitive to explicitly receive a prompt string;
-;;; the readline C API supports itx.
-(e1:define (input-port:readline-input-port)
-  (e1:let ((buffer-option (box:make (option:option-none)))
-           (eof (box:make #f))
-           (next-character-index (box:make 0)))
-    (input-port:port (e1:lambda ()
-                       (box:get eof))
-                     (e1:lambda ()
-                       (readline-input-port:get-character buffer-option eof next-character-index)))))
-(e1:define (readline-input-port:get-character buffer-option-box eof-box next-character-index-box)
-  (e1:if (box:get eof-box)
-    io:eof
-    (e1:match (box:get buffer-option-box)
-      ((option:option-none)
-       (box:set! buffer-option-box
-                 (readline-input-port:get-chunk! eof-box))
-       (readline-input-port:get-character buffer-option-box eof-box next-character-index-box))
-      ((option:option-some string)
-       (e1:if (fixnum:= (box:get next-character-index-box)
-                        (string:length string))
-         (e1:let ((bo (readline-input-port:get-chunk! eof-box)))
-           (box:set! next-character-index-box 0)
-           (box:set! buffer-option-box bo)
-           (readline-input-port:get-character buffer-option-box eof-box next-character-index-box))
-         (string:get string (box:get-and-bump! next-character-index-box)))))))
-
-;; A chunk is the next buffer-option
-(e1:define (readline-input-port:get-chunk! eof-box)
-  (e1:let ((readline-result (io:readline)))
-    (e1:if (fixnum:zero? readline-result)
-      (e1:begin
-        (box:set! eof-box #t)
-        (option:option-none))
-      (option:option-some readline-result))))
-
-
-;;;;; REPL
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(e1:define (repl:repl)
-  (e1:let* ((input-port (input-port:readline-input-port))
-            (backtrackable-input-port
-             (backtrackable-port:input-port->backtrackable-port input-port
-                                                                (option:option-none))))
-    (repl:repl-helper backtrackable-input-port)))
-(e1:define (repl:repl-helper bp)
-  (e1:if (backtrackable-port:eof? bp)
-    (e1:bundle)
-    (e1:let ((sexpression (reader:read bp)))
-      (e1:when (box:get repl:debug)
-        (fio:write "[You wrote: " (se sexpression) "]\n"))
-      (e1:if (sexpression:eof-object? sexpression)
-        (e1:when (box:get repl:debug)
-          (fio:write "Goodbye.\n"))
-        (e1:begin
-          ;;(fio:write "Macroexpanding, transforming and interpreting... ")
-          (e1:let ((expression (repl:macroexpand-and-transform sexpression)))
-            ;;(fio:write "The macroexpand and tranformation part is done.\n")
-            (e1:let ((results (e0:eval-ee expression)))
-              ;;(fio:write "There are " (i (list:length results)) " results\n")
-              (e1:dolist (result results)
-                (e1:primitive io:write-value (io:standard-output) result)
-                (fio:write "\n"))
-              (repl:repl-helper bp))))))))
-
-(e1:define (repl:load file-name)
-  (e1:let* ((f (io:open-file file-name io:read-mode))
-            (p (input-port:file->input-port f))
-            (bp (backtrackable-port:input-port->backtrackable-port
-                    p
-                    (option:option-some file-name))))
-    (repl:load-helper file-name bp)))
-(e1:define (repl:load-helper file-name bp)
-  (e1:let ((s (reader:read bp)))
-    (e1:unless (sexpression:eof-object? s)
-      (e1:when (box:get repl:debug)
-        (fio:write "[Read from " (st file-name)": " (se s) "]\n"))
-      (repl:macroexpand-transform-and-execute s)
-      (repl:load-helper file-name bp))))
-
-;; Handy alias.
-(e1:define (e1:load file-name)
-  (repl:load file-name))
-
-(e1:define repl:debug
-  (box:make #t))
-
-
-;;;;; Debugging
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(e1:define (debug:print-procedure-definition name)
-  (e1:let ((p (io:standard-output)))
-    (io:write-string p "Formals: ")
-    (printer:write-symbols p (state:procedure-get-formals name))
-    (io:write-string p "\nBody: ")
-    (printer:write-expression p (state:procedure-get-body name))
-    (io:write-string p "\n")))
-
-(e1:define (debug:print-macro-definition name)
-  (e1:let ((p (io:standard-output)))
-    (printer:write-sexpression p  (state:macro-get-body name))
-    (io:write-string p "\n")))
-
-(e1:define (debug:print-macro-procedure-name macro-name)
-  (e1:let ((p (io:standard-output)))
-    (printer:write-symbol p (state:macro-get-macro-procedure-name macro-name))
-    (io:write-string p "\n")))
-
-(e1:define (debug:macroexpand sexpression)
-  (e1:let ((p (io:standard-output)))
-    (printer:write-expression p (e1:macroexpand sexpression))
-    (io:write-string p "\n")))
-
-
-;;;;; Scratch
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-

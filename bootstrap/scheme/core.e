@@ -2866,7 +2866,7 @@
                                                                 acc)))))))
 
 
-;;;;; REPL
+;;;;; REPL: the "E" part
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; We can already implement the core of the REPL: or at least the "E"
@@ -2874,30 +2874,13 @@
 
 ;;; Macroexpand the given s-expression and transform the resulting
 ;;; extended expression into an executable epsilon0 expression; then
-;;; evaluate it, and return the results as a list:
+;;; evaluate it, and return the results as a list.
 (e1:define (repl:macroexpand-and-transform sexpression)
   (e0:let (untransformed-expression) (e1:macroexpand sexpression)
     (e0:let (transformed-expression) (transform:transform-expression untransformed-expression)
       transformed-expression)))
 (e1:define (repl:macroexpand-transform-and-execute sexpression)
   (e0:eval-ee (repl:macroexpand-and-transform sexpression)))
-
-;;; A horribly crude REPL:
-(e1:define (repl:repl)
-  (e0:let () (string:write "Welcome to the epsilon REPL\n")
-    (repl:loop (io:standard-input))))
-(e1:define (repl:loop port)
-  (e0:let () (string:write "e1>\n")
-    (e0:let (next-sexpression) (e0:primitive io:read-sexpression port)
-      (e0:let (results) (repl:macroexpand-transform-and-execute next-sexpression)
-        (e0:let () (repl:write-results results port)
-          (e0:let () (string:write "\n")
-            (repl:loop port)))))))
-(e1:define (repl:write-results results port) ;; FIXME: use the port
-  (e0:if-in results (0)
-    (e0:bundle)
-    (e0:let () (e0:primitive debug:dump (list:head results))
-      (repl:write-results (list:tail results) port))))
 
 
 ;;;;; A very crude error-reporting facility

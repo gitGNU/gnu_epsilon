@@ -2,8 +2,7 @@
 ;;;;; Tentative code
 
 ;;;;; Copyright (C) 2012 Université Paris 13
-;;;;; Copyright (C) 2012, 2013 Luca Saiu
-;;;;; Updated in 2014 by Luca Saiu
+;;;;; Copyright (C) 2012, 2013, 2014 Luca Saiu
 ;;;;; Written by Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
@@ -64,3 +63,104 @@
 (e1:define (average a b) (fixnum:/ (fixnum:+ a b) 2))
 (e1:define (call-indirect-1 f x) (e0:primitive fixnum:1+ (e0:call-indirect f x)))
 (e1:define (call-indirect-2 f x) (e0:call-indirect f x))
+
+
+;;;;; S-expression parser tests
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define s1_
+;0123456789
+"abc def g ")
+(e1:define s1 "'a     ;; line 1
+(a)     ;; line 2
+(a #;(all of this is ignored (cool ,is not it?))) ;; line 3
+(a . b) ;; line 4
+#b1110  ;; line 5
+(a b)   ;; line 6
+\"abcd\"
+`((a . b) ,c ((a (d e . f)) h) ,@g)
+#t;; a comment right after the atom
+-
+a-b
+'quoted
+`quasiquoted
+,unquoted
+,@unquoted-splicing
+#;(a (very) complex . comment) 452
+( )
+()
+#f
+(a b)
+(a . b)
+(. b)
+(define (fact n)
+  (if (zero? n)
+     1
+     (* n (fact (1- n)))))
+\"this is a string\"
+(define (fact n)
+  (if (zero? n)
+     1
+     (* n (fact (1- n)))))
+(define (fact n)
+  (if (zero? n)
+     1
+     (* n (fact (1- n)))))
+(THIS IS THE LAST S-EXPRESSION)
+;; a little whitespace
+;; and
+;; some
+;; comments
+")
+;;(e1:define s1 "aaaaab")
+;(e1:define s1 "one (#t ()) two (a b . c) #f three four five six seven")
+(e1:define p1 (input-port:string->input-port s1))
+(e1:define b1 (backtrackable-port:input-port->backtrackable-port p1 (option:option-none)))
+
+;;;;;;;;;;
+(e1:define (backtrackable-port:print-port-point bp)
+  (backtrackable-port:print-point (backtrackable-port:backtrackable-port-get-row bp)
+                                  (backtrackable-port:backtrackable-port-get-column bp)))
+(e1:define (backtrackable-port:print-point row column)
+  (fio:write ":" (i row)
+             ":" (i column)
+             "\n"))
+;;;;;;;;;
+
+(define-macro (test-sregexp sregexp)
+  `(e1:toplevel
+       (fio:write   "                     0123456789012345678901234567890")
+       (fio:write "\nThe whole string is >" (s s1) "<\n")
+       (string:write "First: ")
+       (backtrackable-port:print-port-point b1)
+       (e1:match (regexp:read-regexp b1 (regexp:sregexp->regexp ',sregexp))
+         ((regexp:result-success initial-row initial-column final-row final-column string)
+          (fio:write "* Recognized " (i (string:length string))
+                     " characters: >" (st string) "<\n")
+          (string:write "Last:  ")
+          (backtrackable-port:print-point final-row final-column))
+         ((regexp:result-failure)
+          (string:write "* FAILURE.\n")))
+       (e1:bundle)))
+
+(define (test)
+  (let* ((q (begin
+              (e1:define last-read-sexpression (reader:read b1))
+              (e1:toplevel last-read-sexpression)))
+         (locus (buffer:get q (e0:value 2))))
+    ;;(display q) (newline)
+    (format #t "S-expression, converted to Guile:\n  ~s\n" (sexpression->guile-sexpression q))
+    (format #t "Locus:\n  ~s\n" locus)
+    (format #t "~s\n" q)
+    (values)))
+
+;;;;;;;;;;;;
+(e1:define s "a")
+(e1:define (test new-character)
+  (string:set! s 0 new-character)
+  (printer:write-string (io:standard-output) s)
+  (io:write-character (io:standard-output) 10)
+  (io:write-string (io:standard-output) "The first character of the string is ")
+  (printer:write-character (io:standard-output) (string:get s 0))
+  (io:write-character (io:standard-output) 10)
+  )

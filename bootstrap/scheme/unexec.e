@@ -3,6 +3,7 @@
 
 ;;;;; Copyright (C) 2012 Université Paris 13
 ;;;;; Copyright (C) 2012, 2013 Luca Saiu
+;;;;; Updated in 2014 by Luca Saiu
 ;;;;; Written by Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
@@ -296,12 +297,13 @@
 ;;; The user-friendly versions require a syntactic extension so that
 ;;; the expression can be expressed in concrete syntax.  These are
 ;;; the core procedures our extended syntax will reduce to calling.
-(e1:define (unexec:unexec-procedure file-name expression)
-  (marshal:marshal file-name (cons:make symbol:table
+(e1:define (unexec:unexec-table-procedure file-name table expression)
+  (marshal:marshal file-name (cons:make table
                                         expression)))
-(e1:define (unexec:quick-unexec-procedure expression)
-  (unexec:unexec-procedure unexec:default-file
-                           expression))
+(e1:define (unexec:quick-unexec-table-procedure table expression)
+  (unexec:unexec-table-procedure unexec:default-file
+                                 table
+                                 expression))
 
 
 ;;;;; Exec

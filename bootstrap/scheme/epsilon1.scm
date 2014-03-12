@@ -2326,22 +2326,31 @@
 ;;; containing the given forms as body, so that the program main
 ;;; expression can simply apply it and have visibility over the
 ;;; variables visible by the unexec:unexec caller.
-(e1:define-macro (unexec:unexec file-name . forms)
+(e1:define-macro (unexec:unexec-table file-name table . forms)
   (e1:let* ((closure-name (sexpression:fresh-symbol)))
     `(e1:begin
        (state:global-set! (e0:value ,closure-name)
                           (e1:lambda () ,@forms))
-       (unexec:unexec-procedure ,file-name
-                                (repl:macroexpand-and-transform
-                                   '(e1:call-closure ,closure-name))))))
-(e1:define-macro (unexec:quick-unexec . forms)
-  `(unexec:unexec ,(sexpression:inject-string unexec:default-file)
+       (unexec:unexec-table-procedure ,file-name
+                                      ,table
+                                      (repl:macroexpand-and-transform
+                                          '(e1:call-closure ,closure-name))))))
+(e1:define-macro (unexec:quick-unexec-table table . forms)
+  `(unexec:unexec-table ,table
+                        ,(sexpression:inject-string unexec:default-file)
      ,@forms))
 
-;;; I consider unexec and exec as part of the language; they deserve
+(e1:define-macro (unexec:quick-unexec . forms)
+  `(unexec:quick-unexec-table symbol:table ,@forms))
+(e1:define-macro (unexec:unexec file-name . forms)
+  `(unexec:unexec-table ,file-name symbol:table ,@forms))
+
+;;; I consider unexec and exec to be part of the language; they deserve
 ;;; handy aliases:
 (e1:define-macro (e1:exec . stuff)
   `(unexec:exec ,@stuff))
+(e1:define-macro (e1:unexec-table . stuff)
+  `(unexec:unexec-table ,@stuff))
 (e1:define-macro (e1:unexec . stuff)
   `(unexec:unexec ,@stuff))
 

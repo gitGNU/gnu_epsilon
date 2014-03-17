@@ -291,6 +291,31 @@
              ',name
              result)))))
 
+(define-macro (e1:toplevel . forms)
+  `(begin ,@forms))
+
+
+;;;; Conditional toplevel forms (for epsilon-on-Guile)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define-macro (e1:when-guile . stuff)
+  `(begin ,@stuff))
+(define-macro (e1:unless-guile . stuff)
+  `(e1:toplevel (e0:bundle)))
+
+
+;;;; Secondary toplevel definitions (trivial versions, for epsilon-on-Guile)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define-macro (e1:define-secondary . stuff)
+  `(e1:define ,@stuff))
+(define-macro (e1:toplevel-secondary . stuff)
+  `(e1:toplevel ,@stuff))
+(define-macro (e1:unless-guile . stuff)
+  `(e1:toplevel (e0:bundle)))
+(define-macro (e1:trivial-define-macro-secondary . stuff)
+  `(e1:trivial-define-macro ,@stuff))
+
 
 ;;;; We're done
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

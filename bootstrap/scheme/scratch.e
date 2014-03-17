@@ -188,7 +188,7 @@
 (e1:define (symbol:fresh-secondary)
   (symbol:primary->secondary (symbol:fresh)))
 
-  ;; ;;; NO: this cannot work, because unexec:unexec-table makes a closure
+;; ;;; NO: this cannot work, because unexec:unexec-table makes a closure
 ;; ;;; and names it in the primary table; then it passes the closure name
 ;; ;;; to unexec:unexec-table-procedure; in practice the primary symbol
 ;; ;;; table will be dumped as well.
@@ -207,6 +207,23 @@
                                      (repl:macroexpand-and-transform
                                       '(e1:begin ,@forms))))))
 
+(e1:define-macro (e1:when-guile . stuff)
+  `(e1:bundle))
+(e1:define-macro (e1:unless-guile . stuff)
+  `(e1:toplevel ,@stuff))
+
+(e1:define-macro (e1:toplevel-secondary . stuff)
+  (e1:let* ((stuff-as-primary-expression
+             (repl:macroexpand-and-transform `(e1:begin ,@stuff)))
+            (stuff-as-secondary-expression
+             (symbol:primary-expression->secondary-expression stuff-as-primary-expression)))
+    (sexpression:inject-expression stuff-as-secondary-expression)))
+
+(e1:define-macro (e1:trivial-define-macro-secondary name body-form) ;; only one body form
+  `(symbol:symbol-set-macro-body! (symbol:primary->secondary (e1:value ,name))
+                                  (symbol:primary-sexpression->secondary-sexpression ',body-form)))
+(e1:define (symbol:primary-sexpression->secondary-sexpression x) x) ;; FIXME: do it for real
+;; FIXME: use e1:trivial-define-macro-secondary instead of e1:trivial-define-macro in the beginning of epsilon1.scm (to be moved to core.e)
 
 (e1:define-macro (d . stuff)
   `(e1:define-secondary ,@stuff))

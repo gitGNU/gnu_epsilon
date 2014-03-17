@@ -46,8 +46,8 @@
 ;;; - main object (1 word)
 ;;; Pointer identifiers are allocated sequentially starting from zero.
 
-(e1:define marshal:atom-tag (e0:value 0))
-(e1:define marshal:pointer-tag (e0:value 1))
+(e1:define-secondary marshal:atom-tag (e0:value 0))
+(e1:define-secondary marshal:pointer-tag (e0:value 1))
 
 
 ;;;;; Marshalling: epsilon0 implementation
@@ -55,12 +55,12 @@
 
 ;;; Create a new file with the given name, and dump the given object
 ;;; into it.
-(e1:define (marshal:marshal file-name object)
+(e1:define-secondary (marshal:marshal file-name object)
   (e0:let (file) (io:open-file file-name io:write-mode)
     (e0:let () (marshal:marshal-to-open-file file object)
       (io:close-file file))))
 
-(e1:define (marshal:marshal-to-open-file file object)
+(e1:define-secondary (marshal:marshal-to-open-file file object)
   (e0:let (pointer-map) (unboxed-hash:make)
     (e0:let (pointers) (marshal:fill-pointer-map! pointer-map (list:singleton object))
       (e0:let () (io:write-32-bit-big-endian file (unboxed-hash:element-no pointer-map))
@@ -73,9 +73,9 @@
 
 ;;; Return the given worklist with the pointer elements of the given
 ;;; buffer prepended.  No side effects.
-(e1:define (marshal:add-buffer-elements-to-worklist buffer worklist)
+(e1:define-secondary (marshal:add-buffer-elements-to-worklist buffer worklist)
   (marshal:add-buffer-elements-to-worklist-aux buffer worklist (e0:value 0) (boxedness:buffer-length buffer)))
-(e1:define (marshal:add-buffer-elements-to-worklist-aux buffer worklist from-index length)
+(e1:define-secondary (marshal:add-buffer-elements-to-worklist-aux buffer worklist from-index length)
   (e0:if-in (fixnum:= from-index length) (#f)
     (e0:let (candidate) (buffer:get buffer from-index)
       (e0:let (new-worklist) (e0:if-in (boxedness:buffer? candidate) (#f)
@@ -90,9 +90,9 @@
 ;;; Add all pointers reachable from the objects in the worklist to the
 ;;; pointer map.  Return the list of pointers stored in the hash, in
 ;;; the same order they were added to the table.
-(e1:define (marshal:fill-pointer-map! pointer-map worklist)
+(e1:define-secondary (marshal:fill-pointer-map! pointer-map worklist)
   (marshal:fill-pointer-map-acc! pointer-map worklist list:nil))
-(e1:define (marshal:fill-pointer-map-acc! pointer-map worklist acc)
+(e1:define-secondary (marshal:fill-pointer-map-acc! pointer-map worklist acc)
   (e0:if-in (list:null? worklist) (#f)
     ;; worklist is not empty
     (e0:let (object) (list:head worklist)
@@ -118,7 +118,7 @@
 
 ;;; Dump the given object into the file, assuming the pointer map has
 ;;; already been filled.
-(e1:define (marshal:marshal-object! file pointer-map object)
+(e1:define-secondary (marshal:marshal-object! file pointer-map object)
   (e0:if-in (boxedness:thread? object) (#f)
     ;; object is not a thread
     (e0:if-in (boxedness:buffer? object) (#f)
@@ -132,20 +132,20 @@
 ;;; How to dump a word: first a tag, then the content.  In case of
 ;;; pointer, of course, the content is a pointer identifier, not thexs
 ;;; address.
-(e1:define (marshal:marshal-atom! file atom)
+(e1:define-secondary (marshal:marshal-atom! file atom)
   (e0:let () (io:write-32-bit-big-endian file marshal:atom-tag)
     (io:write-32-bit-big-endian file atom)))
-(e1:define (marshal:marshal-pointer! file identifier)
+(e1:define-secondary (marshal:marshal-pointer! file identifier)
   (e0:let () (io:write-32-bit-big-endian file marshal:pointer-tag)
     (io:write-32-bit-big-endian file identifier)))
 
 ;;; Dump a buffer definition into the file, assuming the pointer map has
 ;;; already been filled.
-(e1:define (marshal:marshal-buffer-definition! file pointer-map pointer)
+(e1:define-secondary (marshal:marshal-buffer-definition! file pointer-map pointer)
   (e0:let (length) (boxedness:buffer-length pointer)
     (e0:let () (io:write-32-bit-big-endian file length)
       (marshal:marshal-buffer-content! file pointer-map pointer (e0:value 0) length))))
-(e1:define (marshal:marshal-buffer-content! file pointer-map buffer from-index length)
+(e1:define-secondary (marshal:marshal-buffer-content! file pointer-map buffer from-index length)
   (e0:if-in (fixnum:= from-index length) (#f)
     (e0:let () (marshal:marshal-object! file pointer-map (buffer:get buffer from-index))
       (marshal:marshal-buffer-content! file pointer-map buffer (fixnum:1+ from-index) length))
@@ -153,7 +153,7 @@
     (e0:bundle)))
 
 ;;; Dump all buffer definitions into the file.
-(e1:define (marshal:marshal-buffer-definitions! file pointer-map pointers)
+(e1:define-secondary (marshal:marshal-buffer-definitions! file pointer-map pointers)
   (e0:if-in (list:null? pointers) (#f)
     (e0:let () (marshal:marshal-buffer-definition! file pointer-map (list:head pointers))
       (marshal:marshal-buffer-definitions! file pointer-map (list:tail pointers)))
@@ -166,7 +166,7 @@
 
 ;;; Read an object from the file whose name is given, and return the
 ;;; object.
-(e1:define (marshal:unmarshal file-name)
+(e1:define-secondary (marshal:unmarshal file-name)
   (e0:let (file) (io:open-file file-name io:read-mode)
     (e0:let (result) (marshal:unmarshal-from-open-file file)
       (e0:let () (io:close-file file)
@@ -177,7 +177,7 @@
 ;;; Each buffer element contains a buffer.  This has conceptually the
 ;;; opposite role of the pointer map.
 
-(e1:define (marshal:unmarshal-from-open-file file)
+(e1:define-secondary (marshal:unmarshal-from-open-file file)
   (e0:let (buffer-no) (io:read-32-bit-big-endian file)
     (e0:let (identifier-buffer) (buffer:make buffer-no)
       ;; the tag buffer is a buffer of vectors (so that we store
@@ -198,7 +198,7 @@
                             (e0:let () (vector:destroy trivial-tag-vector)
                               result)))))))))))))))
 
-(e1:define (marshal:fill-identifier-and-tag-buffers! file identifier-buffer tag-buffer from-index length)
+(e1:define-secondary (marshal:fill-identifier-and-tag-buffers! file identifier-buffer tag-buffer from-index length)
   (e0:if-in (fixnum:= from-index length) (#f)
     (e0:let (this-buffer-length) (io:read-32-bit-big-endian file)
       (e0:let (this-tag-vector) (vector:make this-buffer-length)
@@ -209,7 +209,7 @@
                 (marshal:fill-identifier-and-tag-buffers! file identifier-buffer tag-buffer (fixnum:1+ from-index) length)))))))
     ;; from-index is equal to length
     (e0:bundle)))
-(e1:define (marshal:set-buffer-definition! file buffer tag-vector from-index length)
+(e1:define-secondary (marshal:set-buffer-definition! file buffer tag-vector from-index length)
   (e0:if-in (fixnum:= from-index length) (#f)
     (e0:let (tag) (io:read-32-bit-big-endian file)
       (e0:let (element) (io:read-32-bit-big-endian file)
@@ -222,7 +222,7 @@
 ;;; Scan the tag buffer: for each pointer tag, fix the corresponding
 ;;; element of the identifier buffer, replacing the identifier with
 ;;; the correct pointer.
-(e1:define (marshal:resolve-pointers! identifier-buffer tag-buffer from-index length)
+(e1:define-secondary (marshal:resolve-pointers! identifier-buffer tag-buffer from-index length)
   (e0:if-in (fixnum:= from-index length) (#f)
     (e0:let (this-tag-vector) (buffer:get tag-buffer from-index)
       (e0:let () (marshal:resolve-pointers-in-buffer! identifier-buffer
@@ -233,7 +233,7 @@
         (marshal:resolve-pointers! identifier-buffer tag-buffer (fixnum:1+ from-index) length)))
     ;; from-index is equal to length
     (e0:bundle)))
-(e1:define (marshal:resolve-pointers-in-buffer! identifier-buffer buffer tag-vector from-index length)
+(e1:define-secondary (marshal:resolve-pointers-in-buffer! identifier-buffer buffer tag-vector from-index length)
   (e0:if-in (fixnum:= from-index length) (#f)
     (e0:let () (e0:if-in (fixnum:= (vector:get tag-vector from-index) marshal:pointer-tag) (#f)
                  ;; an atom: nothing to do
@@ -245,7 +245,7 @@
     (e0:bundle)))
 
 ;;; Destroy the given buffer of vectors, including its elements:
-(e1:define (marshal:destroy-tag-buffer tag-buffer from-index length)
+(e1:define-secondary (marshal:destroy-tag-buffer tag-buffer from-index length)
   (e0:if-in (fixnum:= from-index length) (#f)
     ;; not the end yet
     (e0:let () (vector:destroy (buffer:get tag-buffer from-index))
@@ -261,9 +261,9 @@
 ;;;        to keep it as a proof of concept, I should move it away.
 
 ;;; Replace the versions above with primitive wrappers:
-(e1:define (marshal:marshal-to-open-file file object)
+(e1:define-secondary (marshal:marshal-to-open-file file object)
   (e0:primitive marshal:marshal-to-open-file file object))
-(e1:define (marshal:unmarshal-from-open-file file)
+(e1:define-secondary (marshal:unmarshal-from-open-file file)
   (e0:primitive marshal:unmarshal-from-open-file file))
 
 
@@ -271,7 +271,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; Make a file with the given name and dump the given object into it:
-(e1:define (marshal:marshal file-name object)
+(e1:define-secondary (marshal:marshal file-name object)
   (e0:let (file) (io:open-file file-name io:write-mode)
     (e0:let () (marshal:marshal-to-open-file file object)
       (io:close-file file))))
@@ -281,7 +281,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; Return the object contained in the file with the given name:
-(e1:define (marshal:unmarshal file-name)
+(e1:define-secondary (marshal:unmarshal file-name)
   (e0:let (file) (io:open-file file-name io:read-mode)
     (e0:let (result) (marshal:unmarshal-from-open-file file)
       (e0:let () (io:close-file file)
@@ -291,16 +291,16 @@
 ;;;;; Unexec
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:define unexec:default-file
+(e1:define-secondary unexec:default-file
   (e0:value "default-unexecing.m"))
 
 ;;; The user-friendly versions require a syntactic extension so that
 ;;; the expression can be expressed in concrete syntax.  These are
 ;;; the core procedures our extended syntax will reduce to calling.
-(e1:define (unexec:unexec-table-procedure file-name table expression)
+(e1:define-secondary (unexec:unexec-table-procedure file-name table expression)
   (marshal:marshal file-name (cons:make table
                                         expression)))
-(e1:define (unexec:quick-unexec-table-procedure table expression)
+(e1:define-secondary (unexec:quick-unexec-table-procedure table expression)
   (unexec:unexec-table-procedure unexec:default-file
                                  table
                                  expression))
@@ -309,12 +309,12 @@
 ;;;;; Exec
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:define (unexec:exec file-name)
+(e1:define-secondary (unexec:exec file-name)
   ;; We can't use e1:define here: this may be executed before its epsilon1 definition
   (e0:let (pair) (marshal:unmarshal file-name)
     (e0:let (new-symbol-table) (cons:car pair)
       (e0:let (main-expression) (cons:cdr pair)
         (e0:let () (state:global-set! (e0:value symbol:table) new-symbol-table)
           (e0:eval main-expression alist:nil))))))
-(e1:define (unexec:quick-exec)
+(e1:define-secondary (unexec:quick-exec)
   (unexec:exec unexec:default-file))

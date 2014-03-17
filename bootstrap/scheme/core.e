@@ -1482,20 +1482,20 @@
 ;;; this stage, we used Scheme to bootstrap.  Of course this generation
 ;;; will also be doable in epsilon1, after some language extension:
 
-#!
-;;; Definition source:
-(sum:define e0:expression
-  (variable handle name)
-  (value handle content)
-  (bundle handle items)
-  (primitive handle name actuals)
-  (let handle bound-variables bound-expression body)
-  (call handle procedure-name actuals)
-  (call-indirect handle procedure-expression actuals)
-  (if-in handle discriminand values then-branch else-branch)
-  (fork handle procedure-name actuals)
-  (join handle future))
-!#
+;; #!
+;; ;;; Definition source:
+;; (sum:define e0:expression
+;;   (variable handle name)
+;;   (value handle content)
+;;   (bundle handle items)
+;;   (primitive handle name actuals)
+;;   (let handle bound-variables bound-expression body)
+;;   (call handle procedure-name actuals)
+;;   (call-indirect handle procedure-expression actuals)
+;;   (if-in handle discriminand values then-branch else-branch)
+;;   (fork handle procedure-name actuals)
+;;   (join handle future))
+;; !#
 
 ;;; The definition above, automatically translated by
 ;;; generate-sum-type-from-scheme.scm piped to ../COMPRESS-WHITESPACE:

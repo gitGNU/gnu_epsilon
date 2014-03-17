@@ -275,6 +275,10 @@ static void epsilon_primitive_io_readline(epsilon_value *stack){
     stack[0] = epsilon_int_to_epsilon_value(0);
     return;
   }
+  add_history(c_string);
+  int result = write_history(NULL);
+  if (result != 0)
+    fprintf(stderr, "Writing history failed\n");
   size_t nul_offset = strlen(c_string), length;
   if (nul_offset > 0)
     add_history(c_string);
@@ -506,6 +510,10 @@ void epsilon_c_primitives_initialize(void){
   fprintf(stderr, "[The locale charset is %s]\n", epsilon_locale_charset);
 #endif // #ifdef ENABLE_VERBOSE_DEBUG
 #endif // #ifdef HAVE_LIBUNISTRING
+
+  int result = read_history(NULL);
+  if (result != 0)
+    fprintf(stderr, "Reading history failed\n");
 
   epsilon_initialize_string_hash(& epsilon_c_primitive_hash);
 

@@ -4699,6 +4699,12 @@
   ;; (sexpression:set-string-escape! #\space #\space)
   )
 
+;;;;; Version
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define version:version-string
+  "git-snapshot")
+
 
 ;;;;; REPL
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -4713,6 +4719,7 @@
             (backtrackable-input-port
              (backtrackable-port:input-port->backtrackable-port input-port
                                                                 (option:option-none))))
+    (repl:print-banner)
     (repl:repl-helper backtrackable-input-port)))
 (e1:define (repl:repl-helper bp)
   (e1:if (backtrackable-port:eof? bp)
@@ -4733,6 +4740,18 @@
                 (e1:primitive io:write-value (io:standard-output) result)
                 (fio:write "\n"))
               (repl:repl-helper bp))))))))
+
+(e1:define (repl:print-banner)
+  (fio:write "GNU epsilon " (st version:version-string) "
+Copyright (C) 2012  Universit" (c 233) ;; FIXME: do it the obvious way after bootstrapping away from Guile -- actually, Guile 1.8
+" Paris 13
+Copyright (C) 2012-2014  Luca Saiu
+
+GNU epsilon comes with ABSOLUTELY NO WARRANTY.  This program is free software
+and you are welcome to redistribute it under the terms of the GNU General
+Public License, version 3 or later.  See the file named COPYING for details.
+
+"))
 
 (e1:define (repl:load file-name)
   (e1:let* ((f (io:open-file file-name io:read-mode))

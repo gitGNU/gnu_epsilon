@@ -4773,7 +4773,7 @@ Public License, version 3 or later.  See the file named COPYING for details.
   (repl:load file-name))
 
 (e1:define repl:debug
-  (box:make #t))
+  (box:make #f))
 
 
 ;;;;; Guile-compatibility macro to help bootstrap

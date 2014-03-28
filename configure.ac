@@ -31,7 +31,7 @@ m4_include([guile.m4])
 
 # ######################### Global values: begin #######################
 AC_INIT([GNU epsilon],
-        [bzr-trunk],
+        [git-trunk],
         [epsilon-devel@gnu.org],
         [epsilon],
         [http://www.gnu.org/software/epsilon])

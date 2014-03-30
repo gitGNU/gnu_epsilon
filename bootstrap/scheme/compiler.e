@@ -567,8 +567,8 @@
 
 (e1:define (c-backend:compile main)
   (e1:let* ((data-graph (data-graph:graph-from-compiled-only main))
-            (f (io:open-file "temporary-c-driver/w.c" io:write-mode)))
-    (io:write-string f "#include \"../../../runtime/runtime.h\"\n\n")
+            (f (io:open-file "/tmp/generated.c" io:write-mode)))
+    (fio:write-to f "#include \"runtime/runtime.h\"\n\n")
     (c-backend:emit-forward-declarations f data-graph)
     (io:write-string f "\n")
     (fio:write-to f "/* Driver. */
@@ -820,7 +820,7 @@ void epsilon_main_entry_point(epsilon_value *stack){")
 
 (e1:define (mips-backend:compile main)
   (e1:let* ((data-graph (data-graph:graph-from-compiled-only main))
-            (f (io:open-file "temporary-c-driver/q.s" io:write-mode)))
+            (f (io:open-file "/tmp/generated.s" io:write-mode)))
     (mips-backend:compile-data f data-graph)
     (io:write-string f "  .text\n")
     (io:write-string f "  .set noreorder\n")
@@ -1097,7 +1097,7 @@ epsilon_main_entry_point:
 
 (e1:define (x86_64-backend:compile main)
   (e1:let* ((data-graph (data-graph:graph-from-compiled-only main))
-            (f (io:open-file "temporary-c-driver/q.s" io:write-mode)))
+            (f (io:open-file "/tmp/generated.s" io:write-mode)))
     (x86_64-backend:compile-data f data-graph)
     (io:write-string f "# Procedures\n")
     (io:write-string f "  .text\n")

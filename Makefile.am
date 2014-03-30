@@ -420,45 +420,45 @@ bin_epsilon_image_interpreter_smob_LDADD = \
 bin_epsilon_image_interpreter_smob_CPPFLAGS = -DEPSILON_RUNTIME_SMOB
 
 
-# Test for the MIPS runtime.
-if COMPILING_FOR_MIPS
-$(srcdir)/bootstrap/scheme/temporary-c-driver/q.s:
-	echo "  .text" > $@
-	echo "  .set noreorder" >> $@
-	echo "  .set macro #  .set nomacro" >> $@
-	echo "  .set nomips16" >> $@
-	echo "  .align 2" >> $@
-	echo "  .globl f" >> $@
-	echo "  .ent f" >> $@
-	echo "  .type f, @function" >> $@
-	echo "f:" >> $@
-	echo "  .end f" >> $@
-	echo "  .size f, .-f" >> $@
-bin_PROGRAMS += \
-  bin/epsilon-native-test-untagged
-bin_epsilon_native_test_untagged_SOURCES = \
-  bootstrap/scheme/temporary-c-driver/q.s
-bin_epsilon_native_test_untagged_LDADD = \
-  lib/libepsilondriver-native-untagged.a \
-  lib/libepsilonruntime-untagged.a lib/libepsilonutility.a
-#bin_epsilon_native_test_untagged_CPPFLAGS = -DEPSILON_RUNTIME_UNTAGGED
-endif
+# # Test for the MIPS runtime.
+# if COMPILING_FOR_MIPS
+# $(srcdir)/bootstrap/scheme/temporary-c-driver/q.s:
+# 	echo "  .text" > $@
+# 	echo "  .set noreorder" >> $@
+# 	echo "  .set macro #  .set nomacro" >> $@
+# 	echo "  .set nomips16" >> $@
+# 	echo "  .align 2" >> $@
+# 	echo "  .globl f" >> $@
+# 	echo "  .ent f" >> $@
+# 	echo "  .type f, @function" >> $@
+# 	echo "f:" >> $@
+# 	echo "  .end f" >> $@
+# 	echo "  .size f, .-f" >> $@
+# bin_PROGRAMS += \
+#   bin/epsilon-native-test-untagged
+# bin_epsilon_native_test_untagged_SOURCES = \
+#   bootstrap/scheme/temporary-c-driver/q.s
+# bin_epsilon_native_test_untagged_LDADD = \
+#   lib/libepsilondriver-native-untagged.a \
+#   lib/libepsilonruntime-untagged.a lib/libepsilonutility.a
+# #bin_epsilon_native_test_untagged_CPPFLAGS = -DEPSILON_RUNTIME_UNTAGGED
+# endif
 
-# Test for the C runtime.
-bin_PROGRAMS += \
-  bin/epsilon-c-test-untagged
-$(srcdir)/bootstrap/scheme/temporary-c-driver/w.c:
-	echo "#include \"runtime/runtime.h\"" > $@
-	echo "void epsilon_main_entry_point(epsilon_value *stack){}" >> $@
-	echo "epsilon_word global_data_beginning __attribute__(( aligned(sizeof(void*)) ));" >> $@
-	echo "epsilon_word global_data_end __attribute__(( aligned(sizeof(void*)) ));" >> $@
-bin_epsilon_c_test_untagged_SOURCES = \
-  bootstrap/scheme/temporary-c-driver/w.c
-bin_epsilon_c_test_untagged_LDADD = \
-  lib/libepsilondriver-c-untagged.a \
-  lib/libepsilonruntime-untagged.a lib/libepsilonutility.a
-# FIXME: this has to go:
-bin_epsilon_c_test_untagged_CPPFLAGS = -I $(builddir) -DEPSILON_RUNTIME_UNTAGGED
+# # Test for the C runtime.
+# bin_PROGRAMS += \
+#   bin/epsilon-c-test-untagged
+# $(srcdir)/bootstrap/scheme/temporary-c-driver/w.c:
+# 	echo "#include \"runtime/runtime.h\"" > $@
+# 	echo "void epsilon_main_entry_point(epsilon_value *stack){}" >> $@
+# 	echo "epsilon_word global_data_beginning __attribute__(( aligned(sizeof(void*)) ));" >> $@
+# 	echo "epsilon_word global_data_end __attribute__(( aligned(sizeof(void*)) ));" >> $@
+# bin_epsilon_c_test_untagged_SOURCES = \
+#   bootstrap/scheme/temporary-c-driver/w.c
+# bin_epsilon_c_test_untagged_LDADD = \
+#   lib/libepsilondriver-c-untagged.a \
+#   lib/libepsilonruntime-untagged.a lib/libepsilonutility.a
+# # FIXME: this has to go:
+# bin_epsilon_c_test_untagged_CPPFLAGS = -I $(builddir) -DEPSILON_RUNTIME_UNTAGGED
 
 # bin_PROGRAMS += \
 #   bin/epsilon-c-driver-test-tagged
@@ -541,7 +541,7 @@ clean-profile:
 	       `find . -name '*.gcov'` `find . -name 'gmon.out'`
 clean-local: clean-profile
 	rm -rf `find . -name '*~'`  `find . -name '#*#'`       \
-	       `find . -name '*.s' | grep -v /examples/ | grep -v /runtime/backend-specific | grep -v temporary-c-driver` \
+	       `find . -name '*.s' | grep -v /examples/ | grep -v /runtime/backend-specific` \
 	       `find . -name '*.i'` \
 	       `find . -name '*.o'`  `find . -name '*.a'`      \
 	       `find . -name '*.so'` `find . -name '*.la'`     \

@@ -29,6 +29,7 @@
 (load "fill-reflective-structures.scm")
 (load "toplevel-in-scheme.scm")
 (load "epsilon1.scm")
+(load "compiler.e")
 
 
 ;;;;; Save the current state, to make quick-start.scm work:

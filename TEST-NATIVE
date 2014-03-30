@@ -1,6 +1,0 @@
-#!/bin/bash -e
-
-make
-gcc -g -lunistring -lpthread -lgc lib/libepsilondriver-native-untagged.a lib/libepsilonruntime-untagged.a lib/libepsilonutility.a bootstrap/scheme/temporary-c-driver/q.s
-./a.out
-echo SUCCESS

@@ -422,7 +422,7 @@ bin_epsilon_image_interpreter_smob_CPPFLAGS = -DEPSILON_RUNTIME_SMOB
 
 # Test for the MIPS runtime.
 if COMPILING_FOR_MIPS
-bootstrap/scheme/temporary-c-driver/q.s:
+$(srcdir)/bootstrap/scheme/temporary-c-driver/q.s:
 	echo "  .text" > $@
 	echo "  .set noreorder" >> $@
 	echo "  .set macro #  .set nomacro" >> $@
@@ -447,9 +447,9 @@ endif
 # Test for the C runtime.
 bin_PROGRAMS += \
   bin/epsilon-c-test-untagged
-bootstrap/scheme/temporary-c-driver/w.c:
-	echo "#include \"../../../runtime/runtime.h\"" > $@
-	echo "void f(epsilon_value *stack){}" >> $@
+$(srcdir)/bootstrap/scheme/temporary-c-driver/w.c:
+	echo "#include \"runtime/runtime.h\"" > $@
+	echo "void epsilon_main_entry_point(epsilon_value *stack){}" >> $@
 	echo "epsilon_word global_data_beginning __attribute__(( aligned(sizeof(void*)) ));" >> $@
 	echo "epsilon_word global_data_end __attribute__(( aligned(sizeof(void*)) ));" >> $@
 bin_epsilon_c_test_untagged_SOURCES = \
@@ -458,7 +458,7 @@ bin_epsilon_c_test_untagged_LDADD = \
   lib/libepsilondriver-c-untagged.a \
   lib/libepsilonruntime-untagged.a lib/libepsilonutility.a
 # FIXME: this has to go:
-bin_epsilon_c_test_untagged_CPPFLAGS = -DEPSILON_RUNTIME_UNTAGGED
+bin_epsilon_c_test_untagged_CPPFLAGS = -I $(builddir) -DEPSILON_RUNTIME_UNTAGGED
 
 # bin_PROGRAMS += \
 #   bin/epsilon-c-driver-test-tagged

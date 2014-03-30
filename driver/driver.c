@@ -1,6 +1,7 @@
 /* Experimantal driver for code produced by the epsilon0 compiler with the C backend
 
    Copyright (C) 2013 Luca Saiu
+   Updated in 2014 by Luca Saiu
 
    This file is part of GNU epsilon.
 
@@ -23,7 +24,7 @@
 #include <unistd.h>
 #include "runtime/runtime.h"
 
-void f(epsilon_value*);
+void epsilon_main_entry_point(epsilon_value*);
 
 // FIXME: factorize, replacing old cruft
 
@@ -49,7 +50,7 @@ int main(int argc, char **argv){
   GC_add_roots(context, ((char*)context) + sizeof(struct epsilon_thread_context) + 1);
   //printf("C%p S%p L%p H%p\n", context, context->stack, context->stack_lowest_address, context->stack_highest_address);
   //epsilon_value result =
-    epsilon_run_thread_context(context, f);
+    epsilon_run_thread_context(context, epsilon_main_entry_point);
   //printf("R:  %li %p\n", epsilon_value_to_epsilon_int(result), result);
   //printf("C%p S%p L%p H%p\n", context, context->stack, context->stack_lowest_address, context->stack_highest_address);
 

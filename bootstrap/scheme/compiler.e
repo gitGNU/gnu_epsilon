@@ -571,6 +571,10 @@
     (io:write-string f "#include \"../../../runtime/runtime.h\"\n\n")
     (c-backend:emit-forward-declarations f data-graph)
     (io:write-string f "\n")
+    (fio:write-to f "/* Driver. */
+void epsilon_main_entry_point(epsilon_value *stack){")
+    (trivial-compiler:emit-symbol-identifier f main)
+    (fio:write-to f "(stack);}\n\n")
     (c-backend:compile-data f data-graph)
     (io:write-string f "\n")
     (c-backend:compile-procedures f data-graph)
@@ -818,11 +822,22 @@
   (e1:let* ((data-graph (data-graph:graph-from-compiled-only main))
             (f (io:open-file "temporary-c-driver/q.s" io:write-mode)))
     (mips-backend:compile-data f data-graph)
-    (io:write-string f "# Procedures\n")
     (io:write-string f "  .text\n")
     (io:write-string f "  .set noreorder\n")
     (io:write-string f "  .set macro #  .set nomacro\n")
     (io:write-string f "  .set nomips16\n\n")
+    (fio:write-to f "# Driver
+  .balign 8 #.align 2
+  .globl epsilon_main_entry_point
+  .ent epsilon_main_entry_point
+  .type epsilon_main_entry_point, @function
+epsilon_main_entry_point:
+  j ")
+    (trivial-compiler:emit-symbol-identifier f main)
+    (fio:write-to f "
+  .end epsilon_main_entry_point
+  .size epsilon_main_entry_point, .-epsilon_main_entry_point\n\n")
+    (io:write-string f "# Procedures\n")
     (e1:dolist (procedure-name (data-graph:graph-get-procedures data-graph))
       (mips-backend:compile-procedure f procedure-name data-graph))
     (io:close-file f)))
@@ -1088,6 +1103,15 @@
     (io:write-string f "  .text\n")
     (e1:dolist (procedure-name (data-graph:graph-get-procedures data-graph))
       (x86_64-backend:compile-procedure f procedure-name data-graph))
+    (fio:write-to f "# Driver
+  .balign 8 #.align 2
+  .globl epsilon_main_entry_point
+  .type epsilon_main_entry_point, @function
+epsilon_main_entry_point:
+  jmp ")
+    (trivial-compiler:emit-symbol-identifier f main)
+    (fio:write-to f "
+  .size epsilon_main_entry_point, .-epsilon_main_entry_point\n\n")
     (io:close-file f)))
 
 (e1:define (x86_64-backend:compile-data f data-graph)
@@ -1513,29 +1537,56 @@
   symbol:table
   )
 
-(define-macro (testc main)
-  `(e1:toplevel (c-backend:compile (e0:value ,main))))
-(define-macro (testm main)
-  `(e1:toplevel (mips-backend:compile (e0:value ,main))))
-(define-macro (testx main)
-  `(e1:toplevel (x86_64-backend:compile (e0:value ,main))))
+(e1:define (fact n)
+  (e1:if (fixnum:zero? n)
+    1
+    (fixnum:* n (fact (fixnum:1- n)))))
+(e1:define (mm)
+  (e1:dotimes (n 12)
+    (fio:write "The factorial of " (i n) " is " (i (fact n)) "\n")))
+
+;;; Define a zero-argument procedure executing the given forms, which
+;;; may refer nonlocals.  Return the procedure name.
+(e1:define (macroexpand:procedure-name-using-nonlocals forms-as-sexpression-list)
+  (e1:let ((procedure-name (symbol:fresh)))
+    (state:procedure-set! procedure-name
+                          list:nil
+                          (macroexpand:expression-using-nonlocals forms-as-sexpression-list))
+    procedure-name))
+
+(e1:define-macro (compiler:compile compiler-name . forms)
+  `(,compiler-name (e1:value ,(sexpression:inject-symbol (macroexpand:procedure-name-using-nonlocals forms)))))
+
+(e1:define-macro (compiler:compile-c . forms)
+  `(compiler:compile c-backend:compile ,@forms))
+(e1:define-macro (compiler:compile-mips . forms)
+  `(compiler:compile mips-backend:compile ,@forms))
+(e1:define-macro (compiler:compile-x86_64 . forms)
+  `(compiler:compile x86_64-backend:compile ,@forms))
+
+;; (define-macro (testc main)
+;;   `(e1:toplevel (c-backend:compile (e0:value ,main))))
+;; (define-macro (testm main)
+;;   `(e1:toplevel (mips-backend:compile (e0:value ,main))))
+;; (define-macro (testx main)
+;;   `(e1:toplevel (x86_64-backend:compile (e0:value ,main))))
 ;;(test fact fact-acc fibo zerotozero zerotoone onetozero zerototwo twotozero simplertwotozero average call-indirect-1 call-indirect-2)
 ;;(define (go) (test f fibo fixnum:+ fixnum:- fixnum:1+ fixnum:1- fixnum:<))
 ;; (e1:define (f)
 ;;   (fixnum:write (list:length (list:iota 1000)))
 ;;   (string:write "\n"))
-(e1:define (f)
-  (e1:dotimes (i 3000)
-    (list:length (list:iota 1000)))
-  (fio:write-to (io:standard-output) "Done\n"))
+;; (e1:define (f)
+;;   (e1:dotimes (i 3000)
+;;     (list:length (list:iota 1000)))
+;;   (fio:write-to (io:standard-output) "Done\n"))
 
-(e1:define (g)
-  (e1:dotimes (i 40)
-    (fio:write (i i) " -> " (i (fibo i)) "\n")))
+;; (e1:define (g)
+;;   (e1:dotimes (i 40)
+;;     (fio:write (i i) " -> " (i (fibo i)) "\n")))
 
-(define (go)
-  (e1:toplevel (mips-backend:compile symbol:table
-                                     (state:procedure-names))))
-(define (z)
-  (gc)
-  (benchmark (e1:toplevel (e0:let (a b c d e) (data-graph:graph-explode (data-graph:graph-from-compiled-only (e0:value q))) (e0:bundle (list:length a) (list:length b) (list:length c))))))
+;; (define (go)
+;;   (e1:toplevel (mips-backend:compile symbol:table
+;;                                      (state:procedure-names))))
+;; (define (z)
+;;   (gc)
+;;   (benchmark (e1:toplevel (e0:let (a b c d e) (data-graph:graph-explode (data-graph:graph-from-compiled-only (e0:value q))) (e0:bundle (list:length a) (list:length b) (list:length c))))))

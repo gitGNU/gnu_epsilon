@@ -2326,15 +2326,12 @@
 ;;; containing the given forms as body, so that the program main
 ;;; expression can simply apply it and have visibility over the
 ;;; variables visible by the unexec:unexec caller.
+(e1:define (macroexpand:expression-using-nonlocals forms-as-sexpression-list)
+  (repl:macroexpand-and-transform `(e1:call-closure (e1:lambda () ,@forms-as-sexpression-list))))
 (e1:define-macro (unexec:unexec-table file-name table . forms)
-  (e1:let* ((closure-name (sexpression:fresh-symbol)))
-    `(e1:begin
-       (state:global-set! (e0:value ,closure-name)
-                          (e1:lambda () ,@forms))
-       (unexec:unexec-table-procedure ,file-name
-                                      ,table
-                                      (repl:macroexpand-and-transform
-                                          '(e1:call-closure ,closure-name))))))
+  `(unexec:unexec-table-procedure ,file-name
+                                  ,table
+                                  (macroexpand:expression-using-nonlocals ',forms)))
 (e1:define-macro (unexec:quick-unexec-table table . forms)
   `(unexec:unexec-table ,table
                         ,(sexpression:inject-string unexec:default-file)

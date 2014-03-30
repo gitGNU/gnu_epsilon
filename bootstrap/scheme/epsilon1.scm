@@ -3147,6 +3147,11 @@
 ;;;;; Simple debugging support for procedures and macros
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(e1:define (debug:print-expression expression)
+  (e1:let ((p (io:standard-output)))
+    (printer:write-expression p expression)
+    (io:write-string p "\n")))
+
 (e1:define (debug:print-procedure-definition name)
   (e1:let ((p (io:standard-output)))
     (io:write-string p "Formals: ")

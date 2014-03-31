@@ -2955,6 +2955,25 @@
       (option:option-some readline-result))))
 
 
+;;;;; Read the whole content of a file into a byte vector
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (io:file-content-as-byte-vector file-name)
+  (e1:let* ((f (io:open-file file-name io:read-mode))
+            (p (input-port:file->input-port f))
+            (list (io:file-content-as-byte-vector-helper p list:nil)))
+    (io:close-file f)
+    (vector:list->vector (list:reverse list))))
+(e1:define (io:file-content-as-byte-vector-helper p acc)
+  (e1:let ((c (input-port:read-character p)))
+    (e1:if (input-port:eof? p)
+      acc
+      (io:file-content-as-byte-vector-helper p (list:cons c acc)))))
+
+(e1:define-macro (io:file-content-as-byte-vector-literal file-name)
+  (sexpression:inject-string (io:file-content-as-byte-vector (sexpression:eject-string file-name))))
+
+
 ;;;;; List element selectors
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (e1:define (list:first x)

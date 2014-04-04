@@ -37,6 +37,9 @@ AC_INIT([GNU epsilon],
         [http://www.gnu.org/software/epsilon])
 AC_PREREQ(2.65)
 
+AC_SUBST(configuration_date, "$(date '+%Y-%m-%d')")
+AC_SUBST(configuration_time, "$(date '+%H:%M:%S')")
+
 # Use ./build-aux/ as the directory where to find auxiliary configuration-time
 # scripts:
 AC_CONFIG_AUX_DIR([build-aux])
@@ -150,11 +153,41 @@ AC_CHECK_SIZEOF(long long)
 AC_CHECK_SIZEOF(float)
 AC_CHECK_SIZEOF(double)
 AC_CHECK_SIZEOF(long double)
+
+AC_CHECK_ALIGNOF(void *)
+AC_CHECK_ALIGNOF(short)
+AC_CHECK_ALIGNOF(int)
+AC_CHECK_ALIGNOF(long)
+AC_CHECK_ALIGNOF(long long)
+AC_CHECK_ALIGNOF(float)
+AC_CHECK_ALIGNOF(double)
+AC_CHECK_ALIGNOF(long double)
+
+# To be exported to epsilon:
+AC_SUBST(sizeof_int, "$ac_cv_sizeof_int")
+AC_SUBST(sizeof_short, "$ac_cv_sizeof_short")
+AC_SUBST(sizeof_long, "$ac_cv_sizeof_long")
+AC_SUBST(sizeof_void_p, "$ac_cv_sizeof_void_p")
+AC_SUBST(alignof_int, "$ac_cv_alignof_int")
+AC_SUBST(alignof_short, "$ac_cv_alignof_short")
+AC_SUBST(alignof_long, "$ac_cv_alignof_long")
+AC_SUBST(alignof_void_p, "$ac_cv_alignof_void_p")
+
 AC_C_BIGENDIAN
+if test "x$WORDS_BIGENDIAN" = "x"; then
+  AC_SUBST(words_bigendian, "t")
+else
+  AC_SUBST(words_bigendian, "f")
+fi
 AC_C_INLINE
 AM_PROG_CC_C_O
 AC_PROG_CC_C99
 AC_C_CHAR_UNSIGNED
+if test "x$ac_cv_c_char_unsigned" = "xyes"; then
+  AC_SUBST(c_char_unsigned, "t")
+else
+  AC_SUBST(c_char_unsigned, "f")
+fi
 AC_C_STRINGIZE
 
 # Be sure make defines the MAKE variable: [To do: do we still need it?]
@@ -281,6 +314,9 @@ AC_CHECK_FUNCS([memalign posix_memalign mmap mmap64])
 # Automake manual:
 AC_CONFIG_FILES([Makefile])
 
+# Generate configuration-dependant epsilon definitions:
+AC_CONFIG_FILES([bootstrap/scheme/configuration.e])
+
 # We performed some work, we don't want to redo all of it if something fails
 # after this point. Checkpoint the configure cache:
 AC_CACHE_SAVE
@@ -315,6 +351,17 @@ AM_CONDITIONAL([NATIVE_COMPILING], [test "$NATIVE_COMPILING" = "yes"])
 # easier to read that way:
 AM_CONDITIONAL([COMPILING_FOR_POWERPC], [test "$host_cpu" = "powerpc"])
 AM_CONDITIONAL([COMPILING_FOR_MIPS], [echo "$host_cpu" | grep mips &> /dev/null])
+
+if test "x$NATIVE_COMPILING" = xyes; then
+  AC_SUBST(native_compiling, "t")
+else
+  AC_SUBST(native_compiling, "f")
+fi
+if test "x$cross_compiling" = xyes; then
+  AC_SUBST(cross_compiling, "t")
+else
+  AC_SUBST(cross_compiling, "f")
+fi
 # ########################## Feature check: end ###############################
 
 

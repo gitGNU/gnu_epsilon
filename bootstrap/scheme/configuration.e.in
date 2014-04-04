@@ -1,0 +1,120 @@
+;;;;; This is -*- epsilon -*- with some Scheme
+;;;;; The original file is configuration.e.in; configuration.e is generated.
+
+;;;;; Copyright (C) 2014  Luca Saiu
+
+;;;;; This file is part of GNU epsilon.
+
+;;;;; GNU epsilon is free software: you can redistribute it and/or modify
+;;;;; it under the terms of the GNU General Public License as published by
+;;;;; the Free Software Foundation, either version 3 of the License, or
+;;;;; (at your option) any later version.
+
+;;;;; GNU epsilon is distributed in the hope that it will be useful,
+;;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;;;;; GNU General Public License for more details.
+
+;;;;; You should have received a copy of the GNU General Public License
+;;;;; along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
+
+
+;;; Configuration-dependant variable definition, using the same
+;;; identifiers recognized by the autotools with the "configuration:"
+;;; prefix.
+
+;;; Names coming from autoconf use "_" as word separator; the others
+;;; follow the usual convention and use "-".
+
+;;;;; Identification and contact information
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define configuration:package_name "@PACKAGE_NAME@")
+(e1:define configuration:package_tarname "@PACKAGE_TARNAME@")
+(e1:define configuration:package_string "@PACKAGE_STRING@")
+(e1:define configuration:package_bugreport "@PACKAGE_BUGREPORT@")
+(e1:define configuration:package_url "@PACKAGE_URL@")
+(e1:define configuration:configuration-date "@configuration_date@")
+(e1:define configuration:configuration-time "@configuration_time@")
+(e1:define configuration:configuration-timestamp "@configuration_date@ @configuration_time@")
+
+
+;;;;; Version
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define configuration:package_version "@PACKAGE_VERSION@")
+(e1:define version:string configuration:package_version) ;; an alias
+
+
+;;;;; Paths
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define configuration:dir_separator "/") ;; FIXME: use a configure test.
+(e1:define configuration:path_separator "@PATH_SEPARATOR@")
+
+(e1:define configuration:srcdir "@srcdir@")
+(e1:define configuration:top_srcdir "@top_srcdir@")
+(e1:define configuration:abs_top_srcdir "@abs_top_srcdir@")
+(e1:define configuration:abs_top_builddir "@abs_top_builddir@")
+
+;;; Installation paths
+(e1:define configuration:prefix "@prefix@")
+;;; All the following include something like ${prefix} by design, and
+;;; shouldn't be used.
+;; (e1:define configuration:bindir "@bindir@")
+;; (e1:define configuration:datadir "@datadir@")
+;; (e1:define configuration:datarootdir "@datarootdir@")
+;; (e1:define configuration:docdir "@docdir@")
+;; (e1:define configuration:exec_prefix "@exec_prefix@")
+;; (e1:define configuration:includedir "@includedir@")
+;; (e1:define configuration:infodir "@infodir@")
+;; (e1:define configuration:libdir "@libdir@")
+
+
+;;;;; Target triplets
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define configuration:build "@build@")
+(e1:define configuration:host_os "@host_os@")
+(e1:define configuration:host_vendor "@host_vendor@")
+(e1:define configuration:host_cpu "@host_cpu@")
+
+(e1:define configuration:host "@host@")
+(e1:define configuration:build_os "@build_os@")
+(e1:define configuration:build_vendor "@build_vendor@")
+(e1:define configuration:build_cpu "@build_cpu@")
+
+(e1:define configuration:target "@target@")
+(e1:define configuration:target_os "@target_os@")
+(e1:define configuration:target_vendor "@target_vendor@")
+(e1:define configuration:target_cpu "@target_cpu@")
+
+
+;;;;; C data
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define configuration:sizeof_int @sizeof_int@)
+(e1:define configuration:sizeof_short @sizeof_short@)
+(e1:define configuration:sizeof_long @sizeof_long@)
+(e1:define configuration:sizeof_void_p @sizeof_void_p@)
+
+(e1:define configuration:alignof_int @alignof_int@)
+(e1:define configuration:alignof_short @alignof_short@)
+(e1:define configuration:alignof_long @alignof_long@)
+(e1:define configuration:alignof_void_p @alignof_void_p@)
+
+(e1:define configuration:words_bigendian #@words_bigendian@)
+(e1:define configuration:c_char_unsigned #@c_char_unsigned@)
+
+
+;;;;; Compilation and linking
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define configuration:cross_compiling #@cross_compiling@)
+(e1:define configuration:native_compiling #@native_compiling@)
+
+(e1:define configuration:CC "@CC@")
+(e1:define configuration:CFLAGS "@CFLAGS@")
+(e1:define configuration:CPPFLAGS "@CPPFLAGS@")
+(e1:define configuration:LIBS "@LIBS@")
+(e1:define configuration:LDFLAGS "@LDFLAGS@")

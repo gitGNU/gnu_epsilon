@@ -148,7 +148,8 @@ EXTRA_DIST += \
   bootstrap/scheme/unexec.e \
   bootstrap/scheme/scratch.scm \
   bootstrap/scheme/bootstrap.scm \
-  bootstrap/scheme/quick-start.scm
+  bootstrap/scheme/quick-start.scm \
+  bootstrap/scheme/configuration.e.in
 
 ## Some files are only useful to manually re-generate some code in core.e:
 EXTRA_DIST += \

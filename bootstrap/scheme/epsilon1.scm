@@ -4369,6 +4369,16 @@
                                                                   sexpression-locus)
                                      joined-locus))))))
 
+;;; Add PREFIX-NAME-AS-STRING as a prefix expanding to (symbol-name E) where
+;;; E is the following s-expression.  The added prefix will be the first one.
+(e1:define-macro (reader:define-simple-prefix prefix-name-as-string symbol-name)
+  `(item-list:add-first!
+       reader:prefix-item-list-box
+       (symbol:string->symbol (string:append (symbol:symbol->string (e1:value ,symbol-name))
+                                             "-prefix"))
+       (reader:simple-prefix-case (regexp:desugar-string ,prefix-name-as-string)
+                                  (e1:value ,symbol-name))))
+
 ;; FIXME: hide the backtrackable port from the user: she should only
 ;; see a generic input port, and be able to change it; ideally, in a
 ;; stack fashion.
@@ -4424,15 +4434,6 @@
 (e1:define regexp:boolean
   (regexp:sregexp->regexp '(#\# (\| #\t
                                     #\f))))
-
-(e1:define regexp:quote-prefix
-  (regexp:sregexp->regexp '"'"))
-(e1:define regexp:quasiquote-prefix
-  (regexp:sregexp->regexp '"`"))
-(e1:define regexp:unquote-prefix
-  (regexp:sregexp->regexp '","))
-(e1:define regexp:unquote-splicing-prefix
-  (regexp:sregexp->regexp '",@"))
 (e1:define regexp:comment-prefix
   (regexp:sregexp->regexp '"#;"))
 
@@ -4632,22 +4633,12 @@
            (reader:result-success sexpression:eof)
            (reader:result-failure)))))
 
-  (item-list:add-last!
-     reader:prefix-item-list-box
-     (e1:value quasiquote)
-     (reader:simple-prefix-case regexp:quasiquote-prefix (e1:value quasiquote)))
-  (item-list:add-last!
-     reader:prefix-item-list-box
-     (e1:value unquote)
-     (reader:simple-prefix-case regexp:unquote-prefix (e1:value unquote)))
-  (item-list:add-first! ;; ",@" needs to come before ","
-     reader:prefix-item-list-box
-     (e1:value unquote-splicing)
-     (reader:simple-prefix-case regexp:unquote-splicing-prefix (e1:value unquote-splicing)))
-  (item-list:add-first! ;; "'" should be the most common case.  Make it the first.
-     reader:prefix-item-list-box
-     (e1:value quote)
-     (reader:simple-prefix-case regexp:quote-prefix (e1:value quote)))
+  ;; The "," prefix has to be defined before the other prefixes
+  ;; starting with a comma, so that the others take priority.
+  (reader:define-simple-prefix "," unquote)
+  (reader:define-simple-prefix ",@" unquote-splicing)
+  (reader:define-simple-prefix "`" quasiquote)
+  (reader:define-simple-prefix "'" quote)
 
   (item-list:add-first!
      reader:atom-item-list-box

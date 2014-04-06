@@ -1320,12 +1320,20 @@ epsilon_main_entry_point:
                           (macroexpand:expression-using-nonlocals forms-as-sexpression-list))
     procedure-name))
 
-(e1:define-macro (compiler:compile compiler-name . forms)
+(e1:define-macro (compiler:compile-with compiler-name . forms)
   `(,compiler-name (e1:value ,(sexpression:inject-symbol (macroexpand:procedure-name-using-nonlocals forms)))))
 
 (e1:define-macro (compiler:compile-c . forms)
-  `(compiler:compile c-backend:compile ,@forms))
+  `(compiler:compile-with c-backend:compile ,@forms))
 (e1:define-macro (compiler:compile-mips . forms)
-  `(compiler:compile mips-backend:compile ,@forms))
+  `(compiler:compile-with mips-backend:compile ,@forms))
 (e1:define-macro (compiler:compile-x86_64 . forms)
-  `(compiler:compile x86_64-backend:compile ,@forms))
+  `(compiler:compile-with x86_64-backend:compile ,@forms))
+
+;;; Compile for the host architecture:
+(e1:define-macro (compiler:compile . forms)
+  (e1:let ((compiler-name (symbol:intern (string:append "compiler:compile-"
+                                                        configuration:host_cpu))))
+    (e1:if (state:macro? compiler-name)
+      `(,(sexpression:inject-symbol compiler-name) ,@forms)
+      `(e1:error "unsupported architecture"))))

@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in -*-Makefile-*-
 
 ## This file is part of GNU epsilon
-## Copyright (C) 2006, 2007, 2008, 2013 Luca Saiu
+## Copyright (C) 2006, 2007, 2008, 2013, 2014 Luca Saiu
 ## (based on the eAM and NAUSEA Makefile.am files, both by Luca Saiu)
 ## Copyright (C) 2012 Université Paris 13
 ## Copyright (C) 2012 Luca Saiu
@@ -593,6 +593,7 @@ strip: all
 @abs_top_builddir@/repl/quick-start.dump: bin/epsilon-image-interpreter-untagged @abs_top_builddir@/repl $(EPSILON_DUMPED_SOURCE_FILES)
 	EPSILON_BUILD_PATH="@abs_top_builddir@" \
 	  "@abs_top_builddir@/bin/guile+whatever" \
+	  @GUILE_NO_AUTO_COMPILE@ \
 	  -l "@abs_top_srcdir@/bootstrap/scheme/bootstrap.scm" \
 	  -c '(begin (display "Success\n") (exit 0))'
 
@@ -601,6 +602,7 @@ strip: all
 guile+whatever-repl: @abs_top_builddir@/repl/quick-start.dump
 	EPSILON_BUILD_PATH="@abs_top_builddir@" \
 	  "@abs_top_builddir@/bin/guile+whatever" \
+	  @GUILE_NO_AUTO_COMPILE@ \
 	  -l "@abs_top_srcdir@/bootstrap/scheme/quick-start.scm"
 
 repl: @abs_top_builddir@/repl/repl

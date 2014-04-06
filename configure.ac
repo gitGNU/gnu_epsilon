@@ -1,9 +1,9 @@
 # -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-## Copyright (C) 2002, 2003, 2005, 2006, 2007, 2008 Luca Saiu
+## Copyright (C) 2002, 2003, 2005, 2006, 2007, 2008, 2014 Luca Saiu
 ## Copyright (C) 2012 Université Paris 13
-## minor updates by Luca Saiu in 2004, 2013 and 2014
+## minor updates by Luca Saiu in 2004 and 2013
 
 ## Written by Luca Saiu
 ## (based on old GNU epsilon's configure.ac and NAUSEA's configure.ac,
@@ -286,7 +286,18 @@ AC_MSG_CHECKING([whether $GUILE works])
 if test "$( $GUILE -q -c '(format #t "~s\n" (+ 1 2))' )" == 3; then
    AC_MSG_RESULT([yes, it seems to work])
 else
+   AC_MSG_RESULT([no])
    AC_MSG_ERROR([Guile does not seem to work])
+fi
+
+AC_MSG_CHECKING([whether $GUILE supports --no-auto-compile])
+if $GUILE --no-auto-compile -q -c 42 &> /dev/null; then
+   AC_SUBST(GUILE_NO_AUTO_COMPILE, "--no-auto-compile")
+   AC_MSG_RESULT([yes])
+   AC_MSG_WARN([due to my horrible macro abuses Guile 2 has to be used with --no-auto-compile, which is slow.])
+else
+   AC_SUBST(GUILE_NO_AUTO_COMPILE, "")
+   AC_MSG_RESULT([no])
 fi
 
 ## Very good, we checked libraries. Now we need to check headers, to make sure

@@ -18,6 +18,7 @@ You should have received a copy of the GNU General Public License
 along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
+[FIXME: this is now moslty obsolete]
 
 The Scheme files in bootstrap/scheme depend on guile+whatever.
 When linked against Guile 2.x, guile+whatever should always be called *with* the option

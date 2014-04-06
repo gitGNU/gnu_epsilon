@@ -147,6 +147,7 @@ EPSILON_DUMPED_SOURCE_FILES = \
   bootstrap/scheme/unexec.e \
   bootstrap/scheme/unexec-repl.e \
   bootstrap/scheme/epsilon1.scm \
+  bootstrap/scheme/repl.e \
   bootstrap/scheme/compiler.e \
   bootstrap/scheme/epsilon0-in-scheme.scm \
   bootstrap/scheme/bootstrap.scm \

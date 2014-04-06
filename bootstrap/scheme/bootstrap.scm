@@ -20,7 +20,7 @@
 ;;;;; along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
-;;;;; Bootstrap
+;;;;; Bootstrap: make epsilon1 usable
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (load "epsilon0-in-scheme.scm")
@@ -29,7 +29,6 @@
 (load "fill-reflective-structures.scm")
 (load "toplevel-in-scheme.scm")
 (load "epsilon1.scm")
-(load "compiler.e")
 
 ;; Load configuration-dependant stuff.  This needs the
 ;; EPSILON_BUILD_PATH environment variable to be defined.
@@ -43,6 +42,13 @@
 ;; which was defined in the epsilon state environment from Guile.
 (e1:toplevel (e1:load (string:append configuration:abs_top_builddir
                                      "/bootstrap/scheme/configuration.e")))
+
+
+;;;;; Bootstrap: load more advanced features
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(load "repl.e") ;; We need to load this late because it depends on source paths.
+(load "compiler.e")
 
 
 ;;;;; Save the current state, to make quick-start.scm work:

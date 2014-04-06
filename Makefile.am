@@ -606,4 +606,9 @@ guile+whatever-repl: @abs_top_builddir@/repl/quick-start.dump
 repl: @abs_top_builddir@/repl/repl
 	"@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "@abs_top_builddir@/repl/repl"
+
+# Run an existing REPL, without ever rebuilding it.
+quick-repl:
+	"@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
+	  "@abs_top_builddir@/repl/repl"
 ## ####################################################### interactive targets: end

@@ -278,7 +278,7 @@ static void epsilon_primitive_io_readline(epsilon_value *stack){
   add_history(c_string);
   int result = write_history(NULL);
   if (result != 0)
-    fprintf(stderr, "Writing history failed\n");
+    fprintf(stderr, "Warning: writing history failed\n");
   size_t nul_offset = strlen(c_string), length;
   if (nul_offset > 0)
     add_history(c_string);
@@ -513,7 +513,7 @@ void epsilon_c_primitives_initialize(void){
 
   int result = read_history(NULL);
   if (result != 0)
-    fprintf(stderr, "Reading history failed\n");
+    fprintf(stderr, "Warning: reading history failed\n");
 
   epsilon_initialize_string_hash(& epsilon_c_primitive_hash);
 

@@ -1,7 +1,7 @@
 ;;;;; Bootstrap driver in Guile -*- Scheme -*-.
 
 ;;;;; Copyright (C) 2012 Université Paris 13
-;;;;; Updated in 2013 by Luca Saiu
+;;;;; Updated in 2013 and 2014 by Luca Saiu
 ;;;;; Written by Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
@@ -31,20 +31,37 @@
 (load "epsilon1.scm")
 (load "compiler.e")
 
+;; Load configuration-dependant stuff.  This needs the
+;; EPSILON_BUILD_PATH environment variable to be defined.
+(define epsilon-build-path (getenv "EPSILON_BUILD_PATH"))
+(unless epsilon-build-path
+  (error "the environment variable EPSILON_BUILD_PATH is not defined"))
+(load (string-append epsilon-build-path "/bootstrap/scheme/configuration.e"))
+
+;; Load the configuration-dependant stuff again, this time into the
+;; epsilon1 state environments.  Now we can use configuration:abs_top_builddir,
+;; which was defined in the epsilon state environment from Guile.
+(e1:toplevel (e1:load (string:append configuration:abs_top_builddir
+                                     "/bootstrap/scheme/configuration.e")))
+
 
 ;;;;; Save the current state, to make quick-start.scm work:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (format #t "Saving the state to make quick-start.scm work later...\n")
-;;(e1:toplevel (unexec:quick-save) 57)
-(e1:toplevel (marshal:marshal (e0:value "quick-start.m") symbol:table))
+(e1:toplevel (marshal:marshal (string:append configuration:abs_top_builddir
+                                             (e0:value "/repl/quick-start.dump"))
+                              symbol:table))
 (format #t "...done\n")
+
+
+;;;;; Unexec a native REPL
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(load "unexec-repl.e")
 
 
 ;;;;; Load the scratch file
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;; Notice the changed performed in scratch.scm are *not* saved.  This
-;;; is intentional.
-
-(load "scratch.scm")
+(load "scratch.e")

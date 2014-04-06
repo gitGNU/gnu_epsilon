@@ -1,6 +1,7 @@
 ;;;;; Quickstart driver in -*- Scheme -*-, using unexec
 
 ;;;;; Copyright (C) 2012 Université Paris 13
+;;;;; Updated in 2014 by Luca Saiu
 ;;;;; Written by Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
@@ -30,8 +31,12 @@
 ;;; we rebuild the saved symbol table:
 (load "unexec.e")
 (format #t "Loading the saved symbol table...\n")
+(define epsilon-build-path (getenv "EPSILON_BUILD_PATH"))
+(unless epsilon-build-path
+  (error "the environment variable EPSILON_BUILD_PATH is not defined"))
 (define symbol:table
-  (marshal:unmarshal (e0:value "quick-start.m")))
+  (marshal:unmarshal (string:append2 (guile-string->string epsilon-build-path)
+                                     (e0:value "/repl/quick-start.dump"))))
 (format #t "Done.\n")
 
 ;;; Make the system usable from Guile
@@ -39,7 +44,13 @@
 (load "export-toplevel-forms-to-guile.scm")
 
 
+;;;;; Unexec a native REPL
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(load "unexec-repl.e")
+
+
 ;;;;; Load the scratch file
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(load "scratch.scm")
+(load "scratch.e")

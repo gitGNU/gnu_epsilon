@@ -136,20 +136,34 @@ EXTRA_DIST += \
   runtime/backend-specific/mips/backend-specific-s.S \
   runtime/backend-specific/always-fail runtime/backend-specific/i386 runtime/backend-specific/i486 runtime/backend-specific/i586 runtime/backend-specific/i686 runtime/backend-specific/mips runtime/backend-specific/mips64 runtime/backend-specific/mips64el runtime/backend-specific/mipsel runtime/backend-specific/powerpc runtime/backend-specific/ppc runtime/backend-specific/svm runtime/backend-specific/x86 runtime/backend-specific/x86_64 runtime/backend-specific/x86-64
 
-EXTRA_DIST += \
-  bootstrap/scheme/epsilon0-in-scheme.scm \
+# Source files which are *not* dumped into unexeced images, so that
+# they can be modified without having to bootstrap.  These are just
+# loaded every time at the end of the startup process from guile+whatever.
+EPSILON_UNDUMPED_SOURCE_FILES = \
+  bootstrap/scheme/scratch.e
+
+EPSILON_DUMPED_SOURCE_FILES = \
   bootstrap/scheme/core.e \
-  bootstrap/scheme/fill-reflective-structures.scm \
-  bootstrap/scheme/epsilon1.scm \
-  bootstrap/scheme/debugging-stuff-for-guile.scm \
-  bootstrap/scheme/toplevel-in-scheme.scm \
-  bootstrap/scheme/export-toplevel-forms-to-guile.scm \
-  bootstrap/scheme/conversion.scm \
   bootstrap/scheme/unexec.e \
-  bootstrap/scheme/scratch.scm \
+  bootstrap/scheme/unexec-repl.e \
+  bootstrap/scheme/epsilon1.scm \
+  bootstrap/scheme/compiler.e \
+  bootstrap/scheme/epsilon0-in-scheme.scm \
   bootstrap/scheme/bootstrap.scm \
   bootstrap/scheme/quick-start.scm \
-  bootstrap/scheme/configuration.e.in
+  bootstrap/scheme/debugging-stuff-for-guile.scm \
+  bootstrap/scheme/export-toplevel-forms-to-guile.scm \
+  bootstrap/scheme/fill-reflective-structures.scm \
+  bootstrap/scheme/toplevel-in-scheme.scm \
+  bootstrap/scheme/conversion.scm \
+  @abs_top_builddir@/bootstrap/scheme/configuration.e
+
+EPSILON_SOURCE_FILES = \
+  $(EPSILON_DUMPED_SOURCE_FILES) \
+  $(EPSILON_UNDUMPED_SOURCE_FILES)
+
+EXTRA_DIST += \
+  $(EPSILON_SOURCE_FILES)
 
 ## Some files are only useful to manually re-generate some code in core.e:
 EXTRA_DIST += \
@@ -306,6 +320,9 @@ EXTRA_DIST += \
   runtime/data-tagged.c \
   runtime/data-untagged.c \
   runtime/data-smob.c
+
+EXTRA_DIST += \
+  repl
 
 # A little sanity test for the utility functions:
 bin_PROGRAMS += \
@@ -553,6 +570,7 @@ clean-local: clean-profile
 #	rm -rf `find $(srcdir)/ -name prefixes.h`
 distclean-local: clean-doc clean-profile
 	rm -f $(BUILT_SOURCES)
+	rm -f "@abs_top_builddir@/repl/repl"
 	rm -rf autom4te.cache config.log
 ## ####################################################### cleaning: end
 
@@ -564,3 +582,25 @@ edit: clean
 
 strip: all
 	strip $(bin_PROGRAMS)
+
+## ####################################################### interactive targets: begin
+@abs_top_builddir@/repl:
+	mkdir -p "$@"
+
+@abs_top_builddir@/repl/quick-start.dump: bin/epsilon-image-interpreter-untagged @abs_top_builddir@/repl $(EPSILON_DUMPED_SOURCE_FILES)
+	EPSILON_BUILD_PATH="@abs_top_builddir@" \
+	  "@abs_top_builddir@/bin/guile+whatever" \
+	  -l "@abs_top_srcdir@/bootstrap/scheme/bootstrap.scm" \
+	  -c '(begin (display "Success\n") (exit 0))'
+
+@abs_top_builddir@/repl/repl: @abs_top_builddir@/repl/quick-start.dump
+
+guile+whatever-repl: @abs_top_builddir@/repl/quick-start.dump
+	EPSILON_BUILD_PATH="@abs_top_builddir@" \
+	  "@abs_top_builddir@/bin/guile+whatever" \
+	  -l "@abs_top_srcdir@/bootstrap/scheme/quick-start.scm"
+
+repl: @abs_top_builddir@/repl/repl
+	"@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
+	  "@abs_top_builddir@/repl/repl"
+## ####################################################### interactive targets: end

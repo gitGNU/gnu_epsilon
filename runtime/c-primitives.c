@@ -482,6 +482,13 @@ static void epsilon_primitive_state_update_globals_and_procedures(epsilon_value 
   epsilon_value procedure_name_formals_body_list = stack[1];
   epsilon_update_all_procedures(procedure_name_formals_body_list);
 }
+static void epsilon_primitive_unix_system(epsilon_value *stack){
+  epsilon_value epsilon_string = stack[0];
+  char *char_star = epsilon_string_to_malloced_char_star(epsilon_string);
+  int result = system(char_star);
+  free(char_star);
+  stack[0] = epsilon_int_to_epsilon_value(result);
+}
 
 static void epsilon_primitive_io_write_value(epsilon_value *stack){
   epsilon_value file = epsilon_value_to_foreign_pointer(stack[0]);
@@ -583,6 +590,7 @@ void epsilon_c_primitives_initialize(void){
   epsilon_initialize_c_primitive("marshal:unmarshal-from-open-file", epsilon_primitive_marshal_unmarshal_from_open_file, 1, 1);
   epsilon_initialize_c_primitive("state:update-globals-and-procedures!", epsilon_primitive_state_update_globals_and_procedures, 2, 0);
   epsilon_initialize_c_primitive("e0:eval-in-c", epsilon_primitive_e0_eval, 2, 1);
+  epsilon_initialize_c_primitive("unix:system", epsilon_primitive_unix_system, 1, 1);
 
   epsilon_initialize_c_primitive("io:write-value", epsilon_primitive_io_write_value, 2, 0); // FIXME: remove after bootstrapping from Guile
 }

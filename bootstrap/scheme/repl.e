@@ -59,11 +59,49 @@ Copyright (C) 2012  Universit" (c 233) ;; FIXME: do it the obvious way after boo
 " Paris 13
 Copyright (C) 2012-2014  Luca Saiu
 
-GNU epsilon comes with ABSOLUTELY NO WARRANTY.  This program is free software
-and you are welcome to redistribute it under the terms of the GNU General
-Public License, version 3 or later.  See the file named COPYING for details.
+GNU epsilon comes with ABSOLUTELY NO WARRANTY; enter `,show no-warranty' for
+details.  This program is free software and you are welcome to redistribute it
+ under the terms of the GNU General Public License, version 3 or later.  Enter
+`,show license' or see the file named COPYING for the full license text.
 
 "))
 
 (e1:define repl:debug
   (box:make #f))
+
+
+;;;;; REPL commands
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Define a REPL command named ,NAME-AS-STRING, calling PROCEDURE-NAME
+;;; with one s-expression parameter.
+(e1:define-macro (repl:define-command name-as-string procedure-name)
+  (e1:let ((macro-name (sexpression:fresh-symbol)))
+    `(e1:begin
+       (e1:define-macro (,macro-name argument)
+         `(,',procedure-name ',argument)) ;; Pass argument as a literal s-expression.
+       (reader:define-simple-prefix
+          ,(sexpression:inject-string
+              (string:append "," (sexpression:eject-string name-as-string)))
+          ,macro-name))))
+
+;;; After unexec'ing these two globals are just bound to ordinary
+;;; strings, and files from the source tree are not accessed at runtime.
+(e1:define repl:gpl-text
+  (io:file-content-as-byte-vector (string:append configuration:abs_top_srcdir
+                                                 configuration:dir_separator
+                                                 "COPYING")))
+(e1:define repl:no-warranty-text
+  (io:file-content-as-byte-vector (string:append configuration:abs_top_srcdir
+                                                 configuration:dir_separator
+                                                 "NO-WARRANTY")))
+
+(e1:toplevel (repl:define-command "show" repl:show))
+(e1:define (repl:show what)
+  (e1:case (sexpression:eject-symbol what)
+    ((license copying gpl)
+     (fio:write (st repl:gpl-text) "\n"))
+    ((no-warranty warranty)
+     (fio:write (st repl:no-warranty-text) "\n"))
+    (else
+     (e1:error "Unknown ,show argument\n"))))

@@ -140,7 +140,9 @@ EXTRA_DIST += \
 # they can be modified without having to bootstrap.  These are just
 # loaded every time at the end of the startup process from guile+whatever.
 EPSILON_UNDUMPED_SOURCE_FILES = \
-  bootstrap/scheme/scratch.e
+  bootstrap/scheme/scratch.e \
+  bootstrap/scheme/gc-tests.e \
+  bootstrap/scheme/peano.e
 
 EPSILON_DUMPED_SOURCE_FILES = \
   bootstrap/scheme/core.e \

@@ -1,7 +1,7 @@
-;;;;; This is -*- epsilon -*- (with very little Scheme).
+;;;;; This is -*- epsilon -*-
 ;;;;; Trivial compiler
 
-;;;;; Copyright (C) 2013 Luca Saiu
+;;;;; Copyright (C) 2013, 2014 Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
 
@@ -306,10 +306,6 @@
   (trivial-compiler:prepend-return-if-needed tail height 1
      (list:cons (trivial-compiler:instruction-fork procedure-name height)
                 (trivial-compiler:compile-expressions actuals #f height))))
-;; (e1:define (trivial-compiler:compile-join future tail height)
-;;   (trivial-compiler:prepend-return-if-needed tail height 1
-;;      (list:cons (trivial-compiler:instruction-join procedure-name height)
-;;                 (trivial-compiler:compile-expression future #f height))))
 (e1:define (trivial-compiler:compile-join future tail height)
   (trivial-compiler:prepend-return-if-needed tail height 1
      (list:cons (trivial-compiler:instruction-join height)
@@ -431,43 +427,6 @@
 (e1:define (data-graph:graph-from main-object)
   (data-graph:graph-from-excluding main-object
                                    (list:list 8 9))) ; bytecode, native
-
-
-;; ;;;;; Structured data compilation [FIXME: this is obsolete.  Remove]
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; (e1:define (trivial-compiler:unknown-buffer? datum hash)
-;;   (e1:and (e0:primitive whatever:buffer? datum)
-;;           (e1:not (unboxed-hash:has? hash datum))))
-
-;; (e1:define (trivial-compiler:extract! boxed-list)
-;;   (e1:let ((content (box:get boxed-list)))
-;;     (box:set! boxed-list (list:tail content))
-;;     (list:head content)))
-
-;; (e1:define (trivial-compiler:insert! boxed-list element)
-;;   (box:set! boxed-list
-;;             (list:cons element (box:get boxed-list))))
-
-;; (e1:define (trivial-compiler:remember-datum-if-needed! datum hash worklist pointers)
-;;   (e1:when (trivial-compiler:unknown-buffer? datum hash)
-;;     (unboxed-hash:set! hash datum (unboxed-hash:element-no hash))
-;;     (trivial-compiler:insert! worklist datum)
-;;     (trivial-compiler:insert! pointers datum)
-;;     (e1:dotimes (i (e0:primitive buffer:length datum))
-;;       (e1:let* ((element (buffer:get datum i)))
-;;         (e1:when (trivial-compiler:unknown-buffer? element hash)
-;;           (trivial-compiler:insert! worklist element))))))
-
-;; (e1:define (trivial-compiler:compile-datum datum)
-;;   (e1:let* ((hash (unboxed-hash:make))
-;;             (worklist (box:make (list:list datum)))
-;;             (pointers (box:make list:nil)))
-;;     (e1:while (e1:not (list:null? (box:get worklist)))
-;;       (e1:let ((datum (trivial-compiler:extract! worklist)))
-;;         (trivial-compiler:remember-datum-if-needed! datum hash worklist pointers)))
-;;     (e0:bundle hash
-;;                (list:reverse (box:get pointers)))))
 
 
 ;;;;; Procedure compilation
@@ -1349,201 +1308,8 @@ epsilon_main_entry_point:
        (e1:error "impossible")))))
 
 
-;;;;; Peano naturals; for GC benchmarks [FIXME: move somewhere else]
+;;;;; User interface
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(e1:toplevel (sum:define peano:peano
-               (zero)
-               (successor peano)))
-
-(e1:define (peano:fixnum->peano n)
-  (peano:fixnum->peano-acc n (peano:peano-zero)))
-(e1:define (peano:fixnum->peano-acc n a)
-  (e1:if (fixnum:zero? n)
-    a
-    (peano:fixnum->peano-acc (fixnum:1- n)
-                             (peano:peano-successor a))))
-
-(e1:define (peano:peano->fixnum p)
-  (peano:peano->fixnum-acc p 0))
-(e1:define (peano:peano->fixnum-acc p a)
-  (e1:match p
-    ((peano:peano-zero)
-     a)
-    ((peano:peano-successor p-minus-1)
-     (peano:peano->fixnum-acc p-minus-1 (fixnum:1+ a)))))
-
-(e1:define peano:0
-  (peano:peano-zero))
-
-(e1:define peano:1
-  (peano:peano-successor peano:0))
-
-(e1:define (peano:zero? a)
-  (e1:match a
-    ((peano:peano-zero)
-     #t)
-    (_
-     #f)))
-
-(e1:define (peano:< a b)
-  (e1:cond ((peano:zero? a)
-            (e1:not (peano:zero? b)))
-           ((peano:zero? b)
-            #f)
-           (else
-            (peano:< (peano:1- a) (peano:1- b)))))
-
-(e1:define (peano:= a b)
-  (e1:cond ((peano:zero? a)
-            (peano:zero? b))
-           ((peano:zero? b)
-            #f)
-           (else
-            (peano:= (peano:1- a) (peano:1- b)))))
-
-(e1:define (peano:<= a b)
-  (peano:< a (peano:1+ b)))
-
-(e1:define (peano:> a b)
-  (peano:< b a))
-
-(e1:define (peano:>= a b)
-  (peano:<= b a))
-
-(e1:define (peano:1+ a)
-  (peano:peano-successor a))
-
-(e1:define (peano:1- a)
-  (e1:match a
-    ((peano:peano-zero)
-     (e1:error "peano:1-: the argument is zero"))
-    ((peano:peano-successor a-minus-1)
-     a-minus-1)))
-
-(e1:define (peano:+ a b)
-  (e1:match a
-    ((peano:peano-zero)
-     b)
-    ((peano:peano-successor a-minus-1)
-     (peano:+ a-minus-1
-              (peano:peano-successor b)))))
-
-(e1:define (peano:- a b)
-  (e1:match b
-    ((peano:peano-zero)
-     a)
-    ((peano:peano-successor b-minus-1)
-     (peano:- (peano:1- a)
-              b-minus-1))))
-
-(e1:define (peano:* a b)
-  (e1:if (peano:< a b)
-    (peano:*-acc a b peano:0)
-    (peano:*-acc b a peano:0)))
-(e1:define (peano:*-acc a b acc)
-  (e1:match b
-    ((peano:peano-zero)
-     acc)
-    ((peano:peano-successor b-minus-1)
-     (peano:*-acc a
-                  b-minus-1
-                  (peano:+ a acc)))))
-
-(e1:define (peano:** a b)
-  (peano:**-acc a b peano:1))
-(e1:define (peano:**-acc a b acc)
-  (e1:match b
-    ((peano:peano-zero)
-     acc)
-    ((peano:peano-successor b-minus-1)
-     (peano:**-acc a
-                   b-minus-1
-                   (peano:* a acc)))))
-
-(e1:define (peano:/% a b)
-  (peano:/%-acc a b peano:0))
-(e1:define (peano:/%-acc a b quotient-acc)
-  (e1:if (peano:< a b)
-    (e0:bundle quotient-acc
-               a)
-    (peano:/%-acc (peano:- a b)
-                  b
-                  (peano:1+ quotient-acc))))
-
-(e1:define (peano:/ a b)
-  (e0:let (quotient remainder) (peano:/% a b)
-    quotient))
-(e1:define (peano:% a b)
-  (e0:let (quotient remainder) (peano:/% a b)
-    remainder))
-
-
-;;
-(e1:define (p->f a)
-  (peano:peano->fixnum a))
-(e1:define (f->p a)
-  (peano:fixnum->peano a))
-
-(e1:define (peano:test a b)
-  (peano:peano->fixnum (peano:% (peano:fixnum->peano a)
-                                (peano:fixnum->peano b))))
-(e1:define (peano:test- a b)
-  (peano:peano->fixnum (peano:- (peano:fixnum->peano a)
-                                (peano:fixnum->peano b))))
-(e1:define (peano:test** a b)
-  (peano:peano->fixnum (peano:** (peano:fixnum->peano a)
-                                 (peano:fixnum->peano b))))
-(e1:define (peano:test/ a b)
-  (peano:peano->fixnum (peano:/ (peano:fixnum->peano a)
-                                (peano:fixnum->peano b))))
-(e1:define (peano:test% a b)
-  (peano:peano->fixnum (peano:% (peano:fixnum->peano a)
-                                (peano:fixnum->peano b))))
-
-
-;;;;; Scratch
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(e1:define (sharealot n)
-  (e1:if (fixnum:zero? n)
-    0
-    (e1:let* ((subtree (sharealot (fixnum:1- n))))
-      (tuple:make subtree subtree))))
-
-(e1:define (dontshare n)
-  (e1:if (fixnum:zero? n)
-    0
-    (tuple:make (dontshare (fixnum:1- n))
-                (dontshare (fixnum:1- n)))))
-
-(e1:define (complexity q)
-  (e1:if (fixnum:zero? q)
-    1
-    (fixnum:+ (complexity (tuple:get q 0))
-              (complexity (tuple:get q 0))
-              1)))
-
-(e1:define (complexityp q)
-  (e0:if-in q (0)
-    1
-    (e0:primitive fixnum:1+
-                  (e0:primitive fixnum:+
-                                (complexityp (e0:primitive buffer:get q 0))
-                                (complexityp (e0:primitive buffer:get q 0))))))
-
-(e1:define global-datum
-  ;;(list:iota 4)
-  symbol:table
-  )
-
-(e1:define (fact n)
-  (e1:if (fixnum:zero? n)
-    1
-    (fixnum:* n (fact (fixnum:1- n)))))
-(e1:define (mm)
-  (e1:dotimes (n 12)
-    (fio:write "The factorial of " (i n) " is " (i (fact n)) "\n")))
 
 ;;; Define a zero-argument procedure executing the given forms, which
 ;;; may refer nonlocals.  Return the procedure name.
@@ -1563,30 +1329,3 @@ epsilon_main_entry_point:
   `(compiler:compile mips-backend:compile ,@forms))
 (e1:define-macro (compiler:compile-x86_64 . forms)
   `(compiler:compile x86_64-backend:compile ,@forms))
-
-;; (define-macro (testc main)
-;;   `(e1:toplevel (c-backend:compile (e0:value ,main))))
-;; (define-macro (testm main)
-;;   `(e1:toplevel (mips-backend:compile (e0:value ,main))))
-;; (define-macro (testx main)
-;;   `(e1:toplevel (x86_64-backend:compile (e0:value ,main))))
-;;(test fact fact-acc fibo zerotozero zerotoone onetozero zerototwo twotozero simplertwotozero average call-indirect-1 call-indirect-2)
-;;(define (go) (test f fibo fixnum:+ fixnum:- fixnum:1+ fixnum:1- fixnum:<))
-;; (e1:define (f)
-;;   (fixnum:write (list:length (list:iota 1000)))
-;;   (string:write "\n"))
-;; (e1:define (f)
-;;   (e1:dotimes (i 3000)
-;;     (list:length (list:iota 1000)))
-;;   (fio:write-to (io:standard-output) "Done\n"))
-
-;; (e1:define (g)
-;;   (e1:dotimes (i 40)
-;;     (fio:write (i i) " -> " (i (fibo i)) "\n")))
-
-;; (define (go)
-;;   (e1:toplevel (mips-backend:compile symbol:table
-;;                                      (state:procedure-names))))
-;; (define (z)
-;;   (gc)
-;;   (benchmark (e1:toplevel (e0:let (a b c d e) (data-graph:graph-explode (data-graph:graph-from-compiled-only (e0:value q))) (e0:bundle (list:length a) (list:length b) (list:length c))))))

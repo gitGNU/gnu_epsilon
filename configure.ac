@@ -591,6 +591,8 @@ POSITRON_COMMAND_LINE_ENABLE([svm-threading], [SVM_THREADING],
                              [$SVM_THREADING_DEFAULT],
                              [use threading in the SVM; this only works with GCC])
 
+# Let make output be verbose by default.  FIXME: do I want this?  Not sure.
+AM_SILENT_RULES([no])
 
 # We performed some work, we don't want to redo all of it if something fails
 # after this point. Checkpoint the configure cache:

@@ -118,3 +118,6 @@
 (e1:define configuration:CPPFLAGS "@CPPFLAGS@")
 (e1:define configuration:LIBS "@LIBS@")
 (e1:define configuration:LDFLAGS "@LDFLAGS@")
+
+(e1:define configuration:CCAS "@CCAS@")
+(e1:define configuration:CCASFLAGS "@CCASFLAGS@")

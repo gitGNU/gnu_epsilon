@@ -36,7 +36,7 @@
 (e1:define (repl:repl-helper bp)
   (e1:if (backtrackable-port:eof? bp)
     (e1:bundle)
-    (e1:let ((sexpression (reader:read bp)))
+    (e1:let ((sexpression (reader:read-bp bp)))
       (e1:when (box:get repl:debug)
         (fio:write "[You wrote: " (se sexpression) "]\n"))
       (e1:if (sexpression:eof-object? sexpression)

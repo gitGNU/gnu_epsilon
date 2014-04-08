@@ -4379,21 +4379,23 @@
        (reader:simple-prefix-case (regexp:desugar-string ,prefix-name-as-string)
                                   (e1:value ,symbol-name))))
 
-;; FIXME: hide the backtrackable port from the user: she should only
-;; see a generic input port, and be able to change it; ideally, in a
-;; stack fashion.
-(e1:define (reader:read bp)
-  (reader:read-helper (box:get reader:item-list-box) bp))
-(e1:define (reader:read-helper item-list bp)
+(e1:define (reader:read input-port)
+  (e1:let ((bp (backtrackable-port:input-port->backtrackable-port input-port
+                                                                  (option:option-none))))
+    (reader:read-bp bp)))
+
+(e1:define (reader:read-bp bp)
+  (reader:read-bp-helper (box:get reader:item-list-box) bp))
+(e1:define (reader:read-bp-helper item-list bp)
   (e1:cond ((list:null? item-list)
             (e1:error "all rules failed"))
            (else
             (backtrackable-port:commit! bp)
             (e1:match (e1:call-closure (cons:get-cdr (list:head item-list)) bp)
               ((reader:result-ignore)
-               (reader:read bp))
+               (reader:read-bp bp))
               ((reader:result-failure)
-               (reader:read-helper (list:tail item-list) bp))
+               (reader:read-bp-helper (list:tail item-list) bp))
               ((reader:result-success sexpression)
                sexpression)))))
 
@@ -4457,7 +4459,7 @@
      (e1:match (regexp:read-regexp bp regexp:dot)
        ((regexp:result-success _ _ _ _ _)
         (reader:eat-ignorables bp)
-        (e1:let ((sexpression (reader:identity-unless-eof (reader:read bp))))
+        (e1:let ((sexpression (reader:identity-unless-eof (reader:read-bp bp))))
           (reader:eat-ignorables bp)
           (e1:match (regexp:read-regexp bp regexp:close)
             ((regexp:result-failure)
@@ -4471,7 +4473,7 @@
                (sexpression:with-locus sexpression
                                        (locus:join sexpression-locus close-locus)))))))
        ((regexp:result-failure) ;; we didn't recognize "."
-        (e1:let* ((sexpression (reader:identity-unless-eof (reader:read bp)))
+        (e1:let* ((sexpression (reader:identity-unless-eof (reader:read-bp bp)))
                   (sexpression-locus (sexpression:get-locus sexpression))
                   (rest (reader:read-rest bp))
                   (rest-locus (sexpression:get-locus rest)))
@@ -4499,7 +4501,7 @@
         ((regexp:result-failure)
          (reader:recognize-prefixed-helper bp (list:tail item-list)))
         ((regexp:result-success initial-row initial-column final-row final-column prefix-string)
-         (e1:let ((read-sexpression (reader:read bp))
+         (e1:let ((read-sexpression (reader:read-bp bp))
                   (prefix-locus (locus:locus-known (backtrackable-port:backtrackable-port-get-file-name-option bp)
                                                    initial-row initial-column
                                                    final-row final-column
@@ -4557,7 +4559,7 @@
      (e1:lambda (bp)
        (e1:match (regexp:read-regexp bp regexp:comment-prefix)
          ((regexp:result-success _ _ _ _ _)
-          (reader:read bp) ;; eat and ignore this
+          (reader:read-bp bp) ;; eat and ignore this
           (reader:result-ignore))
          ((regexp:result-failure)
           (reader:result-failure)))))
@@ -4729,7 +4731,7 @@
                     (option:option-some file-name))))
     (e1:load-helper file-name bp)))
 (e1:define (e1:load-helper file-name bp)
-  (e1:let ((s (reader:read bp)))
+  (e1:let ((s (reader:read-bp bp)))
     (e1:unless (sexpression:eof-object? s)
       (repl:macroexpand-transform-and-execute s)
       (e1:load-helper file-name bp))))

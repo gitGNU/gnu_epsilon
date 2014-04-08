@@ -591,27 +591,27 @@ strip: all
 	mkdir -p "$@"
 
 @abs_top_builddir@/repl/quick-start.dump: $(bin_PROGRAMS) $(lib_LIBRARIES) @abs_top_builddir@/repl $(EPSILON_DUMPED_SOURCE_FILES)
-	EPSILON_BUILD_PATH="@abs_top_builddir@" \
+	ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
 	  "@abs_top_builddir@/bin/guile+whatever" \
 	  @GUILE_NO_AUTO_COMPILE@ \
 	  -l "@abs_top_srcdir@/bootstrap/scheme/bootstrap.scm" \
-	  -c '(begin (display "Success\n") (exit 0))'
+	  -c '(begin (display "Successfully bootstrapped from Guile\n") (exit 0))'
 
 # The REPL is generated as a side effect.
 @abs_top_builddir@/repl/repl: @abs_top_builddir@/repl/quick-start.dump
 
 guile+whatever-repl: @abs_top_builddir@/repl/quick-start.dump
-	EPSILON_BUILD_PATH="@abs_top_builddir@" \
+	ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
 	  "@abs_top_builddir@/bin/guile+whatever" \
 	  @GUILE_NO_AUTO_COMPILE@ \
 	  -l "@abs_top_srcdir@/bootstrap/scheme/quick-start.scm"
 
 repl: @abs_top_builddir@/repl/repl
-	"@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
+	ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "@abs_top_builddir@/repl/repl"
 
 # Run an existing REPL, without ever rebuilding it.
 quick-repl:
-	"@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
+	ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "@abs_top_builddir@/repl/repl"
 ## ####################################################### interactive targets: end

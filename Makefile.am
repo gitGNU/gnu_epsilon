@@ -590,13 +590,14 @@ strip: all
 @abs_top_builddir@/repl:
 	mkdir -p "$@"
 
-@abs_top_builddir@/repl/quick-start.dump: bin/epsilon-image-interpreter-untagged @abs_top_builddir@/repl $(EPSILON_DUMPED_SOURCE_FILES)
+@abs_top_builddir@/repl/quick-start.dump: $(bin_PROGRAMS) $(lib_LIBRARIES) @abs_top_builddir@/repl $(EPSILON_DUMPED_SOURCE_FILES)
 	EPSILON_BUILD_PATH="@abs_top_builddir@" \
 	  "@abs_top_builddir@/bin/guile+whatever" \
 	  @GUILE_NO_AUTO_COMPILE@ \
 	  -l "@abs_top_srcdir@/bootstrap/scheme/bootstrap.scm" \
 	  -c '(begin (display "Success\n") (exit 0))'
 
+# The REPL is generated as a side effect.
 @abs_top_builddir@/repl/repl: @abs_top_builddir@/repl/quick-start.dump
 
 guile+whatever-repl: @abs_top_builddir@/repl/quick-start.dump

@@ -36,7 +36,7 @@
   (error "the environment variable EPSILON_BUILD_PATH is not defined"))
 (define symbol:table
   (marshal:unmarshal (string:append2 (guile-string->string epsilon-build-path)
-                                     (e0:value "/repl/quick-start.dump"))))
+                                     (e0:value "/dumps/quick-start.dump"))))
 (format #t "Done.\n")
 
 ;;; Make the system usable from Guile

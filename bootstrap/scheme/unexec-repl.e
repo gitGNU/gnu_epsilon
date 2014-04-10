@@ -28,7 +28,7 @@
 (e1:toplevel
    (e1:let ((file-name (string:append configuration:abs_top_builddir
                                       configuration:dir_separator
-                                      "repl/repl")))
+                                      "dumps/repl.u")))
      (fio:write "Unexecing an epsilon1 REPL into " (st file-name) "\n")
      (e1:unexec file-name
        (repl:load-scratch)

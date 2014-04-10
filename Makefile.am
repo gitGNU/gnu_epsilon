@@ -573,7 +573,7 @@ clean-local: clean-profile
 #	rm -rf `find $(srcdir)/ -name prefixes.h`
 distclean-local: clean-doc clean-profile
 	rm -f $(BUILT_SOURCES)
-	rm -f "@abs_top_builddir@/repl/repl"
+	rm -f "@abs_top_builddir@/dumps/"*
 	rm -rf autom4te.cache config.log
 ## ####################################################### cleaning: end
 
@@ -587,10 +587,10 @@ strip: all
 	strip $(bin_PROGRAMS)
 
 ## ####################################################### interactive targets: begin
-@abs_top_builddir@/repl:
+@abs_top_builddir@/dumps:
 	mkdir -p "$@"
 
-@abs_top_builddir@/repl/quick-start.dump: $(bin_PROGRAMS) $(lib_LIBRARIES) @abs_top_builddir@/repl $(EPSILON_DUMPED_SOURCE_FILES)
+@abs_top_builddir@/dumps/quick-start.dump: $(bin_PROGRAMS) $(lib_LIBRARIES) @abs_top_builddir@/dumps $(EPSILON_DUMPED_SOURCE_FILES)
 	ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
 	  "@abs_top_builddir@/bin/guile+whatever" \
 	  @GUILE_NO_AUTO_COMPILE@ \
@@ -598,20 +598,20 @@ strip: all
 	  -c '(begin (display "Successfully bootstrapped from Guile\n") (exit 0))'
 
 # The REPL is generated as a side effect.
-@abs_top_builddir@/repl/repl: @abs_top_builddir@/repl/quick-start.dump
+@abs_top_builddir@/dumps/repl.u: @abs_top_builddir@/dumps/quick-start.dump
 
-guile+whatever-repl: @abs_top_builddir@/repl/quick-start.dump
+guile+whatever-repl: @abs_top_builddir@/dumps/quick-start.dump
 	ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
 	  "@abs_top_builddir@/bin/guile+whatever" \
 	  @GUILE_NO_AUTO_COMPILE@ \
 	  -l "@abs_top_srcdir@/bootstrap/scheme/quick-start.scm"
 
-repl: @abs_top_builddir@/repl/repl
+repl: @abs_top_builddir@/dumps/repl.u
 	ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
-	  "@abs_top_builddir@/repl/repl"
+	  "@abs_top_builddir@/dumps/repl.u"
 
 # Run an existing REPL, without ever rebuilding it.
 quick-repl:
 	ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
-	  "@abs_top_builddir@/repl/repl"
+	  "@abs_top_builddir@/dumps/repl.u"
 ## ####################################################### interactive targets: end

@@ -56,7 +56,7 @@
 
 (format #t "Saving the state to make quick-start.scm work later...\n")
 (e1:toplevel (marshal:marshal (string:append configuration:abs_top_builddir
-                                             (e0:value "/repl/quick-start.dump"))
+                                             (e0:value "/dumps/quick-start.dump"))
                               symbol:table))
 (format #t "...done\n")
 

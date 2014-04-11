@@ -22,6 +22,11 @@
 ;;;;; Scratch
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;(e1:define (fibo n) (e0:if-in n (0 1) n (fixnum:+ (fibo (fixnum:- n (e0:value 2))) (fibo (fixnum:1- n)))))
-;(e1:define (fact n) (e0:if-in n (0) (e0:value 1) (fixnum:* n (fact (fixnum:1- n)))))
-;(e1:define (fact-acc n a) (e0:if-in n (0) a (fact-acc (fixnum:1- n) (fixnum:* n a))))
+(e1:define (fibo n)
+  (e1:if (fixnum:< n 2)
+    n
+    (fixnum:+ (fibo (fixnum:- n 2))
+              (fibo (fixnum:1- n)))))
+(e1:define (test n)
+  (e1:dotimes (i n)
+    (fio:write "fibo(" (i i) ") = " (i (fibo i)) "\n")))

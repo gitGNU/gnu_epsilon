@@ -19,6 +19,28 @@
 ;;;;; along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
+;;;;; Compiler metadata
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; A compiler matadata record contains information about how to
+;;; compile for a given target, in terms of assembler and linker
+;;; command-line interface.
+
+(e1:define-record compiler:metadata
+  procedure-closure
+  ;; the following fields are all strings
+  assembly-file-extension
+  object-file-extension
+  CCAS
+  ASFLAGS
+  CCLD
+  LDFLAGS
+  LIBS)
+
+
+;;;;; Compiler internal machinery
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;;; Return true iff the given body does not call any procedure; forks
 ;;; are not considered calls, since such calls happen in different
 ;;; threads.
@@ -521,25 +543,49 @@
     (io:write-string f "\n\n")))
 
 
-;;;;; C backend
+;;;;; C-generating compiler
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:define (c-backend:compile main)
+(e1:define compiler:c
+  (compiler:metadata  #:procedure-closure
+                      (e1:lambda (procedure-name target-file-name)
+                        (compiler:c-compile-to-assembly procedure-name target-file-name))
+                      #:assembly-file-extension ".c"
+                      #:object-file-extension ".o"
+                      #:CCAS configuration:CC
+                      #:ASFLAGS (string:append configuration:CPPFLAGS
+                                               " "
+                                               "-DEPSILON_RUNTIME_UNTAGGED"
+                                               " "
+                                               "-I'" configuration:abs_top_builddir "'"
+                                               " "
+                                               "-I'" configuration:abs_top_srcdir "'"
+                                               " "
+                                               "-c")
+                      #:CCLD configuration:CC
+                      #:LDFLAGS (string:append "-L'" configuration:abs_top_builddir "/lib'"
+                                               " "
+                                               configuration:LDFLAGS)
+                      #:LIBS (string:append configuration:LIBS
+                                            " "
+                                            "-lepsilondriver-native-untagged -lepsilonruntime-untagged -lepsilonutility")))
+
+(e1:define (compiler:c-compile-to-assembly main target-file-name)
   (e1:let* ((data-graph (data-graph:graph-from-compiled-only main))
-            (f (io:open-file "/tmp/generated.c" io:write-mode)))
+            (f (io:open-file target-file-name io:write-mode)))
     (fio:write-to f "#include \"runtime/runtime.h\"\n\n")
-    (c-backend:emit-forward-declarations f data-graph)
+    (compiler:c-emit-forward-declarations f data-graph)
     (io:write-string f "\n")
     (fio:write-to f "/* Driver. */
 void epsilon_main_entry_point(epsilon_value *stack){")
     (trivial-compiler:emit-symbol-identifier f main)
     (fio:write-to f "(stack);}\n\n")
-    (c-backend:compile-data f data-graph)
+    (compiler:c-compile-data f data-graph)
     (io:write-string f "\n")
-    (c-backend:compile-procedures f data-graph)
+    (compiler:c-compile-procedures f data-graph)
     (io:close-file f)))
 
-(e1:define (c-backend:emit-forward-declarations f data-graph)
+(e1:define (compiler:c-emit-forward-declarations f data-graph)
   (e1:let* ((procedure-names (data-graph:graph-get-procedures data-graph))
             (pointers (data-graph:graph-get-pointers data-graph))
             (pointer-hash (data-graph:graph-get-pointer-hash data-graph)))
@@ -552,7 +598,7 @@ void epsilon_main_entry_point(epsilon_value *stack){")
       (io:write-fixnum f (unboxed-hash:get pointer-hash pointer))
       (io:write-string f "[];\n"))))
 
-(e1:define (c-backend:compile-data f data-graph)
+(e1:define (compiler:c-compile-data f data-graph)
   (e1:let* ((hash (data-graph:graph-get-pointer-hash data-graph))
             (pointers (data-graph:graph-get-pointers data-graph))
             (symbol-hash (data-graph:graph-get-symbol-hash data-graph)))
@@ -589,11 +635,11 @@ void epsilon_main_entry_point(epsilon_value *stack){")
     (io:write-string f "char global_data_end;\n")))
 
 
-(e1:define (c-backend:compile-procedures f data-graph)
+(e1:define (compiler:c-compile-procedures f data-graph)
   (e1:dolist (procedure-name (data-graph:graph-get-procedures data-graph))
-    (c-backend:compile-procedure f procedure-name data-graph)))
+    (compiler:c-compile-procedure f procedure-name data-graph)))
 
-(e1:define (c-backend:compile-procedure f procedure-name data-graph)
+(e1:define (compiler:c-compile-procedure f procedure-name data-graph)
   (e1:let* ((formals (state:procedure-get-formals procedure-name))
             (body (state:procedure-get-body procedure-name))
             (procedure (trivial-compiler:compile-procedure procedure-name formals body data-graph)))
@@ -615,35 +661,35 @@ void epsilon_main_entry_point(epsilon_value *stack){")
     (io:write-string f "// scratch-no is ")
     (io:write-fixnum f (trivial-compiler:procedure-get-scratch-no procedure))
     (io:write-string f "\n")
-    (c-backend:compile-instructions f procedure (trivial-compiler:procedure-get-instructions procedure))
+    (compiler:c-compile-instructions f procedure (trivial-compiler:procedure-get-instructions procedure))
     (io:write-string f "// This should be unreachable\n  return;\n}\n\n")))
 
-(e1:define (c-backend:io->stack-index procedure io)
+(e1:define (compiler:c-io->stack-index procedure io)
   io)
-(e1:define (c-backend:local->stack-index procedure local)
+(e1:define (compiler:c-local->stack-index procedure local)
   (fixnum:+ (trivial-compiler:procedure-get-io-no procedure)
             ;;(e1:if (trivial-compiler:procedure-get-leaf procedure) 0 1) ; return slot
             local))
-(e1:define (c-backend:scratch->stack-index procedure scratch)
+(e1:define (compiler:c-scratch->stack-index procedure scratch)
   (fixnum:+ (trivial-compiler:procedure-get-io-no procedure)
             ;;(e1:if (trivial-compiler:procedure-get-leaf procedure) 0 1) ; return slot
             (trivial-compiler:procedure-get-local-no procedure)
             scratch))
 
-(e1:define (c-backend:emit-io f procedure io)
+(e1:define (compiler:c-emit-io f procedure io)
   (io:write-string f "stack[")
-  (io:write-fixnum f (c-backend:io->stack-index procedure io))
+  (io:write-fixnum f (compiler:c-io->stack-index procedure io))
   (io:write-string f "]"))
-(e1:define (c-backend:emit-local f procedure local)
+(e1:define (compiler:c-emit-local f procedure local)
   (io:write-string f "stack[")
-  (io:write-fixnum f (c-backend:local->stack-index procedure local))
+  (io:write-fixnum f (compiler:c-local->stack-index procedure local))
   (io:write-string f "]"))
-(e1:define (c-backend:emit-scratch f procedure scratch)
+(e1:define (compiler:c-emit-scratch f procedure scratch)
   (io:write-string f "stack[")
-  (io:write-fixnum f (c-backend:scratch->stack-index procedure scratch))
+  (io:write-fixnum f (compiler:c-scratch->stack-index procedure scratch))
   (io:write-string f "]"))
 
-(e1:define (c-backend:emit-value f procedure value)
+(e1:define (compiler:c-emit-value f procedure value)
   (e1:if (e0:primitive whatever:atom? value)
     (e1:begin
       (io:write-string f "epsilon_int_to_epsilon_value(")
@@ -660,7 +706,7 @@ void epsilon_main_entry_point(epsilon_value *stack){")
         (io:write-symbol f value)
         (io:write-string f " */ ")))))
 
-(e1:define (c-backend:compile-instructions f procedure ii)
+(e1:define (compiler:c-compile-instructions f procedure ii)
   (e1:dolist (i (list:reverse ii))
     (e1:match i
       ((trivial-compiler:instruction-return)
@@ -674,7 +720,7 @@ void epsilon_main_entry_point(epsilon_value *stack){")
       ((trivial-compiler:instruction-tail-call-indirect local-index)
        (io:write-string f "// tail-call-indirect: BEGIN\n")
        (io:write-string f "  ((epsilon_compiled_c_function)(((epsilon_value*)(")
-       (c-backend:emit-local f procedure local-index)
+       (compiler:c-emit-local f procedure local-index)
        (io:write-string f "))[9]))(stack);\n")
        (io:write-string f "  return;\n")
        (io:write-string f "// tail-call-indirect: END\n"))
@@ -683,65 +729,65 @@ void epsilon_main_entry_point(epsilon_value *stack){")
        (io:write-string f "  ")
        (trivial-compiler:emit-symbol-identifier f name)
        (io:write-string f "(stack + ")
-       (io:write-fixnum f (c-backend:scratch->stack-index procedure scratch-index))
+       (io:write-fixnum f (compiler:c-scratch->stack-index procedure scratch-index))
        (io:write-string f ");\n"))
       ((trivial-compiler:instruction-nontail-call-indirect local-index scratch-index)
        (io:write-string f "// nontail-call-indirect: BEGIN\n")
        (io:write-string f "  ((epsilon_compiled_c_function)(((epsilon_value*)(")
-       (c-backend:emit-local f procedure local-index)
+       (compiler:c-emit-local f procedure local-index)
        (io:write-string f "))[9]))(stack + ")
-       (io:write-fixnum f (c-backend:scratch->stack-index procedure scratch-index))
+       (io:write-fixnum f (compiler:c-scratch->stack-index procedure scratch-index))
        (io:write-string f ");\n")
        (io:write-string f "// nontail-call-indirect: END\n"))
       ((trivial-compiler:instruction-get-io io-index scratch-index)
        (io:write-string f "  ")
-       (c-backend:emit-scratch f procedure scratch-index)
+       (compiler:c-emit-scratch f procedure scratch-index)
        (io:write-string f " = ")
-       (c-backend:emit-io f procedure io-index)
+       (compiler:c-emit-io f procedure io-index)
        (io:write-string f ";\n"))
       ((trivial-compiler:instruction-set-io scratch-index io-index)
        (io:write-string f "  ")
-       (c-backend:emit-io f procedure io-index)
+       (compiler:c-emit-io f procedure io-index)
        (io:write-string f " = ")
-       (c-backend:emit-scratch f procedure scratch-index)
+       (compiler:c-emit-scratch f procedure scratch-index)
        (io:write-string f ";\n"))
       ((trivial-compiler:instruction-get-local local-index scratch-index)
        (io:write-string f "  ")
-       (c-backend:emit-scratch f procedure scratch-index)
+       (compiler:c-emit-scratch f procedure scratch-index)
        (io:write-string f " = ")
-       (c-backend:emit-local f procedure local-index)
+       (compiler:c-emit-local f procedure local-index)
        (io:write-string f ";\n"))
       ((trivial-compiler:instruction-set-local scratch-index local-index)
        (io:write-string f "  ")
-       (c-backend:emit-local f procedure local-index)
+       (compiler:c-emit-local f procedure local-index)
        (io:write-string f " = ")
-       (c-backend:emit-scratch f procedure scratch-index)
+       (compiler:c-emit-scratch f procedure scratch-index)
        (io:write-string f ";\n"))
       ((trivial-compiler:instruction-get-global global-name scratch-index)
        (io:write-string f "  ")
-       (c-backend:emit-scratch f procedure scratch-index)
+       (compiler:c-emit-scratch f procedure scratch-index)
        (io:write-string f " = ")
-       (c-backend:emit-value f procedure global-name)
+       (compiler:c-emit-value f procedure global-name)
        (io:write-string f "[2];\n"))
       ;; ((trivial-compiler:instruction-set-global scratch-index global-name)
       ;; FIXME: implement if ever needed)
       ((trivial-compiler:instruction-get-value value scratch-index)
        (io:write-string f "  ")
-       (c-backend:emit-scratch f procedure scratch-index)
+       (compiler:c-emit-scratch f procedure scratch-index)
        (io:write-string f " = ")
-       (c-backend:emit-value f procedure value)
+       (compiler:c-emit-value f procedure value)
        (io:write-string f ";\n"))
       ((trivial-compiler:instruction-primitive name scratch-index)
        (io:write-string f "// primitive ") (io:write-symbol f name) (io:write-string f "\n")
        (io:write-string f "  //epsilon_call_c_primitive_by_index(")
        (io:write-fixnum f (state:primitive-get-index name))
        (io:write-string f ", stack + ")
-       (io:write-fixnum f (c-backend:scratch->stack-index procedure scratch-index))
+       (io:write-fixnum f (compiler:c-scratch->stack-index procedure scratch-index))
        (io:write-string f ");\n")
        (io:write-string f "  epsilon_c_primitive_functions[")
        (io:write-fixnum f (state:primitive-get-index name))
        (io:write-string f "](stack + ")
-       (io:write-fixnum f (c-backend:scratch->stack-index procedure scratch-index))
+       (io:write-fixnum f (compiler:c-scratch->stack-index procedure scratch-index))
        (io:write-string f ");\n"))
       ((trivial-compiler:instruction-fork name scratch-index)
        (io:write-string f "// fork ") (io:write-symbol f name) (io:write-string f "\n")
@@ -755,32 +801,50 @@ void epsilon_main_entry_point(epsilon_value *stack){")
          (io:write-string f "// if-in, tail or not\n")
          (e1:dolist (value values)
            (io:write-string f "  if(epsilon_value_to_epsilon_int(")
-           (c-backend:emit-scratch f procedure scratch-index)
+           (compiler:c-emit-scratch f procedure scratch-index)
            (io:write-string f ") == ")
            (io:write-fixnum f value)
            (io:write-string f ") goto ")
            (io:write-string f then-label)
            (io:write-string f ";\n"))
-         (c-backend:compile-instructions f procedure else-instructions)
+         (compiler:c-compile-instructions f procedure else-instructions)
          (io:write-string f "  goto ")
          (io:write-string f after-label)
          (io:write-string f ";\n")
          (io:write-string f then-label)
          (io:write-string f ":\n")
-         (c-backend:compile-instructions f procedure then-instructions)
+         (compiler:c-compile-instructions f procedure then-instructions)
          (io:write-string f after-label)
          (io:write-string f ":\n")))
       (_
        (e1:error "impossible")))))
 
 
-;;;;; MIPS backend
+;;;;; MIPS compiler
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:define (mips-backend:compile main)
+(e1:define compiler:mips
+  (compiler:metadata  #:procedure-closure
+                      (e1:lambda (procedure-name target-file-name)
+                        (compiler:mips-compile-to-assembly procedure-name target-file-name))
+                      #:assembly-file-extension ".s"
+                      #:object-file-extension ".o"
+                      #:CCAS configuration:CCAS
+                      #:ASFLAGS (string:append "-c"
+                                               " "
+                                               configuration:CCASFLAGS)
+                      #:CCLD configuration:CC
+                      #:LDFLAGS (string:append "-L'" configuration:abs_top_builddir "/lib'"
+                                               " "
+                                               configuration:LDFLAGS)
+                      #:LIBS (string:append configuration:LIBS
+                                            " "
+                                            "-lepsilondriver-native-untagged -lepsilonruntime-untagged -lepsilonutility")))
+
+(e1:define (compiler:mips-compile-to-assembly main target-file-name)
   (e1:let* ((data-graph (data-graph:graph-from-compiled-only main))
-            (f (io:open-file "/tmp/generated.s" io:write-mode)))
-    (mips-backend:compile-data f data-graph)
+            (f (io:open-file target-file-name io:write-mode)))
+    (compiler:mips-compile-data f data-graph)
     (io:write-string f "  .text\n")
     (io:write-string f "  .set noreorder\n")
     (io:write-string f "  .set macro #  .set nomacro\n")
@@ -798,13 +862,13 @@ epsilon_main_entry_point:
   .size epsilon_main_entry_point, .-epsilon_main_entry_point\n\n")
     (io:write-string f "# Procedures\n")
     (e1:dolist (procedure-name (data-graph:graph-get-procedures data-graph))
-      (mips-backend:compile-procedure f procedure-name data-graph))
+      (compiler:mips-compile-procedure f procedure-name data-graph))
     (io:close-file f)))
 
-(e1:define (mips-backend:compile-data f data-graph)
+(e1:define (compiler:mips-compile-data f data-graph)
   (trivial-compiler:compile-data f data-graph #f))
 
-(e1:define (mips-backend:compile-procedure f procedure-name data-graph)
+(e1:define (compiler:mips-compile-procedure f procedure-name data-graph)
   (e1:let* ((formals (state:procedure-get-formals procedure-name))
             (body (state:procedure-get-body procedure-name))
             (procedure (trivial-compiler:compile-procedure procedure-name formals body data-graph)))
@@ -839,12 +903,12 @@ epsilon_main_entry_point:
     (trivial-compiler:emit-symbol-identifier f procedure-name)
     (io:write-string f ":\n")
     (io:write-string f "  sw $31, ")
-    (io:write-fixnum f (fixnum:* 4 (mips-backend:return-stack-index procedure)))
+    (io:write-fixnum f (fixnum:* 4 (compiler:mips-return-stack-index procedure)))
     (io:write-string f "($16) # Save return address\n")
     (trivial-compiler:emit-symbol-identifier f procedure-name)
     (io:write-string f "_TAIL:\n")
     (io:write-string f "################ BEGIN\n")
-    (mips-backend:compile-instructions f procedure (trivial-compiler:procedure-get-instructions procedure))
+    (compiler:mips-compile-instructions f procedure (trivial-compiler:procedure-get-instructions procedure))
     (io:write-string f "################ END
   .end ")
     (trivial-compiler:emit-symbol-identifier f procedure-name)
@@ -855,28 +919,28 @@ epsilon_main_entry_point:
     (trivial-compiler:emit-symbol-identifier f procedure-name)
     (io:write-string f "\n\n")))
 
-(e1:define (mips-backend:io->stack-index procedure io)
+(e1:define (compiler:mips-io->stack-index procedure io)
   io)
-(e1:define (mips-backend:return-stack-index procedure)
+(e1:define (compiler:mips-return-stack-index procedure)
   (trivial-compiler:procedure-get-io-no procedure))
-;; (e1:define (mips-backend:frame-pointer-stack-index procedure)
+;; (e1:define (compiler:mips-frame-pointer-stack-index procedure)
 ;;   (fixnum:1+ (trivial-compiler:procedure-get-io-no procedure)))
-(e1:define (mips-backend:local->stack-index procedure local)
+(e1:define (compiler:mips-local->stack-index procedure local)
   (fixnum:+ (trivial-compiler:procedure-get-io-no procedure)
             1 ;; saved return address
             ;;1 ;; saved frame pointer
             local))
-(e1:define (mips-backend:scratch->stack-index procedure scratch)
+(e1:define (compiler:mips-scratch->stack-index procedure scratch)
   (fixnum:+ (trivial-compiler:procedure-get-io-no procedure)
             1 ;; saved return address
             ;;1 ;; saved frame pointer
             (trivial-compiler:procedure-get-local-no procedure)
             scratch))
-(e1:define (mips-backend:emit-stack-access f stack-index)
+(e1:define (compiler:mips-emit-stack-access f stack-index)
   (io:write-fixnum f (fixnum:* stack-index 4))
   (io:write-string f "($16)"))
 
-(e1:define (mips-backend:emit-load-value-to-$2 f procedure value)
+(e1:define (compiler:mips-emit-load-value-to-$2 f procedure value)
   (e1:if (e0:primitive whatever:atom? value)
     (e1:begin
       (io:write-string f "  li $2, ")
@@ -892,13 +956,13 @@ epsilon_main_entry_point:
         (io:write-symbol f value))))
   (io:write-string f "\n"))
 
-(e1:define (mips-backend:compile-instructions f procedure ii)
+(e1:define (compiler:mips-compile-instructions f procedure ii)
   (e1:dolist (i (list:reverse ii))
     (e1:match i
       ((trivial-compiler:instruction-return)
        (io:write-string f "  # return: BEGIN\n")
        (io:write-string f "  lw $31, ")
-       (mips-backend:emit-stack-access f (mips-backend:return-stack-index procedure))
+       (compiler:mips-emit-stack-access f (compiler:mips-return-stack-index procedure))
        (io:write-string f "\n")
        (io:write-string f "  jr $31 # return\n")
        (io:write-string f "  nop # empty delay slot\n")
@@ -910,18 +974,18 @@ epsilon_main_entry_point:
        (io:write-string f " # load destination (may be large)\n")
        (io:write-string f "  jr $2 # jump\n")
        (io:write-string f "  lw $31, ")
-       (mips-backend:emit-stack-access f (mips-backend:return-stack-index procedure))
+       (compiler:mips-emit-stack-access f (compiler:mips-return-stack-index procedure))
        (io:write-string f " # pass the return address via $31 (delay slot)\n")
        (io:write-string f "  # tail-call: END\n"))
       ((trivial-compiler:instruction-tail-call-indirect local-index)
        (io:write-string f "  # tail-call-indirect: BEGIN\n")
        (io:write-string f "  lw $25, ")
-       (mips-backend:emit-stack-access f (mips-backend:local->stack-index procedure local-index))
+       (compiler:mips-emit-stack-access f (compiler:mips-local->stack-index procedure local-index))
        (io:write-string f " # load code address\n")
        (io:write-string f "  lw $25, 9*4($25) # Load native code address from symbol\n")
        (io:write-string f "  jr $25\n")
        (io:write-string f "  lw $31, ")
-       (mips-backend:emit-stack-access f (mips-backend:return-stack-index procedure))
+       (compiler:mips-emit-stack-access f (compiler:mips-return-stack-index procedure))
        (io:write-string f " # delay slot: pass the return address via $31\n")
        (io:write-string f "  # tail-call-indirect: END\n"))
       ((trivial-compiler:instruction-nontail-call name scratch-index)
@@ -931,78 +995,78 @@ epsilon_main_entry_point:
        (io:write-string f "\n")
        (io:write-string f "  jalr $2\n")
        (io:write-string f "  addiu $16, $16, ")
-       (io:write-fixnum f (fixnum:* (mips-backend:scratch->stack-index procedure scratch-index) 4))
+       (io:write-fixnum f (fixnum:* (compiler:mips-scratch->stack-index procedure scratch-index) 4))
        (io:write-string f " # delay slot: pass frame pointer\n")
        (io:write-string f "  addiu $16, $16, -")
-       (io:write-fixnum f (fixnum:* (mips-backend:scratch->stack-index procedure scratch-index) 4))
+       (io:write-fixnum f (fixnum:* (compiler:mips-scratch->stack-index procedure scratch-index) 4))
        (io:write-string f " # restore frame pointer\n")
        (io:write-string f "  # nontail-call: END\n"))
       ((trivial-compiler:instruction-nontail-call-indirect local-index scratch-index)
        (io:write-string f "  # nontail-call-indirect: BEGIN\n")
        (io:write-string f "  lw $25, ")
-       (mips-backend:emit-stack-access f (mips-backend:local->stack-index procedure local-index))
+       (compiler:mips-emit-stack-access f (compiler:mips-local->stack-index procedure local-index))
        (io:write-string f " # load symbol address\n")
        (io:write-string f "  lw $25, 9*4($25) # Load native code address from symbol\n")
        (io:write-string f "  jalr $25\n")
        (io:write-string f "  addiu $16, $16, ")
-       (io:write-fixnum f (fixnum:* (mips-backend:scratch->stack-index procedure scratch-index) 4))
+       (io:write-fixnum f (fixnum:* (compiler:mips-scratch->stack-index procedure scratch-index) 4))
        (io:write-string f " # delay slot: pass frame pointer\n")
        (io:write-string f "  addiu $16, $16, -")
-       (io:write-fixnum f (fixnum:* (mips-backend:scratch->stack-index procedure scratch-index) 4))
+       (io:write-fixnum f (fixnum:* (compiler:mips-scratch->stack-index procedure scratch-index) 4))
        (io:write-string f " # restore frame pointer\n")
        (io:write-string f "  # nontail-call-indirect: END\n"))
       ((trivial-compiler:instruction-get-io io-index scratch-index)
        (io:write-string f "  # get-io: BEGIN\n")
        (io:write-string f "  lw $2, ")
-       (mips-backend:emit-stack-access f (mips-backend:io->stack-index procedure io-index))
+       (compiler:mips-emit-stack-access f (compiler:mips-io->stack-index procedure io-index))
        (io:write-string f "\n")
        (io:write-string f "  sw $2, ")
-       (mips-backend:emit-stack-access f (mips-backend:scratch->stack-index procedure scratch-index))
+       (compiler:mips-emit-stack-access f (compiler:mips-scratch->stack-index procedure scratch-index))
        (io:write-string f "\n")
        (io:write-string f "  # get-io: END\n"))
       ((trivial-compiler:instruction-set-io scratch-index io-index)
        (io:write-string f "  # set-io: BEGIN\n")
        (io:write-string f "  lw $2, ")
-       (mips-backend:emit-stack-access f (mips-backend:scratch->stack-index procedure scratch-index))
+       (compiler:mips-emit-stack-access f (compiler:mips-scratch->stack-index procedure scratch-index))
        (io:write-string f "\n")
        (io:write-string f "  sw $2, ")
-       (mips-backend:emit-stack-access f (mips-backend:io->stack-index procedure io-index))
+       (compiler:mips-emit-stack-access f (compiler:mips-io->stack-index procedure io-index))
        (io:write-string f "\n")
        (io:write-string f "  # set-io: END\n"))
       ((trivial-compiler:instruction-get-local local-index scratch-index)
        (io:write-string f "  # get-local: BEGIN\n")
        (io:write-string f "  lw $2, ")
-       (mips-backend:emit-stack-access f (mips-backend:local->stack-index procedure local-index))
+       (compiler:mips-emit-stack-access f (compiler:mips-local->stack-index procedure local-index))
        (io:write-string f "\n")
        (io:write-string f "  sw $2, ")
-       (mips-backend:emit-stack-access f (mips-backend:scratch->stack-index procedure scratch-index))
+       (compiler:mips-emit-stack-access f (compiler:mips-scratch->stack-index procedure scratch-index))
        (io:write-string f "\n")
        (io:write-string f "  # get-local: END\n"))
       ((trivial-compiler:instruction-set-local scratch-index local-index)
        (io:write-string f "  # set-local: BEGIN\n")
        (io:write-string f "  lw $2, ")
-       (mips-backend:emit-stack-access f (mips-backend:scratch->stack-index procedure scratch-index))
+       (compiler:mips-emit-stack-access f (compiler:mips-scratch->stack-index procedure scratch-index))
        (io:write-string f "\n")
        (io:write-string f "  sw $2, ")
-       (mips-backend:emit-stack-access f (mips-backend:local->stack-index procedure local-index))
+       (compiler:mips-emit-stack-access f (compiler:mips-local->stack-index procedure local-index))
        (io:write-string f "\n")
        (io:write-string f "  # set-local: END\n"))
       ((trivial-compiler:instruction-get-global global-name scratch-index)
        ;;; FIXME: this is correct, but I could generate better code by exploiting global immutability
        (io:write-string f "  # get-global: BEGIN\n")
-       (mips-backend:emit-load-value-to-$2 f procedure global-name)
+       (compiler:mips-emit-load-value-to-$2 f procedure global-name)
        (io:write-string f "  lw $2, 2*4($2) # Load global binding from symbol\n")
        (io:write-string f "  sw $2, ")
-       (mips-backend:emit-stack-access f (mips-backend:scratch->stack-index procedure scratch-index))
+       (compiler:mips-emit-stack-access f (compiler:mips-scratch->stack-index procedure scratch-index))
        (io:write-string f "\n")
        (io:write-string f "  # get-global: END\n"))
       ;; ((trivial-compiler:instruction-set-global scratch-index global-name)
       ;;  (io:write-string f "  # set-global [FIXME: IMPLEMENT]\n"))
       ((trivial-compiler:instruction-get-value value scratch-index)
        (io:write-string f "  # get-value: BEGIN\n")
-       (mips-backend:emit-load-value-to-$2 f procedure value)
+       (compiler:mips-emit-load-value-to-$2 f procedure value)
        (io:write-string f "  sw $2, ")
-       (mips-backend:emit-stack-access f (mips-backend:scratch->stack-index procedure scratch-index))
+       (compiler:mips-emit-stack-access f (compiler:mips-scratch->stack-index procedure scratch-index))
        (io:write-string f "\n")
        (io:write-string f "  # get-value: END\n"))
       ((trivial-compiler:instruction-primitive name scratch-index)
@@ -1012,7 +1076,7 @@ epsilon_main_entry_point:
        (io:write-string f ")($22) # Load primitive address\n")
        (io:write-string f "  jalr $25\n")
        (io:write-string f "  addiu $4, $16, ")
-       (io:write-fixnum f (fixnum:* (mips-backend:scratch->stack-index procedure scratch-index) 4))
+       (io:write-fixnum f (fixnum:* (compiler:mips-scratch->stack-index procedure scratch-index) 4))
        (io:write-string f " # delay slot: pass the frame pointer\n")
        (io:write-string f "  move $28, $21 # Restore $gp, trashed by C functions under o32\n")
        (io:write-string f "  # primitive: END\n"))
@@ -1027,23 +1091,23 @@ epsilon_main_entry_point:
        (e1:let ((then-label (trivial-compiler:fresh-label "then"))
                 (after-label (trivial-compiler:fresh-label "after")))
          (io:write-string f "  lw $3, ")
-         (mips-backend:emit-stack-access f (mips-backend:scratch->stack-index procedure scratch-index))
+         (compiler:mips-emit-stack-access f (compiler:mips-scratch->stack-index procedure scratch-index))
          (io:write-string f " # load the discriminand\n")
          (e1:dolist (value values)
-           (mips-backend:emit-load-value-to-$2 f procedure value)
+           (compiler:mips-emit-load-value-to-$2 f procedure value)
            (io:write-string f "  beq $3, $2, ")
            (io:write-string f then-label)
            (io:write-string f " # branch if equal\n")
            (io:write-string f "  nop\n"))
          ;;(io:write-string f "  # The next instruction should be an lw, harmless as a delay slot; anyway I want to avoid an assembler warning in case the next command is a multi-instruction macro\n")
-         (mips-backend:compile-instructions f procedure else-instructions)
+         (compiler:mips-compile-instructions f procedure else-instructions)
          (io:write-string f "  j ")
          (io:write-string f after-label)
          (io:write-string f " # skip the \"else\" branch\n")
          (io:write-string f "  nop # Delay slot\n")
          (io:write-string f then-label)
          (io:write-string f ":\n")
-         (mips-backend:compile-instructions f procedure then-instructions)
+         (compiler:mips-compile-instructions f procedure then-instructions)
          (io:write-string f after-label)
          (io:write-string f ":\n"))
        (io:write-string f "  # if-in: END\n"))
@@ -1051,17 +1115,35 @@ epsilon_main_entry_point:
        (e1:error "impossible")))))
 
 
-;;;;; x86_64 backend
+;;;;; x86_64 compiler
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:define (x86_64-backend:compile main)
+(e1:define compiler:x86_64
+  (compiler:metadata  #:procedure-closure
+                      (e1:lambda (procedure-name target-file-name)
+                        (compiler:x86_64-compile-to-assembly procedure-name target-file-name))
+                      #:assembly-file-extension ".s"
+                      #:object-file-extension ".o"
+                      #:CCAS configuration:CCAS
+                      #:ASFLAGS (string:append "-c"
+                                               " "
+                                               configuration:CCASFLAGS)
+                      #:CCLD configuration:CC
+                      #:LDFLAGS (string:append "-L'" configuration:abs_top_builddir "/lib'"
+                                               " "
+                                               configuration:LDFLAGS)
+                      #:LIBS (string:append configuration:LIBS
+                                            " "
+                                            "-lepsilondriver-native-untagged -lepsilonruntime-untagged -lepsilonutility")))
+
+(e1:define (compiler:x86_64-compile-to-assembly main target-file-name)
   (e1:let* ((data-graph (data-graph:graph-from-compiled-only main))
-            (f (io:open-file "/tmp/generated.s" io:write-mode)))
-    (x86_64-backend:compile-data f data-graph)
+            (f (io:open-file target-file-name io:write-mode)))
+    (compiler:x86_64-compile-data f data-graph)
     (io:write-string f "# Procedures\n")
     (io:write-string f "  .text\n")
     (e1:dolist (procedure-name (data-graph:graph-get-procedures data-graph))
-      (x86_64-backend:compile-procedure f procedure-name data-graph))
+      (compiler:x86_64-compile-procedure f procedure-name data-graph))
     (fio:write-to f "# Driver
   .balign 8 #.align 2
   .globl epsilon_main_entry_point
@@ -1073,10 +1155,10 @@ epsilon_main_entry_point:
   .size epsilon_main_entry_point, .-epsilon_main_entry_point\n\n")
     (io:close-file f)))
 
-(e1:define (x86_64-backend:compile-data f data-graph)
+(e1:define (compiler:x86_64-compile-data f data-graph)
   (trivial-compiler:compile-data f data-graph #t))
 
-(e1:define (x86_64-backend:compile-procedure f procedure-name data-graph)
+(e1:define (compiler:x86_64-compile-procedure f procedure-name data-graph)
   (e1:let* ((formals (state:procedure-get-formals procedure-name))
             (body (state:procedure-get-body procedure-name))
             (procedure (trivial-compiler:compile-procedure procedure-name formals body data-graph)))
@@ -1112,7 +1194,7 @@ epsilon_main_entry_point:
     (trivial-compiler:emit-symbol-identifier f procedure-name)
     (io:write-string f "_TAIL:\n")
     (io:write-string f "################ BEGIN\n")
-    (x86_64-backend:compile-instructions f procedure (trivial-compiler:procedure-get-instructions procedure))
+    (compiler:x86_64-compile-instructions f procedure (trivial-compiler:procedure-get-instructions procedure))
     (io:write-string f "################ END\n")
     ;;(io:write-string f "  .end ")
     ;;(trivial-compiler:emit-symbol-identifier f procedure-name)
@@ -1123,27 +1205,27 @@ epsilon_main_entry_point:
     (trivial-compiler:emit-symbol-identifier f procedure-name)
     (io:write-string f "\n\n")))
 
-(e1:define (x86_64-backend:io->stack-index procedure io)
+(e1:define (compiler:x86_64-io->stack-index procedure io)
   io)
-(e1:define (x86_64-backend:return-stack-index procedure)
+(e1:define (compiler:x86_64-return-stack-index procedure)
   (trivial-compiler:procedure-get-io-no procedure))
-;; (e1:define (x86_64-backend:frame-pointer-stack-index procedure)
+;; (e1:define (compiler:x86_64-frame-pointer-stack-index procedure)
 ;;   (fixnum:1+ (trivial-compiler:procedure-get-io-no procedure)))
-(e1:define (x86_64-backend:local->stack-index procedure local)
+(e1:define (compiler:x86_64-local->stack-index procedure local)
   (fixnum:+ (trivial-compiler:procedure-get-io-no procedure)
             1 ;; saved return address
             ;;1 ;; saved frame pointer
             local))
-(e1:define (x86_64-backend:scratch->stack-index procedure scratch)
+(e1:define (compiler:x86_64-scratch->stack-index procedure scratch)
   (fixnum:+ (trivial-compiler:procedure-get-io-no procedure)
             1 ;; saved return address
             ;;1 ;; saved frame pointer
             (trivial-compiler:procedure-get-local-no procedure)
             scratch))
-(e1:define (x86_64-backend:emit-stack-access f stack-index)
+(e1:define (compiler:x86_64-emit-stack-access f stack-index)
   (io:write-fixnum f (fixnum:* stack-index 8))
   (io:write-string f "(%rbx)"))
-(e1:define (x86_64-backend:emit-load-value-to-%rax f procedure value)
+(e1:define (compiler:x86_64-emit-load-value-to-%rax f procedure value)
   (io:write-string f "  movq ")
   (e1:if (e0:primitive whatever:atom? value)
     (e1:begin
@@ -1162,7 +1244,7 @@ epsilon_main_entry_point:
         (io:write-symbol f value))
       (io:write-string f "\n"))))
 
-(e1:define (x86_64-backend:compile-instructions f procedure ii)
+(e1:define (compiler:x86_64-compile-instructions f procedure ii)
   (e1:dolist (i (list:reverse ii))
     (e1:match i
       ((trivial-compiler:instruction-return)
@@ -1178,7 +1260,7 @@ epsilon_main_entry_point:
       ((trivial-compiler:instruction-tail-call-indirect local-index)
        (fio:write-to f "  # tail-call-indirect: BEGIN\n")
        (fio:write-to f "  movq ")
-       (x86_64-backend:emit-stack-access f (x86_64-backend:local->stack-index procedure local-index))
+       (compiler:x86_64-emit-stack-access f (compiler:x86_64-local->stack-index procedure local-index))
        (fio:write-to f ", %rax # load symbol address\n")
        (fio:write-to f "  mov 9*8(%rax), %rax # Load native code address from symbol\n")
        (fio:write-to f "  jmp *%rax\n")
@@ -1186,81 +1268,81 @@ epsilon_main_entry_point:
       ((trivial-compiler:instruction-nontail-call name scratch-index)
        (fio:write-to f "  # nontail-call: BEGIN\n")
        (fio:write-to f "  addq $")
-       (fio:write-to f (i (fixnum:* (x86_64-backend:scratch->stack-index procedure scratch-index) 8)))
+       (fio:write-to f (i (fixnum:* (compiler:x86_64-scratch->stack-index procedure scratch-index) 8)))
        (fio:write-to f ", %rbx # pass frame pointer\n")
        (fio:write-to f "  callq ")
        (trivial-compiler:emit-symbol-identifier f name)
        (fio:write-to f "\n")
        (fio:write-to f "  addq $-")
-       (fio:write-to f (i (fixnum:* (x86_64-backend:scratch->stack-index procedure scratch-index) 8)))
+       (fio:write-to f (i (fixnum:* (compiler:x86_64-scratch->stack-index procedure scratch-index) 8)))
        (fio:write-to f ", %rbx # restore frame pointer\n")
        (fio:write-to f "  # nontail-call: END\n"))
       ((trivial-compiler:instruction-nontail-call-indirect local-index scratch-index)
        (fio:write-to f "  # nontail-call-indirect: BEGIN\n")
        (fio:write-to f "  movq ")
-       (x86_64-backend:emit-stack-access f (x86_64-backend:local->stack-index procedure local-index))
+       (compiler:x86_64-emit-stack-access f (compiler:x86_64-local->stack-index procedure local-index))
        (fio:write-to f ", %rax # load symbol address\n")
        (fio:write-to f "  movq 9*8(%rax), %rax # Load native code address from symbol\n")
        (fio:write-to f "  addq $")
-       (fio:write-to f (i (fixnum:* (x86_64-backend:scratch->stack-index procedure scratch-index) 8)))
+       (fio:write-to f (i (fixnum:* (compiler:x86_64-scratch->stack-index procedure scratch-index) 8)))
        (fio:write-to f ", %rbx # pass frame pointer\n")
        (fio:write-to f "  callq *%rax\n")
        (fio:write-to f "  addq $-")
-       (fio:write-to f (i (fixnum:* (x86_64-backend:scratch->stack-index procedure scratch-index) 8)))
+       (fio:write-to f (i (fixnum:* (compiler:x86_64-scratch->stack-index procedure scratch-index) 8)))
        (fio:write-to f ", %rbx # restore frame pointer\n")
        (fio:write-to f "  # nontail-call-indirect: END\n"))
       ((trivial-compiler:instruction-get-io io-index scratch-index)
        (fio:write-to f "  # get-io: BEGIN\n")
        (fio:write-to f "  movq ")
-       (x86_64-backend:emit-stack-access f (x86_64-backend:io->stack-index procedure io-index))
+       (compiler:x86_64-emit-stack-access f (compiler:x86_64-io->stack-index procedure io-index))
        (fio:write-to f ", %rax\n")
        (fio:write-to f "  movq %rax, ")
-       (x86_64-backend:emit-stack-access f (x86_64-backend:scratch->stack-index procedure scratch-index))
+       (compiler:x86_64-emit-stack-access f (compiler:x86_64-scratch->stack-index procedure scratch-index))
        (fio:write-to f "\n")
        (fio:write-to f "  # get-io: END\n"))
       ((trivial-compiler:instruction-set-io scratch-index io-index)
        (fio:write-to f "  # set-io: BEGIN\n")
        (fio:write-to f "  movq ")
-       (x86_64-backend:emit-stack-access f (x86_64-backend:scratch->stack-index procedure scratch-index))
+       (compiler:x86_64-emit-stack-access f (compiler:x86_64-scratch->stack-index procedure scratch-index))
        (fio:write-to f ", %rax\n")
        (fio:write-to f "  movq %rax, ")
-       (x86_64-backend:emit-stack-access f (x86_64-backend:io->stack-index procedure io-index))
+       (compiler:x86_64-emit-stack-access f (compiler:x86_64-io->stack-index procedure io-index))
        (fio:write-to f "\n")
        (fio:write-to f "  # set-io: END\n"))
       ((trivial-compiler:instruction-get-local local-index scratch-index)
        (fio:write-to f "  # get-local: BEGIN\n")
        (fio:write-to f "  movq ")
-       (x86_64-backend:emit-stack-access f (x86_64-backend:local->stack-index procedure local-index))
+       (compiler:x86_64-emit-stack-access f (compiler:x86_64-local->stack-index procedure local-index))
        (fio:write-to f ", %rax\n")
        (fio:write-to f "  movq %rax, ")
-       (x86_64-backend:emit-stack-access f (x86_64-backend:scratch->stack-index procedure scratch-index))
+       (compiler:x86_64-emit-stack-access f (compiler:x86_64-scratch->stack-index procedure scratch-index))
        (fio:write-to f "\n")
        (fio:write-to f "  # get-local: END\n"))
       ((trivial-compiler:instruction-set-local scratch-index local-index)
        (fio:write-to f "  # set-local: BEGIN\n")
        (fio:write-to f "  movq ")
-       (x86_64-backend:emit-stack-access f (x86_64-backend:scratch->stack-index procedure scratch-index))
+       (compiler:x86_64-emit-stack-access f (compiler:x86_64-scratch->stack-index procedure scratch-index))
        (fio:write-to f ", %rax\n")
        (fio:write-to f "  movq %rax, ")
-       (x86_64-backend:emit-stack-access f (x86_64-backend:local->stack-index procedure local-index))
+       (compiler:x86_64-emit-stack-access f (compiler:x86_64-local->stack-index procedure local-index))
        (fio:write-to f "\n")
        (fio:write-to f "  # set-local: END\n"))
       ((trivial-compiler:instruction-get-global global-name scratch-index)
        ;;; FIXME: this is correct, but I could generate better code by exploiting global immutability
        (fio:write-to f "  # get-global: BEGIN\n")
-       (x86_64-backend:emit-load-value-to-%rax f procedure global-name)
+       (compiler:x86_64-emit-load-value-to-%rax f procedure global-name)
        (fio:write-to f "  movq 2*8(%rax), %rax # Load global binding from symbol\n")
        (fio:write-to f "  movq %rax, ")
-       (x86_64-backend:emit-stack-access f (x86_64-backend:scratch->stack-index procedure scratch-index))
+       (compiler:x86_64-emit-stack-access f (compiler:x86_64-scratch->stack-index procedure scratch-index))
        (fio:write-to f "\n")
        (fio:write-to f "  # get-global: END\n"))
       ;; ((trivial-compiler:instruction-set-global scratch-index global-name)
       ;;  (fio:write-to f "  # set-global [FIXME: IMPLEMENT]\n"))
       ((trivial-compiler:instruction-get-value value scratch-index)
        (fio:write-to f "  # get-value: BEGIN\n")
-       (x86_64-backend:emit-load-value-to-%rax f procedure value)
+       (compiler:x86_64-emit-load-value-to-%rax f procedure value)
        (fio:write-to f "  movq %rax, ")
-       (x86_64-backend:emit-stack-access f (x86_64-backend:scratch->stack-index procedure scratch-index))
+       (compiler:x86_64-emit-stack-access f (compiler:x86_64-scratch->stack-index procedure scratch-index))
        (fio:write-to f "\n")
        (fio:write-to f "  # get-value: END\n"))
       ((trivial-compiler:instruction-primitive name scratch-index)
@@ -1270,7 +1352,7 @@ epsilon_main_entry_point:
        (fio:write-to f "(%r12), %rax # Load primitive address\n")
        (fio:write-to f "  movq %rbx, %rdi\n")
        (fio:write-to f "  addq $")
-       (fio:write-to f (i (fixnum:* (x86_64-backend:scratch->stack-index procedure scratch-index) 8)))
+       (fio:write-to f (i (fixnum:* (compiler:x86_64-scratch->stack-index procedure scratch-index) 8)))
        (fio:write-to f ", %rdi # pass the frame pointer\n")
        (fio:write-to f "  callq *%rax\n")
        (fio:write-to f "  # primitive: END\n"))
@@ -1285,22 +1367,22 @@ epsilon_main_entry_point:
        (e1:let ((then-label (trivial-compiler:fresh-label "then"))
                 (after-label (trivial-compiler:fresh-label "after")))
          (fio:write-to f "  movq ")
-         (x86_64-backend:emit-stack-access f (x86_64-backend:scratch->stack-index procedure scratch-index))
+         (compiler:x86_64-emit-stack-access f (compiler:x86_64-scratch->stack-index procedure scratch-index))
          (fio:write-to f ", %r11 # load the discriminand\n")
          (e1:dolist (value values)
-           (x86_64-backend:emit-load-value-to-%rax f procedure value)
+           (compiler:x86_64-emit-load-value-to-%rax f procedure value)
            (fio:write-to f "  cmpq %r11, %rax\n")
            (fio:write-to f "  je ")
            (fio:write-to f (st then-label))
            (fio:write-to f " # branch if equal\n"))
          ;;(fio:write-to f "  # The next instruction should be an lw, harmless as a delay slot; anyway I want to avoid an assembler warning in case the next command is a multi-instruction macro\n")
-         (x86_64-backend:compile-instructions f procedure else-instructions)
+         (compiler:x86_64-compile-instructions f procedure else-instructions)
          (fio:write-to f "  jmp ")
          (fio:write-to f (st after-label))
          (fio:write-to f " # skip the \"else\" branch\n")
          (fio:write-to f (st then-label))
          (fio:write-to f ":\n")
-         (x86_64-backend:compile-instructions f procedure then-instructions)
+         (compiler:x86_64-compile-instructions f procedure then-instructions)
          (fio:write-to f (st after-label))
          (fio:write-to f ":\n"))
        (fio:write-to f "  # if-in: END\n"))
@@ -1320,20 +1402,95 @@ epsilon_main_entry_point:
                           (macroexpand:expression-using-nonlocals forms-as-sexpression-list))
     procedure-name))
 
-(e1:define-macro (compiler:compile-with compiler-name . forms)
-  `(,compiler-name (e1:value ,(sexpression:inject-symbol (macroexpand:procedure-name-using-nonlocals forms)))))
+(e1:define (compiler:compile-procedure-to-assembly-with metadata procedure-name assembly-file-name)
+  (e1:call-closure (compiler:metadata-get-procedure-closure metadata)
+                    procedure-name
+                    assembly-file-name))
 
-(e1:define-macro (compiler:compile-c . forms)
-  `(compiler:compile-with c-backend:compile ,@forms))
-(e1:define-macro (compiler:compile-mips . forms)
-  `(compiler:compile-with mips-backend:compile ,@forms))
-(e1:define-macro (compiler:compile-x86_64 . forms)
-  `(compiler:compile-with x86_64-backend:compile ,@forms))
+(e1:define-macro (system:fail-unless-zero1 form)
+  `(e1:unless (fixnum:zero? ,form)
+     (fio:write "When executing " (se ',form) ":\n")
+     (e1:error "failed")))
+(e1:define-macro (system:fail-unless-zero . forms)
+  (e1:if (sexpression:null? forms)
+    '(e1:bundle)
+    `(e1:begin
+       (system:fail-unless-zero1 ,(sexpression:car forms))
+       (system:fail-unless-zero ,@(sexpression:cdr forms)))))
 
-;;; Compile for the host architecture:
-(e1:define-macro (compiler:compile . forms)
-  (e1:let ((compiler-name (symbol:intern (string:append "compiler:compile-"
-                                                        configuration:host_cpu))))
-    (e1:if (state:macro? compiler-name)
-      `(,(sexpression:inject-symbol compiler-name) ,@forms)
-      `(e1:error "unsupported architecture"))))
+(e1:define (compiler:assemble-with metadata assembly-file-name object-file-name)
+  (e1:let ((assemble-command-line
+            (string:append (compiler:metadata-get-CCAS metadata)
+                           " "
+                           (compiler:metadata-get-ASFLAGS metadata)
+                           " "
+                           "'" assembly-file-name "'"
+                           " -o '" object-file-name "'")))
+    ;;(fio:write "ASSEMBLE COMMAND LINE: " (st assemble-command-line) "\n")
+    (system:fail-unless-zero
+      (unix:system assemble-command-line)
+      (unix:unlink assembly-file-name))))
+
+(e1:define (compiler:link-with metadata object-file-name executable-file-name)
+  (e1:let ((link-command-line
+            (string:append (compiler:metadata-get-CCLD metadata)
+                           " "
+                           (compiler:metadata-get-LDFLAGS metadata)
+                           " "
+                           (compiler:metadata-get-LIBS metadata)
+                           " "
+                           "'" object-file-name "'"
+                           " "
+                           "-o '" executable-file-name "'")))
+    ;;(fio:write "LINK COMMAND LINE: " (st link-command-line) "\n")
+    (system:fail-unless-zero
+      (unix:system link-command-line)
+      (unix:unlink object-file-name))))
+
+(e1:define (compiler:compile-procedure-with metadata procedure-name executable-file-name)
+  (e1:let ((assembly-file-name (string:append executable-file-name
+                                            (compiler:metadata-get-assembly-file-extension metadata)))
+           (object-file-name (string:append executable-file-name
+                                            (compiler:metadata-get-object-file-extension metadata))))
+    (compiler:compile-procedure-to-assembly-with metadata procedure-name assembly-file-name)
+    (compiler:assemble-with metadata assembly-file-name object-file-name)
+    (compiler:link-with metadata object-file-name executable-file-name)))
+
+
+;;;;; Native compiler metadata
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:toplevel
+  (e1:cond ((string:equal? configuration:host_cpu "x86_64")
+            (e1:define compiler:native compiler:x86_64))
+           ((e1:or (string:equal? configuration:host_cpu "mips")
+                   (string:equal? configuration:host_cpu "mipsel"))
+            (e1:define compiler:native compiler:mips))
+           (else
+            (e1:define compiler:native compiler:c))))
+
+
+;;;;; Compiler convenience macros, to handle forms rather than a procedure
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define-macro (compiler:compile-to-assembly-with metadata assembly-file-name . forms)
+  `(compiler:compile-procedure-to-assembly-with ,metadata
+                                                (macroexpand:procedure-name-using-nonlocals ',forms)
+                                                ,assembly-file-name))
+
+(e1:define-macro (compiler:compile-with metadata executable-file-name . forms)
+  `(compiler:compile-procedure-with ,metadata
+                                    (macroexpand:procedure-name-using-nonlocals ',forms)
+                                    ,executable-file-name))
+
+;;; Native compilation.
+(e1:define-macro (compiler:compile-to-assembly executable-file-name . forms)
+  `(compiler:compile-to-assembly-with compiler:native ,executable-file-name ,@forms))
+(e1:define-macro (compiler:compile executable-file-name . forms)
+  `(compiler:compile-with compiler:native ,executable-file-name ,@forms))
+
+;;; Convenience aliases:
+(e1:define-macro (e1:compile . stuff)
+  `(compiler:compile ,@stuff))
+(e1:define-macro (e1:compile-to-assembly . stuff)
+  `(compiler:compile-to-assembly ,@stuff))

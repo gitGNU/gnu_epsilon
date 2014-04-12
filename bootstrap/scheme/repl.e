@@ -61,7 +61,7 @@ Copyright (C) 2012-2014  Luca Saiu
 
 GNU epsilon comes with ABSOLUTELY NO WARRANTY; enter `,show no-warranty' for
 details.  This program is free software and you are welcome to redistribute it
- under the terms of the GNU General Public License, version 3 or later.  Enter
+under the terms of the GNU General Public License, version 3 or later.  Enter
 `,show license' or see the file named COPYING for the full license text.
 
 "))

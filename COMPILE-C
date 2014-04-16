@@ -1,8 +1,0 @@
-#!/bin/bash -e
-
-# Based on completely non-standard conventions.  However this is easy
-# to change.
-BUILD=_build/48d
-
-#make -C "$BUILD/"
-gcc -o test-c -DEPSILON_RUNTIME_UNTAGGED -I. -I "$BUILD" -O3 -g -lunistring -lpthread -lgc -lreadline -ltinfo -ltermcap -lncurses -lm "$BUILD/lib/libepsilondriver-c-untagged.a" "$BUILD/lib/libepsilonruntime-untagged.a" "$BUILD/lib/libepsilonutility.a" /tmp/generated.c

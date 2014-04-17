@@ -1464,7 +1464,9 @@ epsilon_main_entry_point:
   (e1:cond ((string:equal? configuration:host_cpu "x86_64")
             (e1:define compiler:native compiler:x86_64))
            ((e1:or (string:equal? configuration:host_cpu "mips")
-                   (string:equal? configuration:host_cpu "mipsel"))
+                   (string:equal? configuration:host_cpu "mipsel")
+                   (string:equal? configuration:host_cpu "mips64")
+                   (string:equal? configuration:host_cpu "mips64el"))
             (e1:define compiler:native compiler:mips))
            (else
             (e1:define compiler:native compiler:c))))

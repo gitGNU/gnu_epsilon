@@ -22,6 +22,8 @@
 ;;;;; Scratch
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(e1:define (fact n) (e1:if-in n (0) 1 (e1:primitive fixnum:* n (fact (e1:primitive fixnum:1- n)))))
+
 (e1:define (fibo n)
   (e1:if (fixnum:< n 2)
     n
@@ -162,6 +164,7 @@
 
 (e1:define-macro (e1:define-secondary-non-procedure s-name . s-forms)
   (e1:let ((secondary-name (sexpression:fresh-symbol)))
+    (fio:write "Defining the SECONDARY non-procedure " (se s-name) "...\n")
     `(e1:let ((,secondary-name (symbol:primary->secondary (e1:value ,s-name))))
        (symbol:symbol-set-global-valid! ,secondary-name #t)
        (symbol:symbol-set-global! ,secondary-name
@@ -171,6 +174,7 @@
 (e1:define-macro (e1:define-secondary-procedure s-header . s-body-forms)
   (e1:let ((secondary-name (sexpression:fresh-symbol))
            (parameters-name (sexpression:fresh-symbol)))
+    (fio:write "Defining the SECONDARY procedure " (se (sexpression:car s-header)) "...\n")
     `(e1:let ((,secondary-name (symbol:primary->secondary (e1:value ,(sexpression:car s-header))))
               (,parameters-name (symbol:primaries->secondaries (sexpression:eject-symbols ',(sexpression:cdr s-header)))))
        (symbol:symbol-set-formals! ,secondary-name ,parameters-name)
@@ -218,6 +222,9 @@
             (stuff-as-secondary-expression
              (symbol:primary-expression->secondary-expression stuff-as-primary-expression)))
     (sexpression:inject-expression stuff-as-secondary-expression)))
+
+(e1:define-macro (e1:secondary . stuff)
+  `(e1:toplevel-secondary ,@stuff))
 
 (e1:define-macro (e1:trivial-define-macro-secondary name body-form) ;; only one body form
   `(symbol:symbol-set-macro-body! (symbol:primary->secondary (e1:value ,name))

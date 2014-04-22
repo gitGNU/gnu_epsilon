@@ -2,6 +2,7 @@
 
 ;; Copyright (C) 1986-1988, 1997-1998, 2001-2012  Free Software Foundation, Inc.
 ;; Copyright (C) 2013  Luca Saiu
+;; Updated in 2014 by Luca Saiu
 
 ;; Adapted from scheme.el, within the GNU Emacs distribution, by Luca Saiu.
 
@@ -305,9 +306,8 @@ See `run-hooks'."
                        "e1:if-in" "e1:fork" "e1:join")))
        (1 font-lock-keyword-face))
       (,(epsilon-at-define-nonprocedure-beginning
-         (regexp-opt '("e1:define"
-                       "e1:define-non-procedure"
-                       "e1:define-regexp")))
+         (regexp-opt '("e1:define" "e1:define-nonprocedure"
+                       "e1:define-secondary" "e1:define-secondary-nonprocedure")))
        (1 font-lock-keyword-face)
        (2 font-lock-variable-name-face))
       (,(epsilon-at-define-nonprocedure-beginning
@@ -316,8 +316,8 @@ See `run-hooks'."
        (2 font-lock-preprocessor-face))
       (,(epsilon-at-define-procedure-beginning
          (regexp-opt '("e1:define"
-                       "e1:define-procedure"
-                       "e1:define-with-keywords")))
+                       "e1:define-procedure" "e1:define-secondary-procedure"
+                       "e1:define-macro" "e1:define-secondary-macro")))
        (1 font-lock-keyword-face)
        (2 font-lock-function-name-face)
        (3 font-lock-variable-name-face))
@@ -348,9 +348,11 @@ See `run-hooks'."
       (,(epsilon-at-define-nonprocedure-beginning
          (regexp-opt '("record:define"
                        "sum:define" "sum:define-open" "sum:extend-open"
-                       "e1:define-record"
-                       "e1:define-sum"
-                       "e1:define-sum-open"
+                       "e1:define"
+                       "e1:define-nonprocedure" "e1:define-secondary-nonprocedure"
+                       "e1:define-procedure" "e1:define-secondary-procedure"
+                       "e1:define-macro" "e1:define-secondary-macro"
+                       "e1:define-trivial-macro" "e1:define-secondary-trivial-macro"
                        "e1:extend-sum"
                        "variadic:define-left-deep" "variadic:define-right-deep" "variadic:define-associative"
                        "e1:define-variadic-left-deep" "e1:define-variadic-right-deep" "e1:define-variadic-associative")))
@@ -373,9 +375,7 @@ See `run-hooks'."
       (,(concat "\\<\\("
                 ;;; FIXME: this should be a regexp matching all form names
                 "e1:define" "\\|"
-                "e1:define-procedure" "\\|"
-                "e1:define-non-procedure" "\\|"
-                "e1:define-macro"
+                "e1:define-[a-z-]*" "\\|"
                 "\\)\\>")
        (1 font-lock-warning-face))
       ))
@@ -509,7 +509,12 @@ indentation."
 (put 'e1:define-procedure 'epsilon-indent-function 1)
 (put 'e1:define-non-procedure 'epsilon-indent-function 1)
 (put 'e1:define-macro 'epsilon-indent-function 1)
+(put 'e1:define-secondary 'epsilon-indent-function 1)
+(put 'e1:define-secondary-procedure 'epsilon-indent-function 1)
+(put 'e1:define-secondary-non-procedure 'epsilon-indent-function 1)
+(put 'e1:define-secondary-macro 'epsilon-indent-function 1)
 (put 'e1:trivial-define-macro 'epsilon-indent-function 1)
+(put 'e1:trivial-define-secondary-macro 'epsilon-indent-function 1)
 (put 'e1:define-record 'epsilon-indent-function 1)
 (put 'e1:define-sum 'epsilon-indent-function 1)
 (put 'e1:define-sum-open 'epsilon-indent-function 1)

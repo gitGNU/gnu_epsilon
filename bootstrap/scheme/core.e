@@ -782,9 +782,9 @@
 ;;;;; System interface
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:define (unix:system command-string)
+(e1:define-secondary (unix:system command-string)
   (e0:primitive unix:system command-string))
-(e1:define (unix:unlink file-name)
+(e1:define-secondary (unix:unlink file-name)
   (e0:primitive unix:unlink file-name))
 
 

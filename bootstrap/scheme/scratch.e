@@ -30,3 +30,33 @@
 (e1:define (test n)
   (e1:dotimes (i n)
     (fio:write "fibo(" (i i) ") = " (i (fibo i)) "\n")))
+
+;;; Long division.  This implementation is useful for very small
+;;; machines as it only requires sum, subtraction, bitwise and and
+;;; or, comparison and 1-bit shifts.
+(e1:define (fixnum:/-unsigned n d)
+  (e1:let ((initial-i (fixnum:- (fixnum:* configuration:sizeof_void_p 8)
+                                2))) ;; FIXME: make it 1 on untagged runtime
+    (fixnum:/-unsigned-helper n d (fixnum:left-shift 1 initial-i) 0 0)))
+(e1:define (fixnum:/-unsigned-helper n d mask q r)
+  (e1:if (fixnum:zero? mask)
+    (e1:bundle q r)
+    (e1:let ((r (e1:if (fixnum:bitwise-and n mask)
+                  (fixnum:bitwise-or (fixnum:left-shift r 1) 1)
+                  (fixnum:left-shift r 1)))
+             (next-mask (fixnum:logic-right-shift mask 1)))
+      (e1:if (fixnum:>= r d)
+        (fixnum:/-unsigned-helper n d next-mask (fixnum:bitwise-or q mask) (fixnum:- r d))
+        (fixnum:/-unsigned-helper n d next-mask q r)))))
+;; (e1:define (fixnum:/ n d)
+;;   (e1:cond ((fixnum:zero? d)
+;;             (e1:error "division by zero"))
+;;            ((fixnum:< d 0)
+;;             (e1:if (fixnum:< n 0)
+;;               (e0:let (q r) (fixnum:/-unsigned (fixnum:negate n) (fixnum:negate d))
+;;                 (e1:bundle 
+;;               (fixnum:negate (fixnum:/-unsigned n (fixnum:negate d)))))
+;;            (else
+;;             (e1:if (fixnum:< n 0)
+;;               (fixnum:negate (fixnum:/-unsigned (fixnum:negate n) d))
+;;               (fixnum:/-unsigned n d)))))

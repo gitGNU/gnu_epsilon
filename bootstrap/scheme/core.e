@@ -112,8 +112,10 @@
   (e0:primitive fixnum:bitwise-xor a b))
 (e1:define (fixnum:left-shift a b)
   (e0:primitive fixnum:left-shift a b))
-(e1:define (fixnum:right-shift a b)
-  (e0:primitive fixnum:right-shift a b))
+(e1:define (fixnum:arithmetic-right-shift a b)
+  (e0:primitive fixnum:arithmetic-right-shift a b))
+(e1:define (fixnum:logic-right-shift a b)
+  (e0:primitive fixnum:logic-right-shift a b))
 
 (e1:define (fixnum:min a b)
   (e0:if-in (fixnum:< a b) (#f)
@@ -127,7 +129,7 @@
 (e1:define (fixnum:square a)
   (fixnum:* a a))
 (e1:define (fixnum:half a) ;; with positive arguments, return the floor
-  (fixnum:right-shift a (e0:value 1)))
+  (fixnum:arithmetic-right-shift a (e0:value 1)))
 (e1:define (fixnum:double a)
   (fixnum:left-shift a (e0:value 1)))
 
@@ -1413,7 +1415,7 @@
 (e1:define (fixedpoint:- a b)
   (fixnum:- a b))
 (e1:define (fixedpoint:* a b)
-  (fixnum:right-shift (fixnum:* a b) fixedpoint:fractional-bit-no))
+  (fixnum:arithmetic-right-shift (fixnum:* a b) fixedpoint:fractional-bit-no))
 (e1:define (fixedpoint:/ a b)
   (fixnum:/ (fixnum:left-shift a fixedpoint:fractional-bit-no) b))
 (e1:define (fixedpoint:sign a)
@@ -1435,7 +1437,7 @@
 
 ;;; Conversion:
 (e1:define (fixedpoint:fixedpoint->fixnum fixed)
-  (fixnum:right-shift fixed fixedpoint:fractional-bit-no))
+  (fixnum:arithmetic-right-shift fixed fixedpoint:fractional-bit-no))
 
 ;;; More computation:
 (e1:define (fixedpoint:mod a)
@@ -1443,12 +1445,12 @@
 
 ;;; Particularly useful for printing: [FIXME: get rid of this crap]
 (e1:define (fixedpoint:get-integer-part fixed)
-  (fixnum:right-shift fixed fixedpoint:fractional-bit-no))
+  (fixnum:arithmetic-right-shift fixed fixedpoint:fractional-bit-no))
 (e1:define (fixedpoint:get-fractional-part fixed digit-no)
   (e0:let (possibly-negative-result)
-          (fixnum:right-shift (fixnum:* (fixnum:bitwise-and fixed fixedpoint:fractional-bitmask)
-                                        (fixnum:** (e0:value 10) digit-no))
-                              fixedpoint:fractional-bit-no)
+          (fixnum:arithmetic-right-shift (fixnum:* (fixnum:bitwise-and fixed fixedpoint:fractional-bitmask)
+                                                   (fixnum:** (e0:value 10) digit-no))
+                                         fixedpoint:fractional-bit-no)
     (fixnum:mod possibly-negative-result)))
 
 ;;; Some useful constants:
@@ -1808,7 +1810,8 @@
 (state:primitive-set! (e0:value fixnum:bitwise-or)  (e0:value 2) (e0:value 1) (e0:value #f) (e0:value #f))
 (state:primitive-set! (e0:value fixnum:bitwise-xor) (e0:value 2) (e0:value 1) (e0:value #f) (e0:value #f))
 (state:primitive-set! (e0:value fixnum:left-shift)  (e0:value 2) (e0:value 1) (e0:value #f) (e0:value #f))
-(state:primitive-set! (e0:value fixnum:right-shift) (e0:value 2) (e0:value 1) (e0:value #f) (e0:value #f))
+(state:primitive-set! (e0:value fixnum:arithmetic-right-shift) (e0:value 2) (e0:value 1) (e0:value #f) (e0:value #f))
+(state:primitive-set! (e0:value fixnum:logic-right-shift) (e0:value 2) (e0:value 1) (e0:value #f) (e0:value #f))
 
 (state:primitive-set! (e0:value whatever:duplicate) (e0:value 1) (e0:value 2) (e0:value #f) (e0:value #f))
 (state:primitive-set! (e0:value whatever:swap)      (e0:value 2) (e0:value 2) (e0:value #f) (e0:value #f))

@@ -1,6 +1,7 @@
 /* Data representation: SMOB backend, conditionally #include'd by data.c.
 
-   Copyright (C) 2012 Luca Saiu [written during his few weeks with no employment]
+   Copyright (C) 2012 Luca Saiu
+   Updated in 2014 by Luca Saiu
    Written by Luca Saiu
 
    This file is part of GNU epsilon.
@@ -239,6 +240,9 @@ inline void* epsilon_value_to_foreign_pointer(epsilon_value value){
 /* Here we also succeed if value is a pointer: */
 inline epsilon_int epsilon_value_to_epsilon_int(epsilon_value value){
   return (epsilon_int)(epsilon_smob_to_whatever_t(value));
+}
+inline epsilon_unsigned epsilon_value_to_epsilon_unsigned(epsilon_value value){
+  return (epsilon_unsigned)(epsilon_smob_to_whatever_t(value));
 }
 inline static epsilon_value epsilon_int_to_epsilon_value_unoptimized(epsilon_int i){
   SCM result = epsilon_make_smob(epsilon_whatever_atom);

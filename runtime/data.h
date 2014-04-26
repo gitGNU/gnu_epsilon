@@ -1,6 +1,6 @@
 /* Data representation, tagging and memory operations.
 
-   Copyright (C) 2012 Luca Saiu [written during his few weeks with no employment]
+   Copyright (C) 2012, 2014 Luca Saiu
    Written by Luca Saiu
 
    This file is part of GNU epsilon.
@@ -48,6 +48,7 @@ size_t epsilon_buffer_size(epsilon_value pointer_value); // in words; may crash 
 /* Tag and untag.  Notice that foreign pointers, not managed by us,
    are effectively treated like epsilon_int's and tagged as fixnums. */
 epsilon_int epsilon_value_to_epsilon_int(epsilon_value value); // always succeed, even if value is a pointer
+epsilon_unsigned epsilon_value_to_epsilon_unsigned(epsilon_value value); // always succeed, even if value is a pointer
 epsilon_value epsilon_int_to_epsilon_value(epsilon_int i);
 epsilon_value* epsilon_value_to_value_elements(epsilon_value pointer_value); // fail if non-pointer with untagged runtimes
 epsilon_value epsilon_foreign_pointer_to_epsilon_value(void *p);
@@ -108,7 +109,8 @@ void epsilon_runtime_appropriate_fail(char *reason) // Fail in a runtime-appropr
 
 // FIXME: use macros when possible instead of this ugly kludge
 #ifdef EPSILON_RUNTIME_UNTAGGED
-#define epsilon_value_to_epsilon_int(X) ((long)(X))
+#define epsilon_value_to_epsilon_int(X) ((epsilon_int)(long)(X))
+#define epsilon_value_to_epsilon_unsigned(X) ((epsilon_unsigned)(long)(X))
 #define epsilon_int_to_epsilon_value(X) ((epsilon_value)(long)(X))
 #define epsilon_value_to_bool(X) ((long)(X))
 #define epsilon_bool_to_epsilon_value(X) ((epsilon_value)(long)(X))

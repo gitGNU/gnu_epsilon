@@ -1,6 +1,7 @@
 /* Data representation: untagged backend, conditionally #include'd by data.c.
 
-   Copyright (C) 2012 Luca Saiu [written during his few weeks with no employment]
+   Copyright (C) 2012 Luca Saiu
+   Updated in 2014 by Luca Saiu
    Written by Luca Saiu
 
    This file is part of GNU epsilon.
@@ -39,6 +40,9 @@ inline size_t epsilon_buffer_size(epsilon_value pointer_value){ // in words
 #ifndef EPSILON_RUNTIME_UNTAGGED
 inline epsilon_int epsilon_value_to_epsilon_int(epsilon_value value){
   return (epsilon_int)value;
+}
+inline epsilon_unsigned epsilon_value_to_epsilon_unsigned(epsilon_value value){
+  return (epsilon_unsigned)value;
 }
 inline epsilon_value epsilon_int_to_epsilon_value(epsilon_int i){
   return (epsilon_value)i;

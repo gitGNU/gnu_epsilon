@@ -1,6 +1,7 @@
 /* Data representation: tagged backend, conditionally #include'd by data.c.
 
-   Copyright (C) 2012 Luca Saiu [written during his few weeks with no employment]
+   Copyright (C) 2012 Luca Saiu
+   Updated in 2014 by Luca Saiu
    Written by Luca Saiu
 
    This file is part of GNU epsilon.
@@ -73,6 +74,8 @@
 #endif // #ifdef EPSILON_1_FOR_POINTERS
 #define EPSILON_UNTAG_FIXNUM(word) \
   (((epsilon_int)(word)) >> 1)
+#define EPSILON_UNTAG_UNSIGNED_FIXNUM(word) \
+  (((epsilon_unsigned)(word)) >> 1)
 
 
 inline bool epsilon_is_fixnum(epsilon_value value){
@@ -88,6 +91,9 @@ inline size_t epsilon_buffer_size(epsilon_value pointer_value){ // in words
 
 inline epsilon_int epsilon_value_to_epsilon_int(epsilon_value value){
   return EPSILON_UNTAG_FIXNUM(value);
+}
+inline epsilon_unsigned epsilon_value_to_epsilon_unsigned(epsilon_value value){
+  return EPSILON_UNTAG_UNSIGNED_FIXNUM(value);
 }
 inline epsilon_value epsilon_int_to_epsilon_value(epsilon_int i){
   return EPSILON_TAG_FIXNUM(i);

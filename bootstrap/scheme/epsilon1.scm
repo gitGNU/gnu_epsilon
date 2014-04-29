@@ -2883,6 +2883,22 @@
      (list:cons (e1:call-closure f (list:head xs))
                 (list:map f (list:tail xs)))))
 
+(e1:define (list:exists? p xs)
+  (e1:cond ((list:null? xs)
+            #f)
+           ((e1:call-closure p (list:head xs))
+            #t)
+           (else
+            (list:exists? p (list:tail xs)))))
+
+(e1:define (list:for-all? p xs)
+  (e1:cond ((list:null? xs)
+            #t)
+           ((e1:call-closure p (list:head xs))
+            (list:for-all? p (list:tail xs)))
+           (else
+            #f)))
+
 
 ;;;;; Simple generic input ports
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

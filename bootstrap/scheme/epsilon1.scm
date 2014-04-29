@@ -2689,6 +2689,8 @@
                  `(io:write-character ,port ,@args))
                 ((C)
                  `(printer:write-character ,port ,@args))
+                ((e)
+                 `(printer:write-expression ,port ,@args))
                 ((se)
                  `(printer:write-sexpression ,port ,@args))
                 ((s st)

@@ -3255,7 +3255,7 @@
      (e1:primitive io:write-value port content)
      (printer:write-handle port handle))
     ((e0:expression-bundle handle items)
-     (io:write-string port "[bundle")
+     (io:write-string port "[bundle ")
      (printer:write-expressions port items)
      (io:write-string port "]")
      (printer:write-handle port handle))

@@ -2230,9 +2230,10 @@
     `(e1:named-let ,first-thing ,@more-things)
     `(e1:non-named-let ,first-thing ,@more-things)))
 
-;;; Easy: first bind fresh names to user definitions sequentially in
-;;; a let*; then, within the let* body, bind user names to the
-;;; variables we introduced before:
+;;; An easy but inefficient solution: first bind fresh names to user
+;;; definitions sequentially in a let*; then, within the let* body,
+;;; bind user names to the variables we introduced before.
+;;; FIXME: remove trivial lets.
 (e1:define-macro (e1:non-named-let bindings . body-forms)
   (e1:let* ((variables (sexpression:map-nonclosure (e0:value sexpression:car) bindings))
             (variable-no (sexpression:length variables))

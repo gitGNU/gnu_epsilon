@@ -591,6 +591,8 @@ strip: all
 	mkdir -p "$@"
 
 @abs_top_builddir@/dumps/quick-start.dump: $(bin_PROGRAMS) $(lib_LIBRARIES) @abs_top_builddir@/dumps $(EPSILON_DUMPED_SOURCE_FILES)
+	rm -f "$@" # Remove the files we're about to generate, just in case we fail later.
+	rm -f "@abs_top_builddir@/dumps/repl.u"
 	ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
 	  "@abs_top_builddir@/bin/guile+whatever" \
 	  @GUILE_NO_AUTO_COMPILE@ \

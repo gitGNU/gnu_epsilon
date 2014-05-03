@@ -2764,6 +2764,19 @@
             #f)))
 
 
+;;;;; Alist utility functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (alist:unbind-all-list alist keys)
+  (e1:if (list:null? keys)
+    alist
+    (alist:unbind-all-list (alist:unbind-all alist (list:head keys))
+                           (list:tail keys))))
+
+(e1:define (alist:append low-priority high-priority)
+  (list:append high-priority low-priority))
+
+
 ;;;;; List utility functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -2817,6 +2830,19 @@
 (e1:define (list:shallow-clone list)
   (list:reverse (list:reverse list)))
 
+(e1:define (list:zip as bs)
+  (e1:cond ((list:null? as)
+            (e1:if (list:null? bs)
+              list:nil
+              (e1:error "second list too long")))
+           ((list:null? bs)
+            (e1:error "first list too long"))
+           (else
+            (list:cons (cons:make (list:head as)
+                                  (list:head bs))
+                       (list:zip (list:tail as)
+                                 (list:tail bs))))))
+
 
 ;;;;; Promises
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -2865,7 +2891,7 @@
   (some content))
 
 
-;;;;; Closure-based list operations
+;;;;; Higher-order closure-based list operations
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; NB: The order of arguments for proc follows that of stream-fold

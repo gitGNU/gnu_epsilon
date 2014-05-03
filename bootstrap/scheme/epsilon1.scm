@@ -2929,6 +2929,406 @@
             #f)))
 
 
+;;;;; epsilon0 expression size as syntactic complexity
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (e0:expression-size e)
+  (e1:match e
+    ((or (e0:expression-variable _ x)
+         (e0:expression-value _ v))
+     1)
+    ((e0:expression-bundle _ items)
+     (fixnum:1+ (e0:expressions-size items)))
+    ((or (e0:expression-primitive _ name actuals)
+         (e0:expression-call _ procedure-name actuals)
+         (e0:expression-fork _ procedure-name actuals))
+     (fixnum:1+ (e0:expressions-size actuals)))
+    ((e0:expression-let _ bound-variables bound-expression body)
+     (fixnum:+ 1
+               (list:length bound-variables)
+               (e0:expression-size bound-expression)
+               (e0:expression-size body)))
+    ((e0:expression-call-indirect _ procedure-expression actuals)
+     (fixnum:+ 1
+               (e0:expression-size procedure-expression)
+               (e0:expressions-size actuals)))
+    ((e0:expression-if-in _ discriminand values then-branch else-branch)
+     (fixnum:+ 1
+               (e0:expression-size discriminand)
+               (list:length values)
+               (e0:expression-size then-branch)
+               (e0:expression-size else-branch)))
+    ((e0:expression-join _ future)
+     (fixnum:1+ (e0:expression-size future)))))
+(e1:define (e0:expressions-size es)
+  (e1:if (list:null? es)
+    0
+    (fixnum:+ (e0:expression-size (list:head es))
+              (e0:expressions-size (list:tail es)))))
+
+;;; Small expression threshold
+(e1:define e0:expression-small-size-threshold
+  (fixnum:* 2
+            (e0:expression-size (state:procedure-get-body (e1:value cons:make)))))
+
+(e1:define (e0:expression-small? e)
+  (fixnum:<= (e0:expression-size e)
+             e0:expression-small-threshold))
+
+(e1:define (state:procedure-small? name)
+  (e0:expression-small? (state:procedure-get-body name)))
+
+
+;;;;; epsilon0 expression "weight": runtime cost without callees
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; An approximation of the runtime cost of evaluating an expression,
+;;; excluding callees.
+
+(e1:define (e0:expression-weight e)
+  (e1:match e
+    ((e0:expression-variable _ x)
+     1)
+    ((e0:expression-value _ v)
+     2) ;; loading some big constants can be expensive
+    ((e0:expression-bundle _ items)
+     (fixnum:+ 0
+               (e0:expressions-weight items)))
+    ((e0:expression-primitive _ name actuals)
+     (fixnum:+ 3
+               (e0:expressions-weight actuals)))
+    ((e0:expression-let _ bound-variables bound-expression body)
+     (fixnum:+ 0
+               (fixnum:* 0
+                         (list:length bound-variables))
+               (e0:expression-weight bound-expression)
+               (e0:expression-weight body)))
+    ((e0:expression-call _ procedure-name actuals)
+     (fixnum:+ 10
+               (e0:expressions-weight actuals)))
+    ((e0:expression-call-indirect _ procedure-expression actuals)
+     (fixnum:+ 20
+               (e0:expression-weight procedure-expression)
+               (e0:expressions-weight actuals)))
+    ((e0:expression-if-in _ discriminand values then-branch else-branch)
+     (fixnum:+ 20
+               (e0:expression-weight discriminand)
+               (fixnum:* 3
+                         (list:length values))
+               (fixnum:max (e0:expression-weight then-branch)
+                           (e0:expression-weight else-branch))))
+    ((e0:expression-fork _ procedure-name actuals)
+     (fixnum:+ 1000
+               (e0:expressions-weight actuals)))
+    ((e0:expression-join _ future)
+     (fixnum:+ 100
+               (e0:expression-weight future)))))
+(e1:define (e0:expressions-weight es)
+  (e1:if (list:null? es)
+    0
+    (fixnum:+ (e0:expression-weight (list:head es))
+              (e0:expressions-weight (list:tail es)))))
+
+;;; Small expression threshold
+(e1:define e0:expression-lightweight-threshold
+  (fixnum:* 2
+            (e0:expression-weight (state:procedure-get-body (e1:value cons:make)))))
+
+(e1:define (e0:expression-lightweight? e)
+  (fixnum:<= (e0:expression-weight e)
+             e0:expression-small-threshold))
+
+(e1:define (state:procedure-lightweight? name)
+  (e0:expression-lightweight? (state:procedure-get-body name)))
+
+
+;;;;; epsilon0 expression and procedure alpha-conversion
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (e0:alpha-convert-expression e)
+  (e0:alpha-convert-expression-with e alist:nil))
+(e1:define (e0:alpha-convert-expression-with e a)
+  (e1:match e
+    ((e0:expression-variable _ x)
+     (e1:if (alist:has? a x)
+       (e0:variable* (alist:lookup a x))
+       e))
+    ((e0:expression-value _ v)
+     e)
+    ((e0:expression-bundle _ items)
+     (e0:bundle* (e0:alpha-convert-expressions-with items a)))
+    ((e0:expression-primitive _ name actuals)
+     (e0:primitive* name (e0:alpha-convert-expressions-with actuals a)))
+    ((e0:expression-let _ bound-variables bound-expression body)
+     (e1:let* ((variable-no (list:length bound-variables))
+               (new-bound-variables (symbol:fresh-symbols variable-no))
+               (new-a (alist:bind-lists a bound-variables new-bound-variables)))
+       (e0:let* new-bound-variables
+                (e0:alpha-convert-expression-with bound-expression a)
+                (e0:alpha-convert-expression-with body new-a))))
+    ((e0:expression-call _ procedure-name actuals)
+     (e0:call* procedure-name (e0:alpha-convert-expressions-with actuals a)))
+    ((e0:expression-call-indirect _ procedure-expression actuals)
+     (e0:call-indirect* (e0:alpha-convert-expression-with procedure-expression m)
+                        (e0:alpha-convert-expressions-with actuals a)))
+    ((e0:expression-if-in _ discriminand values then-branch else-branch)
+     (e0:if-in* (e0:alpha-convert-expression-with discriminand a)
+                values
+                (e0:alpha-convert-expression-with then-branch a)
+                (e0:alpha-convert-expression-with else-branch a)))
+    ((e0:expression-fork _ procedure-name actuals)
+     (e0:fork* procedure-name (e0:alpha-convert-expressions-with actuals a)))
+    ((e0:expression-join _ future)
+     (e0:join* (e0:alpha-convert-expression-with future a)))))
+(e1:define (e0:alpha-convert-expressions-with es a)
+  (e1:if (list:null? es)
+    list:nil
+    (list:cons (e0:alpha-convert-expression-with (list:head es) a)
+               (e0:alpha-convert-expressions-with (list:tail es) a))))
+
+(e1:define (e0:alpha-convert-procedure-definition formals body)
+  (e1:let* ((new-formals (symbol:fresh-symbols (list:length formals)))
+            (a (alist:bind-lists alist:nil formals new-formals)))
+    (e1:bundle new-formals
+               (e0:alpha-convert-expression-with body a))))
+
+(e1:define (e0:alpha-convert-procedure name)
+  (e0:alpha-convert-procedure-definition (state:procedure-get-formals name)
+                                         (state:procedure-get-body name)))
+
+
+;;;;; epsilon0 side-effecting expressions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; An expression judged non-side-effecting by this predicate will
+;;; definitely not have side effects when evaluated.  If the predicate
+;;; returns #t then the expression may or may not have side effects.
+(e1:define (e0:side-effecting-expression? e)
+  (e1:match e
+    ((or (e0:expression-variable _ _)
+         (e0:expression-value _ _))
+     #f)
+    ((e0:expression-bundle _ items)
+     (e0:side-effecting-expressions? items))
+    ((e0:expression-primitive _ name actuals)
+     (e1:or (state:primitive-side-effecting? name)
+            (e0:side-effecting-expressions? actuals)))
+    ((e0:expression-let _ bound-variables bound-expression body)
+     (e1:or (e0:side-effecting-expression? bound-expression)
+            (e0:side-effecting-expression? body)))
+    ((e0:expression-call _ procedure-name actuals)
+     #t) ;; FIXME: this is *extremely* conservative!
+    ((e0:expression-call-indirect _ procedure-expression actuals)
+     #t) ;; the called procedure is not known
+    ((e0:expression-if-in _ discriminand values then-branch else-branch)
+     (e1:or (e0:side-effecting-expression? discriminand)
+            (e0:side-effecting-expression? then-branch)
+            (e0:side-effecting-expression? else-branch)))
+    ((e0:expression-fork _ procedure-name actuals)
+     #t) ;; making a thread has effects.  Being more subtle would require looking at the procedure.
+    ((e0:expression-join _ future)
+     (e0:side-effecting-expression? future))))
+(e1:define (e0:side-effecting-expressions? es)
+  (list:exists? (e1:lambda (e) (e0:side-effecting-expression? e))
+                es))
+
+
+;;;;; epsilon0 expression calless
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; The result is a set-as-list of procedure names and 0, which stands
+;;; for indirect calls.
+
+(e1:define (e0:expression-callees e)
+  (e1:match e
+    ((or (e0:expression-variable _ _)
+         (e0:expression-value _ _))
+     set-as-list:empty)
+    ((e0:expression-bundle _ items)
+     (e0:expressions-callees items))
+    ((e0:expression-primitive _ _ actuals)
+     (e0:expressions-callees actuals))
+    ((e0:expression-let _ bound-variables bound-expression body)
+     (set-as-list:union (e0:expression-callees bound-expression)
+                        (e0:expression-callees body)))
+    ((or (e0:expression-call _ procedure-name actuals)
+         (e0:expression-fork _ procedure-name actuals))
+     (set-as-list:with (e0:expressions-callees actuals)
+                       procedure-name))
+    ((e0:expression-call-indirect _ procedure-expression actuals)
+     (set-as-list:with (set-as-list:union (e0:expression-callees procedure-expression)
+                                          (e0:expressions-callees actuals))
+                       0))
+    ((e0:expression-if-in _ discriminand values then-branch else-branch)
+     (set-as-list:union (e0:expression-callees discriminand)
+                        (e0:expression-callees then-branch)
+                        (e0:expression-callees else-branch)))
+    ((e0:expression-join _ future)
+     (e0:expression-callees future))))
+(e1:define (e0:expressions-callees es)
+  (e1:if (list:null? es)
+    set-as-list:empty
+    (set-as-list:union (e0:expression-callees (list:head es))
+                       (e0:expressions-callees (list:tail es)))))
+
+;; FIXME: implement call graph utilities.
+
+
+;;;;; epsilon0 useless-let removal
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; A useless let is a let whose bound expression is
+;;; non-side-effecting (even if not necessarily trivial) and whose
+;;; bound variables do not occur free in the body.  Useless-let
+;;; removal should be performed *before* trivial-let removal, since
+;;; useless-let removal may make some subexpressions trivial.
+
+;; FIXME: implement useless-let removal
+
+;; Testcase: (u (e1:let ((a (e1:primitive fixnum:+ 4 2))) 1 2))
+
+
+;;;;; epsilon0 let bundle simplification
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; (e0:let (x1...xN) (e0:bundle A1...AN) B) can be easily
+;;; simplified when some of the bound variables do not occur
+;;; in the body and the corresponding items are non-side-effecting.
+
+;; Does this actually occur?  It might, in generated code.
+;; FIXME: implement
+
+
+;;;;; epsilon0 trivial-let removal
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; A trivial expression is a constant, a variable, or a one-item
+;;; bundle containing a trivial expression.
+
+(e1:define (e0:trivial-expression? e)
+  (e1:match e
+    ((or (e0:expression-variable _ _)
+         (e0:expression-value _ _))
+     #t)
+    ((e0:expression-bundle _ items)
+     (e1:and (fixnum:= (list:length items) 1)
+             (e0:trivial-expression? (list:head items))))
+    (else
+     #f)))
+
+;;; Return an equivalent trivial expression without redundant bundles.
+(e1:define (e0:trivialize-expression e)
+  (e1:match e
+    ((or (e0:expression-variable _ _)
+         (e0:expression-value _ _))
+     e)
+    ((e0:expression-bundle _ items)
+     (e1:if (fixnum:= (list:length items) 1)
+       (e0:trivialize-expression (list:head items))
+       (e1:error "non-trivial expression")))
+    (else
+     (e1:error "non-trivial expression"))))
+
+;;; A trivial bound expression, with respect to a given number n of
+;;; variables, is either:
+;;; i)  a trivial non-bundle expression
+;;; or
+;;; ii) a bundle of non-side-effecting expressions of which at least
+;;;     the first n are trivial.
+;;; We don't need a iii) case involving let, since we recursively remove
+;;; trivial lets from the bound expression before checking for triviality.
+
+;;; This assumes e to have the correct dimension.  We let code fail
+;;; otherwise.
+(e1:define (e0:trivial-bound-expression? e variable-no)
+  (e1:match e
+    ((or (e0:expression-variable _ _)
+         (e0:expression-value _ _))
+     #t)
+    ((e0:expression-bundle _ items)
+     (e1:and (list:for-all?
+                 (e1:lambda (i) (e1:not (e0:side-effecting-expression? i)))
+                 items)
+             (list:for-all?
+                 (e1:lambda (i) (e0:trivial-expression? i))
+                 (list:take items variable-no))))
+    (else
+     #f)))
+
+;;; Return a list of trivial expressions.  This assumes the given
+;;; bound expression to be trivial.
+(e1:define (e0:trivialize-bound-expression e variable-no)
+  (list:take (e1:match e
+               ((or (e0:expression-variable _ _)
+                    (e0:expression-value _ _))
+                (list:list e))
+               ((e0:expression-bundle _ items)
+                (list:map (e1:lambda (i) (e0:trivialize-expression i))
+                          (list:take items variable-no)))
+               (else
+                (e1:error "non-trivial bound expression")))
+             variable-no))
+
+;;; The alist used here binds each variable to a trivial expression, which can
+;;; itself be a variable.
+
+(e1:define (e0:expression-without-trivial-lets e)
+  (e0:expression-without-trivial-lets-with e alist:nil))
+(e1:define (e0:expression-without-trivial-lets-with e a)
+  (e1:match e
+    ((e0:expression-variable _ x)
+     (e1:if (alist:has? a x)
+       (alist:lookup a x)
+       e))
+    ((e0:expression-value _ v)
+     e)
+    ((e0:expression-bundle _ items)
+     (e0:bundle* (e0:expressions-without-trivial-lets-with items a)))
+    ((e0:expression-primitive _ name actuals)
+     (e0:primitive* name
+                    (e0:expressions-without-trivial-lets-with actuals a)))
+    ((e0:expression-let _ bound-variables bound-expression body)
+     ;; This rebinding of bound-expression is needed to preserve
+     ;; equivalence: we want variable references in bound-expression
+     ;; to be resolved before binding bound-variables.
+     (e1:let ((bound-expression
+               (e0:expression-without-trivial-lets-with bound-expression a)))
+       (e1:if (e0:trivial-bound-expression? bound-expression
+                                            (list:length bound-variables))
+         (e1:let* ((trivial-expressions (e0:trivialize-bound-expression
+                                            bound-expression
+                                            (list:length bound-variables)))
+                   (new-a (alist:bind-lists a
+                                            bound-variables
+                                            trivial-expressions)))
+           (e0:expression-without-trivial-lets-with body new-a))
+         (e1:let ((new-a (alist:unbind-all-list a bound-variables)))
+           (e0:let* bound-variables
+                    bound-expression ;; we've already rebound this
+                    (e0:expression-without-trivial-lets-with body new-a))))))
+    ((e0:expression-call _ procedure-name actuals)
+     (e0:call* procedure-name
+               (e0:expressions-without-trivial-lets-with actuals a)))
+    ((e0:expression-call-indirect _ procedure-expression actuals)
+     (e0:call-indirect* (e0:expression-without-trivial-lets-with procedure-expression a)
+                        (e0:expressions-without-trivial-lets-with actuals a)))
+    ((e0:expression-if-in _ discriminand values then-branch else-branch)
+     (e0:if-in* (e0:expression-without-trivial-lets-with discriminand a)
+                values
+                (e0:expression-without-trivial-lets-with then-branch a)
+                (e0:expression-without-trivial-lets-with else-branch a)))
+    ((e0:expression-fork _ procedure-name actuals)
+     (e0:fork* procedure-name
+               (e0:expressions-without-trivial-lets-with actuals a)))
+    ((e0:expression-join _ future)
+     (e0:join* (e0:expression-without-trivial-lets-with future a)))))
+(e1:define (e0:expressions-without-trivial-lets-with es a)
+  (e1:if (list:null? es)
+    list:nil
+    (list:cons (e0:expression-without-trivial-lets-with (list:head es) a)
+               (e0:expressions-without-trivial-lets-with (list:tail es) a))))
+
+
 ;;;;; Simple generic input ports
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

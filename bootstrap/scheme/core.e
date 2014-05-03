@@ -1792,8 +1792,8 @@
 (state:primitive-set! (e0:value buffer:get)         (e0:value 2) (e0:value 1) (e0:value #f) (e0:value #f))
 (state:primitive-set! (e0:value buffer:set!)        (e0:value 3) (e0:value 0) (e0:value #t) (e0:value #f))
 (state:primitive-set! (e0:value buffer:initialize!) (e0:value 3) (e0:value 0) (e0:value #t) (e0:value #f))
-(state:primitive-set! (e0:value buffer:make-uninitialized) (e0:value 1) (e0:value 1) (e0:value #f) (e0:value #f))
-(state:primitive-set! (e0:value buffer:make)        (e0:value 1) (e0:value 1) (e0:value #f) (e0:value #f))
+(state:primitive-set! (e0:value buffer:make-uninitialized) (e0:value 1) (e0:value 1) (e0:value #t) (e0:value #f)) ;; this has to be considered side-effecting
+(state:primitive-set! (e0:value buffer:make)        (e0:value 1) (e0:value 1) (e0:value #t) (e0:value #f)) ;; this has to be considered side-effecting
 (state:primitive-set! (e0:value buffer:destroy)     (e0:value 1) (e0:value 0) (e0:value #f) (e0:value #f)) ; no visible effects
 (state:primitive-set! (e0:value fixnum:1+)          (e0:value 1) (e0:value 1) (e0:value #f) (e0:value #f))
 (state:primitive-set! (e0:value fixnum:1-)          (e0:value 1) (e0:value 1) (e0:value #f) (e0:value #f))
@@ -1933,6 +1933,11 @@
 (e1:define (e0:eval-ee e)
   (e0:eval e alist:nil))
 
+(e1:define (e0:call-primitive name-as-symbol actual-values)
+  (e0:primitive primitive:call-in-c
+                (symbol:symbol->string name-as-symbol)
+                actual-values))
+
 ;;; Eval the given expresisons, each of which must return a
 ;;; 1-dimension bundle, and return the n-dimensioned concatenation of
 ;;; such result bundles:
@@ -1955,9 +1960,7 @@
 
 (e1:define (e0:eval-primitive name-as-symbol actuals local)
   (e0:let (actual-values) (e0:eval-expressions actuals local)
-    (e0:primitive primitive:call-in-c
-                  (symbol:symbol->string name-as-symbol)
-                  actual-values)))
+    (e0:call-primitive name-as-symbol actual-values)))
 
 (e1:define (e0:eval-let bound-variables bound-expression body local)
   (e0:let (bound-expression-results) (e0:eval bound-expression local)

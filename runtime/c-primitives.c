@@ -3,7 +3,7 @@
    Copyright (C) 2012, 2013 Luca Saiu
    Copyright (C) 2012 Université Paris 13
    Written by Luca Saiu
-   Updated in 2013 by Luca Saiu
+   Updated in 2013 and 2014 by Luca Saiu
 
    This file is part of GNU epsilon.
 
@@ -160,12 +160,6 @@ static void epsilon_primitive_gc_reenable(epsilon_value *stack){
 /*   GC_enable(); */
 /* #endif // #ifndef EPSILON_RUNTIME_SMOB */
 }
-static void epsilon_primitive_buffer_make(epsilon_value *stack){
-  epsilon_value word_no_epsilon_value = *stack;
-  epsilon_int word_no = epsilon_value_to_epsilon_int(word_no_epsilon_value);
-
-  *stack = epsilon_gc_allocate_with_epsilon_int_length(word_no);
-}
 static void epsilon_primitive_buffer_make_uninitialized(epsilon_value *stack){
   /* For this implementation in Scheme where efficiency isn't the main
      concern, we want to explicitly initialize "uninitalized" buffers
@@ -174,11 +168,16 @@ static void epsilon_primitive_buffer_make_uninitialized(epsilon_value *stack){
   epsilon_int word_no = epsilon_value_to_epsilon_int(word_no_epsilon_value);
 
   epsilon_value result = epsilon_gc_allocate_with_epsilon_int_length(word_no);
-  epsilon_value one = epsilon_int_to_epsilon_value(1);
+  epsilon_value initial_value = epsilon_int_to_epsilon_value(127);
   int i;
   for(i = 0; i < word_no; i ++)
-    epsilon_store_with_epsilon_int_offset(result, i, one);
+    epsilon_store_with_epsilon_int_offset(result, i, initial_value);
   *stack = result;
+}
+// At least for the time being, always initialize buffers.  This makes
+// debugging easier, as we can print values without crashing.
+static void epsilon_primitive_buffer_make(epsilon_value *stack){
+  epsilon_primitive_buffer_make_uninitialized(stack);
 }
 static void epsilon_primitive_buffer_destroy(epsilon_value* stack){
   epsilon_gc_destroy(*stack);

@@ -641,7 +641,7 @@
 
 (e1:define (character:write character)
   (e0:primitive io:write-character (io:standard-output) character))
-(e1:define (character:read character)
+(e1:define (character:read)
   (e0:primitive io:read-character (io:standard-output)))
 
 (e1:define character:0-as-character

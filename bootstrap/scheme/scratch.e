@@ -283,3 +283,140 @@
      (e1:if (fixnum:zero? s)
        (fio:write "* INDIRECT\n")
        (fio:write "* " (sy s) "\n"))))
+
+
+;;;;; Inlined epsilon0 procedure calls
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; This assumes formals to be fresh variables, which is true when
+;;; called from e0:inline-call.
+(e1:define (e0:inlined-call-make-let formals actuals body)
+  (e1:cond ((list:null? formals)
+            (e1:if (list:null? actuals)
+              body
+              (e1:error "more actuals than formals")))
+           ((list:null? actuals)
+            (e1:error "more formals than actuals"))
+           (else
+            (e0:let* (list:list (list:head formals))
+                     (list:head actuals)
+                     (e0:inlined-call-make-let (list:tail formals)
+                                               (list:tail actuals)
+                                               body)))))
+(e1:define (e0:inlined-call procedure-name actuals)
+  (e0:let (formals body) (e0:alpha-convert-procedure procedure-name)
+    (e0:inlined-call-make-let formals actuals body)))
+
+
+;;;;; epsilon0 trivial procedures
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; A trivial procedure is a procedure which is not even inderectly
+;;; recursive and whose set of direct and indirect callees do not
+;;; contain indirect calls.
+;;; Rationale: trivial procedure calls can always be inlined
+;;; without making the program infinite.
+(e1:define (e0:trivial-procedure? name)
+  42) ;; FIXME: implement
+
+
+;;;;; Brainfuck interpreter
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (bf:wrap n size)
+  (e1:cond ((fixnum:< n 0)
+            (bf:wrap (fixnum:+ n size) size))
+           ((fixnum:>= n size)
+            (bf:wrap (fixnum:- n size) size))
+           (else
+            n)))
+(e1:define bf:cell-modulo 256)
+(e1:define bf:tape-size 100000) ;;30000)
+
+(e1:define (bf:eval program)
+  (bf:eval-with program
+                 0
+                 (string:length program)
+                 (vector:make-initialized bf:tape-size 0)
+                 0)
+  ;; I don't want to be distracted by the return value of bf:eval-with.
+  (e1:bundle))
+
+;;; The result is the last value of t-index.
+(e1:define (bf:eval-with p p-index p-limit t t-index)
+  ;;(fio:write "@" (i p-index) " (limit " (i p-limit) ")\n")
+  ;; (e1:when (fixnum:> p-index p-limit)
+  ;;   (fio:write "p-index " (i p-index) "; p-limit " (i p-limit) "\n")
+  ;;   (e1:error "impossible"))
+  (e1:if (fixnum:= p-index p-limit)
+    (e1:begin
+      ;;(fio:write "Returning\n")
+      t-index)
+    (e1:let ((c (string:get p p-index)))
+      (e1:case c
+        ((#\< #\>)
+         (e1:let ((delta (e1:case c
+                           ((#\<) -1)
+                           (else +1))))
+           (bf:eval-with p (fixnum:1+ p-index) p-limit t (fixnum:+ t-index delta))))
+        ((#\- #\+)
+         (e1:let ((delta (e1:case c
+                           ((#\-) -1)
+                           (else +1))))
+           (vector:set! t t-index (bf:wrap (fixnum:+ (vector:get t t-index) delta)
+                                           bf:cell-modulo)))
+         (bf:eval-with p (fixnum:1+ p-index) p-limit t t-index))
+        ((#\.)
+         ;;(fio:write "Printing " (C (bf:wrap (vector:get t t-index) 256)) "\n")
+         (fio:write (c (bf:wrap (vector:get t t-index) 256)))
+         (bf:eval-with p (fixnum:1+ p-index) p-limit t t-index))
+        ((44) ;; #\,
+         (e1:let ((c (character:read)))
+           (e1:if (io:eof-object? c)
+             (vector:set! t t-index 0))
+             (vector:set! t t-index c))
+         (bf:eval-with p (fixnum:1+ p-index) p-limit t t-index))
+        ((#\[)
+         (e1:let* ((next-p-index (fixnum:1+ p-index))
+                   (loop-end-index (bf:loop-end p next-p-index))
+                   (new-t-index
+           ;;(fio:write "+ Looping in [" (i next-p-index) ", " (i loop-end-index) ")...\n")
+                    (bf:eval-loop p next-p-index loop-end-index t t-index)))
+           ;;(fio:write "- Continuing from " (i (fixnum:1+ loop-end-index)) "(" (c (string:get p (fixnum:1+ loop-end-index))) ").\n")
+           (bf:eval-with p (fixnum:1+ loop-end-index) p-limit t new-t-index)))
+        ((#\])
+         ;;(fio:write "Failing at " (i next-p-index) "(" (c (string:get p next-p-index)) ").\n")
+         (e1:error "this shouldn't happen"))
+        (else
+         (bf:eval-with p (fixnum:1+ p-index) p-limit t t-index))))))
+
+(e1:define (bf:loop-end p i)
+  ;;(fio:write "Matching the [ at " (i (fixnum:1- i)) "...\n")
+  (bf:find-matching-closed-bracked p i 0))
+(e1:define (bf:find-matching-closed-bracked p i open-bracket-no)
+  (e1:if (fixnum:>= i (string:length p))
+    (e1:error "no matching ] for [")
+    (e1:case (string:get p i)
+      ((#\[)
+       (bf:find-matching-closed-bracked p (fixnum:1+ i) (fixnum:1+ open-bracket-no)))
+      ((#\])
+       (e1:if (fixnum:zero? open-bracket-no)
+         (e1:begin
+           ;;(fio:write "The ] at " (i i) ".\n")
+           i)
+         (bf:find-matching-closed-bracked p (fixnum:1+ i) (fixnum:1- open-bracket-no))))
+      (else
+       (bf:find-matching-closed-bracked p (fixnum:1+ i) open-bracket-no)))))
+(e1:define (bf:eval-loop p p-index p-limit t t-index)
+  (e1:if (vector:get t t-index)
+    (e1:let ((new-t-index (bf:eval-with p p-index p-limit t t-index)))
+      ;;(fio:write "AGAIN (" (i (string:get t new-t-index)) ")\n")
+      (bf:eval-loop p p-index p-limit t new-t-index))
+    (e1:begin
+      ;;(fio:write "ENOUGH: out of the loop at "(i (fixnum:1+ p-limit)) "\n")
+      t-index)))
+
+
+;;;;; Scratch
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+

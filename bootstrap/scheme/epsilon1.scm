@@ -3133,7 +3133,7 @@
                 es))
 
 
-;;;;; epsilon0 expression calless
+;;;;; epsilon0 expression and procedure callees
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; The result is a set-as-list of procedure names and 0, which stands
@@ -3170,6 +3170,47 @@
     set-as-list:empty
     (set-as-list:union (e0:expression-callees (list:head es))
                        (e0:expressions-callees (list:tail es)))))
+
+(e1:define (e0:procedure-callees procedure-name)
+  (e0:expression-callees (state:procedure-get-body procedure-name)))
+
+(e1:define (e0:procedure-possibly-indirect-callees procedure)
+  (e0:procedure-possibly-indirect-callees-helper
+     (e0:procedure-callees procedure) ;; Don't add the procedure itself.
+     set-as-list:empty))
+(e1:define (e0:procedure-possibly-indirect-callees-helper worklist
+                                                          acc)
+  (e1:cond ((list:null? worklist)
+            acc)
+           (bind (first (list:head worklist))
+                 (worklist (list:tail worklist)))
+           ((set-as-list:has? first acc)
+            (e0:procedure-possibly-indirect-callees-helper worklist acc))
+           ((fixnum:zero? first)
+            (e0:procedure-possibly-indirect-callees-helper worklist (set-as-list:with acc 0)))
+           (else
+            (e1:let* ((first-direct-callees (e0:procedure-callees first))
+                      (new-callees (set-as-list:subtraction first-direct-callees
+                                                            acc)))
+              (e0:procedure-possibly-indirect-callees-helper
+                 (list:append-reversed new-callees worklist)
+                 (set-as-list:with acc first))))))
+
+;;; Also consider indirect recursion.  Here an indirect call counts as
+;;; recursion, since in general we can't determine the callee.
+;;; FIXME: this is correct but ridiculously inefficient.  I should
+;;; build and keep a call graph.
+;;;
+;;; Rationale: calls to non-recursive procedures can always be inlined
+;;; without making the program infinite.
+(e1:define (e0:procedure-recursive? procedure)
+  (e1:let ((possibly-indirect-callees
+            (e0:procedure-possibly-indirect-callees procedure)))
+    (e1:or (set-as-list:has? possibly-indirect-callees 0)
+           (set-as-list:has? possibly-indirect-callees procedure)
+           (list:exists? (e1:lambda (callee)
+                           (e0:procedure-recursive? callee))
+                         possibly-indirect-callees))))
 
 ;; FIXME: implement call graph utilities.
 

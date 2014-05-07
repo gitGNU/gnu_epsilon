@@ -3224,7 +3224,9 @@
 ;;; removal should be performed *before* trivial-let removal, since
 ;;; useless-let removal may make some subexpressions trivial.
 
-;; FIXME: implement useless-let removal
+;; FIXME: *really* implement useless-let removal
+(e1:define (e0:expression-without-useless-lets e)
+  e)
 
 ;; Testcase: (u (e1:let ((a (e1:primitive fixnum:+ 4 2))) 1 2))
 
@@ -3368,6 +3370,15 @@
     list:nil
     (list:cons (e0:expression-without-trivial-lets-with (list:head es) a)
                (e0:expressions-without-trivial-lets-with (list:tail es) a))))
+
+
+;;;;; epsilon0 unneeded-let removal
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; A unneeded let is either a trivial let or a useless let.
+(e1:define (e0:expression-without-unneeded-lets e)
+  (e0:expression-without-trivial-lets
+     (e0:expression-without-useless-lets e)))
 
 
 ;;;;; Simple generic input ports

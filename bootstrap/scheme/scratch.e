@@ -22,6 +22,12 @@
 ;;;;; Scratch
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(e1:define (fact n)
+  (e1:if (fixnum:zero? n)
+    1
+    (fixnum:* n
+              (fact (fixnum:1- n)))))
+
 (e1:define (fibo n)
   (e1:if (fixnum:< n 2)
     n
@@ -166,8 +172,12 @@
                                        (peval:value->expression bv)
                                        (peval:value->expression bodyv))))))
     ((e0:expression-call h procedure-name actuals)
-     ;; FIXME: do it for real.
-     (peval:value-unknown (e0:call* procedure-name (peval:values->expressions (peval:peval-expressions actuals bs)))))
+     ;; FIXME: also inline recursive procedures, unless within a branch of
+     ;; a dynamic conditional.
+     (e1:if (e0:procedure-recursive? procedure-name)
+       (peval:value-unknown (e0:call* procedure-name (peval:values->expressions (peval:peval-expressions actuals bs))))
+       (e1:let ((inlined-call (e0:inlined-call procedure-name actuals)))
+         (peval:peval-expression inlined-call bs))))
     ((e0:expression-call-indirect h procedure-expression actuals)
      (fio:write "OK-A 0\n")
      (e1:let* ((pv (peval:peval-expression procedure-expression bs))
@@ -278,15 +288,25 @@
 
 ;; (l (e0:let (x y z) (e1:bundle 1 2 (e1:primitive fixnum:1+ 3)) y))
 (e1:define (f n) (e1:dotimes (i n) (fio:write "i is " (i i) "\n")))
-(e1:define-macro (c name)
-  `(e1:dolist (s (e0:expression-callees (state:procedure-get-body (e1:value ,name))))
+(e1:define (print-symbol-list list)
+  (e1:dolist (s list)
      (e1:if (fixnum:zero? s)
        (fio:write "* INDIRECT\n")
        (fio:write "* " (sy s) "\n"))))
 
+(e1:define-macro (c name)
+  `(print-symbol-list (e0:procedure-callees (e1:value ,name))))
+
+(e1:define-macro (cc name)
+  `(print-symbol-list (e0:procedure-possibly-indirect-callees (e1:value ,name))))
+
 
 ;;;;; Inlined epsilon0 procedure calls
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (e0:inlined-call procedure-name actuals)
+  (e0:let (formals body) (e0:alpha-convert-procedure procedure-name)
+    (e0:inlined-call-make-let formals actuals body)))
 
 ;;; This assumes formals to be fresh variables, which is true when
 ;;; called from e0:inline-call.
@@ -303,21 +323,6 @@
                      (e0:inlined-call-make-let (list:tail formals)
                                                (list:tail actuals)
                                                body)))))
-(e1:define (e0:inlined-call procedure-name actuals)
-  (e0:let (formals body) (e0:alpha-convert-procedure procedure-name)
-    (e0:inlined-call-make-let formals actuals body)))
-
-
-;;;;; epsilon0 trivial procedures
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;; A trivial procedure is a procedure which is not even inderectly
-;;; recursive and whose set of direct and indirect callees do not
-;;; contain indirect calls.
-;;; Rationale: trivial procedure calls can always be inlined
-;;; without making the program infinite.
-(e1:define (e0:trivial-procedure? name)
-  42) ;; FIXME: implement
 
 
 ;;;;; Brainfuck interpreter

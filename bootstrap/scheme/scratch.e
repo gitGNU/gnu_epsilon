@@ -306,7 +306,8 @@
 
 (e1:define (e0:inlined-call procedure-name actuals)
   (e0:let (formals body) (e0:alpha-convert-procedure procedure-name)
-    (e0:inlined-call-make-let formals actuals body)))
+    ;;(e0:expression-without-unneeded-lets
+        (e0:inlined-call-make-let formals actuals body)));;)
 
 ;;; This assumes formals to be fresh variables, which is true when
 ;;; called from e0:inline-call.

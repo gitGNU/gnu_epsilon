@@ -3215,6 +3215,46 @@
 ;; FIXME: implement call graph utilities.
 
 
+;;;;; epsilon0 side-effect analysis
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (e0:expression-side-effecting? e)
+  (e1:match e
+    ((or (e0:expression-variable _ _)
+         (e0:expression-value _ _))
+     #f)
+    ((e0:expression-bundle _ items)
+     (e0:expressions-side-effecting? items))
+    ((e0:expression-primitive _ name actuals)
+     (e1:or (state:primitive-side-effecting? name)
+            (e0:expressions-side-effecting? actuals)))
+    ((e0:expression-let _ bound-variables bound-expression body)
+     (e1:or (e0:expression-side-effecting? bound-expression)
+            (e0:expression-side-effecting? body)))
+    ((e0:expression-call _ procedure-name actuals)
+     (e1:or (e0:expressions-side-effecting? actuals) ;; Usually faster: do it first.
+            (e0:procedure-side-effecting? procedure-name)))
+    ((e0:expression-call-indirect _ procedure-expression actuals)
+     ;; FIXME: be less conservative, if possible
+     #t)
+    ((e0:expression-if-in _ discriminand values then-branch else-branch)
+     (e1:or (e0:expression-side-effecting? discriminand)
+            (e0:expression-side-effecting? then-branch)
+            (e0:expression-side-effecting? else-branch)))
+    ((e0:expression-fork _ _ _)
+     #t)
+    ((e0:expression-join _ _)
+     #t)))
+(e1:define (e0:expressions-side-effecting? es)
+  (e1:if (list:null? es)
+    #f
+    (e1:or (e0:expression-side-effecting? (list:head es))
+           (e0:expressions-side-effecting? (list:tail es)))))
+
+(e1:define (e0:procedure-side-effecting? name)
+  (e0:expression-side-effecting? (state:procedure-get-body name)))
+
+
 ;;;;; epsilon0 useless-let removal
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

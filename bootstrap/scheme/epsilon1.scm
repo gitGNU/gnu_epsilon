@@ -3248,26 +3248,26 @@
 ;;; A trivial expression is a constant, a variable, or a one-item
 ;;; bundle containing a trivial expression.
 
-(e1:define (e0:trivial-expression? e)
+(e1:define (e0:expression-trivial? e)
   (e1:match e
     ((or (e0:expression-variable _ _)
          (e0:expression-value _ _))
      #t)
     ((e0:expression-bundle _ items)
      (e1:and (fixnum:= (list:length items) 1)
-             (e0:trivial-expression? (list:head items))))
+             (e0:expression-trivial? (list:head items))))
     (else
      #f)))
 
 ;;; Return an equivalent trivial expression without redundant bundles.
-(e1:define (e0:trivialize-expression e)
+(e1:define (e0:expression-simplify-trivial e)
   (e1:match e
     ((or (e0:expression-variable _ _)
          (e0:expression-value _ _))
      e)
     ((e0:expression-bundle _ items)
      (e1:if (fixnum:= (list:length items) 1)
-       (e0:trivialize-expression (list:head items))
+       (e0:expression-simplify-trivial (list:head items))
        (e1:error "non-trivial expression")))
     (else
      (e1:error "non-trivial expression"))))
@@ -3293,7 +3293,7 @@
                  (e1:lambda (i) (e1:not (e0:side-effecting-expression? i)))
                  items)
              (list:for-all?
-                 (e1:lambda (i) (e0:trivial-expression? i))
+                 (e1:lambda (i) (e0:expression-trivial? i))
                  (list:take items variable-no))))
     (else
      #f)))
@@ -3306,7 +3306,7 @@
                     (e0:expression-value _ _))
                 (list:list e))
                ((e0:expression-bundle _ items)
-                (list:map (e1:lambda (i) (e0:trivialize-expression i))
+                (list:map (e1:lambda (i) (e0:expression-simplify-trivial i))
                           (list:take items variable-no)))
                (else
                 (e1:error "non-trivial bound expression")))

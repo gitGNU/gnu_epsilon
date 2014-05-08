@@ -3,7 +3,7 @@
    Copyright (C) 2012 Université Paris 13
    Copyright (C) 2012 Luca Saiu
    Written by Luca Saiu
-   Updated in 2013 by Luca Saiu
+   Updated in 2013 and 2014 by Luca Saiu
 
    This file is part of GNU epsilon.
 
@@ -28,7 +28,7 @@
 #include "c-primitives.h"
 #include <libguile.h> // FIXME: remove this dependency
 
-#define EPSILON_EVAL_STACK_ELEMENT_NO 10000
+#define EPSILON_EVAL_STACK_ELEMENT_NO 1000000
 
 /* An imperative environment is a stack of struct
    imperative_environment_item objects.  We can push for binding, and

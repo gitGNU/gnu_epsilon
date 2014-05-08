@@ -151,6 +151,7 @@ EPSILON_DUMPED_SOURCE_FILES = \
   bootstrap/scheme/epsilon1.scm \
   bootstrap/scheme/repl.e \
   bootstrap/scheme/compiler.e \
+  bootstrap/scheme/brainfuck.e \
   bootstrap/scheme/epsilon0-in-scheme.scm \
   bootstrap/scheme/bootstrap.scm \
   bootstrap/scheme/quick-start.scm \

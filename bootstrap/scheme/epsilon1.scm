@@ -3421,6 +3421,34 @@
      (e0:expression-without-useless-lets e)))
 
 
+;;;;; Inlined epsilon0 procedure calls
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (e0:inlined-call procedure-name actuals)
+  (e0:let (formals body) (e0:alpha-convert-procedure procedure-name)
+;; (e0:expression-without-unneeded-lets ;; This may be expensive.
+     (e0:inlined-call-make-let formals actuals body)))
+;; )
+
+;;; This assumes formals to be fresh variables, which is true when
+;;; called from e0:inline-call.
+;;; FIXME: don't introduce an e0:let at all, when passing a trivial
+;;; expression.
+(e1:define (e0:inlined-call-make-let formals actuals body)
+  (e1:cond ((list:null? formals)
+            (e1:if (list:null? actuals)
+              body
+              (e1:error "more actuals than formals")))
+           ((list:null? actuals)
+            (e1:error "more formals than actuals"))
+           (else
+            (e0:let* (list:list (list:head formals))
+                     (list:head actuals)
+                     (e0:inlined-call-make-let (list:tail formals)
+                                               (list:tail actuals)
+                                               body)))))
+
+
 ;;;;; Simple generic input ports
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

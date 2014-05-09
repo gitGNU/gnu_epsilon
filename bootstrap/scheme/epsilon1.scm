@@ -3731,7 +3731,7 @@
      (printer:write-handle port handle))
     ((e0:expression-fork handle procedure-name actuals)
      (io:write-string port "[fork ")
-     (printer:write-symbol port (list:head ss))
+     (printer:write-symbol port procedure-name)
      (io:write-string port " ")
      (printer:write-expressions port actuals)
      (io:write-string port "]")

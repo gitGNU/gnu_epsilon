@@ -1,0 +1,901 @@
+;;; epsilon runtime library for the Commodore 64 port, in ACME -*- asm -*-.
+;;;
+;;; Copyright (C) 2014 Luca Saiu
+;;; Written by Luca Saiu
+
+;;; This file is part of GNU epsilon.
+
+;;; GNU epsilon is free software: you can redistribute it and/or modify
+;;; it under the terms of the GNU General Public License as published by
+;;; the Free Software Foundation, either version 3 of the License, or
+;;; (at your option) any later version.
+
+;;; GNU epsilon is distributed in the hope that it will be useful,
+;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;;; GNU General Public License for more details.
+
+;;; You should have received a copy of the GNU General Public License
+;;; along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
+
+
+;;;;; BASIC driver
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone BASIC_driver
+
+;;; I don't even bother fixing the pointers delimiting BASIC RAM.
+;;; The BASIC program here is never supposed to be changed, and is
+;;; only for jumping to the machine-language code.  After the jump
+;;; we could even overwrite it.
+
+BASIC_START = $0801 ;; 2049
+* = BASIC_START
+
+BASIC_LINE_10:
+;;; 10 SYSML_START
+;;; FIXME: I've followed the documentation but there's something I don't understand.
+;;; Small changing in this don't seem to affect anything, which is very strange.
+!byte >BASIC_TERMINATOR, <BASIC_TERMINATOR
+
+!word 10 ;; line number (low, high)
+!byte $9e ;; SYS token
+!byte character_0 + ((ML_START / 10000) % 10) ;; in practice this will be 0
+!byte character_0 + ((ML_START / 1000) % 10)
+!byte character_0 + ((ML_START / 100) % 10)
+!byte character_0 + ((ML_START / 10) % 10)
+!byte character_0 + (ML_START % 10)
+!byte 0    ;; end-of-BASIC-line marker
+BASIC_TERMINATOR:
+!byte 0, 0 ;; end-of-BASIC-program marker
+AFTER_BASIC_TERMINATOR:
+
+
+;;;;; Machine-language end
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone machine_language_end
+
+;;; The last byte mapped to usable RAM.
+ML_END = $cfff
+
+;; Write a terminator byte at the end of usable memory.  This helps me
+;; catch some mistakes: an attempt to write a different constant at
+;; this address will fail at assembling time.
+* = ML_END
+ML_END:
+!byte 0
+
+;;; Don't write past ML_END, but start from the next useful address
+;;; instead.
+* = AFTER_BASIC_TERMINATOR
+
+
+;;;;; Debugging support from BASIC
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone debugging_support_from_BASIC
+
+;;; Experimental BASIC area: BEGIN
+;;; Reserve some space for BASIC program and variable.  This is only
+;;; useful for debugging, and should be commented-out in the end.
+ML_START = BASIC_START + 2048
+B1 = 3333 ;; a convenient addres to type from BASIC
+* = B1
+!byte 30
+B2 = 3334 ;; another one
+* = B2
+!byte 31
+* = ML_START ;; The machine-language driver has to start RIGHT HERE
+;; Experimental BASIC area: END
+
+
+;;;;; Machine-language driver
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone machine_language_driver
+
+;;; FIXME: if this is inadequate find another good place in zeropage.
+frame_pointer = $c1
+other_stack_pointer = $c3
+
+ML_START:
+        jsr disable_BASIC
+
+        jsr initialize_runtime
+        ;; jsr test_division
+        jsr test_stack
+
+        jsr reenable_BASIC
+        rts
+
+
+;;; FIXME: move to runtime data structures
+jmp_location:
+!byte 0, 0
+
+tail_call_set_border:
+        lda #0
+        jsr set_border
+        jsr reenable_BASIC
+        rts
+
+
+;;;;; Constants
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone constants
+
+;;; real stuff
+character_0 = 48
+character_a = $41
+character_z = (character_a + 25)
+
+;;character_0 = $30
+character_9 = (character_0 + 9)
+character_plus = $2b
+character_return = $0d
+character_equals = $3d
+
+
+;;;;; ROM routines
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone ROM_routines
+
+chrout = $ffd2
+getin = $ffe4
+stop = $ffe1
+
+
+;;;;; Page mapping
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone page_mapping
+
+disable_BASIC:
+        lda #$36
+        sta $01
+        rts
+
+reenable_BASIC:
+        lda #$37
+        sta $01
+        rts
+
+
+;;;;; Border and background color support
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone border_and_background_color_support
+
+border = 53280
+background = 53281
+
+border_previous_color:
+!byte 0
+
+save_border:
+        lda border
+        sta border_previous_color
+        rts
+restore_border:
+        lda border_previous_color
+        sta border
+        rts
+
+;;; Parameter in A.
+set_border:
+        sta border
+        rts
+
+
+;;;;; Runtime data structures
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone runtime_data_structures
+
+;; Scratch area.
+scratch:
+!fill 16, $ff ;; Reserve a little more space than we need.
+scratch1 = scratch + 1
+scratch2 = scratch + 2
+scratch3 = scratch + 3
+scratch4 = scratch + 4
+scratch5 = scratch + 5
+return1 = scratch + 6
+return2 = scratch + 7
+
+;;; User-defined stack.
+;; Align to page [FIXME: why did I do that?  Is it important?], and
+;; reserve one full page.
+!align 255, 0
+stack:
+;; !fill 256, $ff
+;; !byte 0, 10, 20, 30, 40, 50, 60, 70, 80, 90 ;; FIXME: this is a temporary test!
+!fill 256, $00
+
+other_stack:
+!fill 8, $00
+
+;;; Heap (no deallocation support yet)
+heap_size = 2048
+heap:
+!fill heap_size, $00
+
+heap_allocation_pointer:
+!byte >heap, <heap
+
+heap_limit = heap + heap_size
+
+
+;;;;; Arithmetic routines
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone arithmetic_routines
+
+;;; Operand in A, quotient in X, remainder in A.
+divide_by_10_8bit:
+        ldx #0
+divide_by_10_8bit_loop:
+        cmp #10
+        bcc divide_by_10_8bit_out:
+        sec
+        sbc #10
+        inx
+        jmp divide_by_10_8bit_loop
+divide_by_10_8bit_out:
+        rts
+
+
+;;;;; I/O
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone IO
+
+;;; Clobbers A, X, Y.
+print_return:
+        lda #character_return
+        jsr chrout
+        rts
+
+;;; Operand in [0, 10) in A.
+;;; Clobbers X, Y.
+print_decimal_digit:
+        ora #$30 ;; Set high bits.
+        jsr chrout
+        rts
+
+;;; Operand in A.  Clobbers X and Y.
+print_decimal_8bit:
+        ldy #0 ;; Hold the digit stack height in y.
+        cmp #0
+        bne print_decimal_8bit_fill_stack_loop
+        ;; Special case: the number to print is zero.
+        jmp print_decimal_digit ;; Tail call.
+print_decimal_8bit_fill_stack_loop:
+        cmp #1
+        bcc print_decimal_8bit_print
+        jsr divide_by_10_8bit
+        pha ;; Push remainder digit.
+        iny ;; Increment digit counter.
+        txa ;; Continue to examine the quotient.
+        jmp print_decimal_8bit_fill_stack_loop
+print_decimal_8bit_print:
+        sty print_decimal_8bit_digit_no
+print_decimal_8bit_print_loop:
+        lda print_decimal_8bit_digit_no
+        cmp #0
+        beq print_decimal_8bit_out
+        dec print_decimal_8bit_digit_no
+        pla
+        jsr print_decimal_digit
+        jmp print_decimal_8bit_print_loop
+print_decimal_8bit_out:
+        rts
+print_decimal_8bit_digit_no:
+        !byte 0
+
+;;; Temporary version, printing MSB then LSB, both in decimal.
+;;; Operand in A(LSB) and X(MSB).  Clobbers Y.
+print_decimal_16bit:
+        pha
+        txa
+        jsr print_decimal_8bit
+        ;; jsr print_return
+        lda #character_plus
+        jsr chrout
+        ;; jsr print_return
+        pla
+        jsr print_decimal_8bit
+        jsr print_return
+        rts
+
+
+;;;;; Convenience macros, possibly to be used even in the compiler output
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone convenience_macros
+
+;;; from -> to
+
+!macro stack_to_16bit .slot, .destination_address {
+        ldy #(.slot * 2)
+        lda (frame_pointer), y
+        sta .destination_address
+        iny
+        lda (frame_pointer), y
+        sta (.destination_address + 1)
+}
+
+!macro to_stack_16bit .value, .slot {
+        lda <#.value
+        ldy #(.slot * 2)
+        sta (frame_pointer), y
+        lda >#.value
+        iny ;; ldy #(.slot * 2 + 1) would also work and would be just as fast, but iny is smaller
+        sta (frame_pointer), y
+}
+
+;;; Leave the MSB alone, without overwriting it.  If only the LSB is
+;;; read later, it's perfectly safe to ignore the second byte of the
+;;; slot -- at least until I add tracing garbage collection.
+!macro a_to_stack_8bit .slot {
+        ldy #(.slot * 2)
+        sta (frame_pointer), y
+}
+
+!macro a_to_stack_msb_8bit .slot {
+        ldy #(.slot * 2 + 1)
+        sta (frame_pointer), y
+}
+
+!macro literal_to_stack_8bit .literal, .slot {
+        lda #.literal
+        +a_to_stack_8bit .slot
+}
+
+!macro literal_to_stack_msb_8bit .literal, .slot {
+        lda #.literal
+        +a_to_stack_msb_8bit .slot
+}
+
+!macro literal_to_stack_16bit .literal, .slot {
+        lda #<.literal
+        ldy #(.slot * 2)
+        sta (frame_pointer), y
+        lda #>.literal
+        iny
+        sta (frame_pointer), y
+}
+
+!macro stack_to_a_8bit .slot {
+        ldy #(.slot * 2)
+        lda (frame_pointer), y
+}
+
+!macro stack_msb_to_a_8bit .slot {
+        ldy #(.slot * 2 + 1)
+        lda (frame_pointer), y
+}
+
+;;; Set the first byte of the slot (by convention low byte) to A and
+;;; the second (by convention high byte) to X.
+!macro stack_to_a_and_x_16bit .slot {
+        ldy #(.slot * 2 + 1)
+        lda (frame_pointer), y
+        tax
+        dey
+        lda (frame_pointer), y
+}
+
+;;; Set the first byte of the slot (by convention low byte) to X and
+;;; the second (by convention high byte) to A.
+!macro stack_to_x_and_a_16bit .slot {
+        ldy #(.slot * 2)
+        lda (frame_pointer), y
+        tax
+        iny
+        lda (frame_pointer), y
+}
+
+!macro stack_to_stack_8bit .fromslot, .toslot {
+        ldy #(.fromslot * 2)
+        lda (frame_pointer), y
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+}
+
+!macro stack_to_stack_16bit .fromslot, .toslot {
+        ldy #(.fromslot * 2)
+        lda (frame_pointer), y
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+        ldy #(.fromslot * 2 + 1)
+        lda (frame_pointer), y
+        ldy #(.toslot * 2 + 1)
+        sta (frame_pointer), y
+}
+
+;;; This is needed to work around the famous 6502 bug about not
+;;; fetching from the correct address if the indirect address is on a
+;;; page boundary.  Having the first byte on an even address is enough.
+!align 2, 0
+jump_to_stack_location:
+!byte 0, 0
+
+!macro jump_to_stack .slot {
+        ldy #(.slot * 2)
+        lda (frame_pointer), y
+        sta jump_to_stack_location
+        iny
+        lda (frame_pointer), y
+        sta jump_to_stack_location + 1
+        jmp (jump_to_stack_location)
+}
+
+;;; FIXME: this is 8-bit only.
+!macro adjust_frame_pointer .slot_delta {
+        lda #(.slot_delta * 2)
+        adc frame_pointer
+        sta frame_pointer
+}
+
+!macro sum_stack_8bit .fromslot1, .fromslot2, .toslot {
+        ldy #(.fromslot1 * 2)
+        lda (frame_pointer), y
+        clc
+        ldy #(.fromslot2 * 2)
+        adc (frame_pointer), y
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+}
+
+!macro sum_stack_16bit .fromslot1, .fromslot2, .toslot {
+        ;; Load the first operand low byte.
+        ldy #(.fromslot1 * 2)
+        lda (frame_pointer), y
+        ;; Sum it to the first byte of the second operand and store the result.
+        clc
+        ldy #(.fromslot2 * 2)
+        adc (frame_pointer), y
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+        ;; Keep the carry bit and work with the high byte.
+        ldy #(.fromslot1 * 2 + 1)
+        lda (frame_pointer), y
+        ldy #(.fromslot2 * 2 + 1)
+        adc (frame_pointer), y
+        ldy #(.toslot * 2 + 1)
+        sta (frame_pointer), y
+}
+
+!macro subtract_stack_8bit .fromslot1, .fromslot2, .toslot {
+        ldy #(.fromslot1 * 2)
+        lda (frame_pointer), y
+        sec
+        ldy #(.fromslot2 * 2)
+        sbc (frame_pointer), y
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+}
+
+!macro subtract_stack_16bit .fromslot1, .fromslot2, .toslot {
+        ;; Load the first operand low byte.
+        ldy #(.fromslot1 * 2)
+        lda (frame_pointer), y
+        ;; Subtract the first byte of the second operand from it and store the result.
+        sec
+        ldy #(.fromslot2 * 2)
+        sbc (frame_pointer), y
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+        ;; Keep the carry bit and work with the high byte.
+        ldy #(.fromslot1 * 2 + 1)
+        lda (frame_pointer), y
+        ldy #(.fromslot2 * 2 + 1)
+        sbc (frame_pointer), y
+        ldy #(.toslot * 2 + 1)
+        sta (frame_pointer), y
+}
+
+!macro multiply_stack_8bit .fromslot1, .fromslot2, .toslot {
+        ldy #(.fromslot1 * 2)
+        lda (frame_pointer), y
+        ldy #(.fromslot2 * 2)
+        ldx (frame_pointer), y
+        jsr multiply_8bit
+        ldy #(.toslot * 2)
+        sty (frame_pointer), y
+}
+
+!macro left_shift_1_stack_16bit .fromslot, .toslot {
+        clc
+        ldy #(.fromslot * 2)
+        lda (frame_pointer), y
+        rol
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+        ldy #(.fromslot * 2 + 1)
+        lda (frame_pointer), y
+        rol
+        ldy #(.toslot * 2 + 1)
+        sta (frame_pointer), y
+}
+
+!macro logical_right_shift_1_stack_16bit .fromslot, .toslot {
+        ldy #(.fromslot * 2 + 1)
+        lda (frame_pointer), y
+        lsr
+        ldy #(.toslot * 2 + 1)
+        sta (frame_pointer), y
+        ldy #(.fromslot * 2)
+        lda (frame_pointer), y
+        ror
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+}
+
+!macro arithmetic_right_shift_1_stack_16bit .fromslot, .toslot {
+        ldy #(.fromslot * 2 + 1)
+        ;; Set the carry flag to 1 iff the high byte sign is negative
+        lda (frame_pointer), y ;; set the negative flag
+        clc
+        bpl .dontset
+        sec
+.dontset:
+        ror ;; propagate carry in the high byte as well
+        ldy #(.toslot * 2 + 1)
+        sta (frame_pointer), y
+        ldy #(.fromslot * 2)
+        lda (frame_pointer), y
+        ror
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+}
+
+sum_16_bit_a:
+sum_16_bit_result:
+!byte 0, 0
+sum_16_bit_b:
+!byte 0, 0
+;;; Arguments in memory.  Overwrite the first.  Clobber A.
+sum_16_bit:
+        ;; Load the first operand low byte.
+        lda sum_16_bit_a
+        clc
+        adc sum_16_bit_b
+        sta sum_16_bit_result
+        lda sum_16_bit_a + 1
+        adc sum_16_bit_b + 1
+        sta sum_16_bit_result + 1
+        rts
+
+left_shift_1_16bit_a:
+left_shift_1_16bit_result:
+!byte 0, 0
+;;; Arguments in memory.  Overwrite the first.  Clobber A.
+left_shift_1_16bit:
+        ;; Load the first operand low byte.
+        clc
+        rol left_shift_1_16bit_a
+        rol left_shift_1_16bit_a + 1
+        rts
+
+;; ;;; Arguments in A and X.  Clobber Y [FIXME: really?].
+;; multiply_a:
+;;         !byte 0
+;; multiply_b:
+;;         !byte 0
+;; multiply_result:
+;;         !byte 0
+;; multiply_16bit:
+;; ;;;  FIXME: really implement
+;;         ;; sta multiply_a
+;;         ;; stx multiply_b
+;;         jsr
+
+;;; Useful for debugging.  Unfortunately there's no way to pass strings
+;;; as parameters in ACME.
+;;; FIXME: make it into a procedure.
+!macro print_string .string_label {
+        ldy #0
+.again:
+        lda .string_label, y
+        beq .out
+        jsr chrout
+        iny
+        jmp .again
+.out:
+        jsr print_return
+}
+
+!macro print_stack .slot {
+        +stack_to_a_and_x_16bit .slot
+        jsr print_decimal_16bit
+}
+
+!macro swap_memory_8bit .address1, .address2 {
+        lda .address1
+        ldx .address2
+        sta .address2
+        stx .address1
+}
+
+!macro swap_memory_16bit .address1, .address2 {
+        +swap_memory_8bit .address1, .address2
+        +swap_memory_8bit .address1 + 1, .address2 + 1
+}
+
+swap_stacks_strings:
+!pet "swapping stacks (fixme: big error)", 0
+swap_stacks:
+        +print_string swap_stacks_strings
+        +swap_memory_16bit frame_pointer, other_stack_pointer
+        rts
+!macro swap_stacks {
+        jsr swap_stacks
+}
+
+!macro stack_to_other_stack_16bit .fromslot, .toslot {
+        ldy #(.fromslot * 2)
+        lda (frame_pointer), y
+        ldy #(.toslot * 2)
+        sta (other_stack_pointer), y
+        ldy #(.fromslot * 2 + 1)
+        lda (frame_pointer), y
+        ldy #(.toslot * 2 + 1)
+        sta (other_stack_pointer), y
+}
+
+;;; other_stack_to_stack_16bit is not needed, since we can just use
+;;; stack_to_other_stack_16bit after swapping.
+
+!macro equal_stack_16bit .fromslot1, .fromslot2, .toslot {
+        ;; Compare LSBs.
+        ldy #(.fromslot1 * 2)
+        lda (frame_pointer), y
+        ldy #(.fromslot2 * 2)
+        sec
+        sbc (frame_pointer), y
+        beq .lsbs_equal
+.different:
+        lda #0
+        jmp .set_a_as_result
+.lsbs_equal:
+        ;; Compare MSBs.
+        ldy #(.fromslot1 * 2 + 1)
+        lda (frame_pointer), y
+        ldy #(.fromslot2 * 2 + 1)
+        sec
+        sbc (frame_pointer), y
+        bne .different
+        lda #1
+.set_a_as_result:
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+        ;; The result MSB is always 0.
+        lda #0
+        iny
+        sta (frame_pointer), y
+}
+
+!macro not_equal_stack_16bit .fromslot1, .fromslot2, .toslot {
+        ;; Compare LSBs.
+        ldy #(.fromslot1 * 2)
+        lda (frame_pointer), y
+        ldy #(.fromslot2 * 2)
+        sec
+        sbc (frame_pointer), y
+        beq .lsbs_equal
+.different:
+        lda #1
+        jmp .set_a_as_result
+.lsbs_equal:
+        ;; Compare MSBs.
+        ldy #(.fromslot1 * 2 + 1)
+        lda (frame_pointer), y
+        ldy #(.fromslot2 * 2 + 1)
+        sec
+        sbc (frame_pointer), y
+        bne .different
+        lda #0
+.set_a_as_result:
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+        ;; The result MSB is always 0.
+        lda #0
+        iny
+        sta (frame_pointer), y
+}
+
+!macro jump_when_zero_stack_8bit .fromslot, .destination {
+        ldy #(.fromslot * 2)
+        lda (frame_pointer), y
+        beq .destination
+}
+
+!macro jump_unless_zero_stack_8bit .fromslot, .destination {
+        ldy #(.fromslot * 2)
+        lda (frame_pointer), y
+        bne .destination
+}
+
+!macro increment_stack_16bit .fromslot, .toslot {
+        +stack_to_other_stack_16bit .fromslot, 0
+        +swap_stacks
+        +literal_to_stack_16bit 1, 1
+        +sum_stack_16bit 0, 1, 1
+        +stack_to_other_stack_16bit 1, .toslot
+        +swap_stacks
+}
+
+!macro negate_stack_16bit .fromslot, .toslot {
+        ;; Store 1's complement of (.fromslot) into .toslot:
+        ldy #(.fromslot * 2)
+        lda (frame_pointer), y
+        eor #$ff
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+        ldy #(.fromslot * 2 + 1)
+        lda (frame_pointer), y
+        eor #$ff
+        ldy #(.toslot * 2 + 1)
+        sta (frame_pointer), y
+        +increment_stack_16bit .toslot, .toslot
+}
+
+!macro negative_stack_16bit .fromslot, .toslot {
+        ;; Only look at the MSB sign
+        ldx #0
+        ldy #(.fromslot * 2 + 1)
+        lda (frame_pointer), y
+        bpl .store_result
+        inx
+.store_result:
+        txa
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+        ;; The result MSB is always 0.
+        lda #0
+        iny
+        sta (frame_pointer), y
+}
+
+;;; Parameter in A, X.  Clobber X, Y.
+
+!macro less_than_stack_16bit .fromslot1, .fromslot2, .toslot {
+        +stack_to_other_stack_16bit .fromslot1, 2
+        +stack_to_other_stack_16bit .fromslot2, 3
+        +swap_stacks
+        +negative_stack_16bit 2, 4
+        +negative_stack_16bit 3, 5
+        +jump_unless_zero_stack_8bit 4, .first_negative
+        +jump_when_zero_stack_8bit 5, .both_positive
+        ;; Only the second parameter is negative.
+.return_false:
+        lda #0
+        jmp .return_a
+.both_positive:
+        ldy #(2 * 2)
+        lda (frame_pointer), y
+        ldy #(3 * 2)
+        sec
+        sbc (frame_pointer), y
+        bmi .return_true ;; The first MSB is smaller
+        beq .msbs_equal
+        bmi .return_false ;; The first MSB is larger
+.msbs_equal:
+        ;; Compare LSBs
+        ldy #(2 * 2 + 1)
+        lda (frame_pointer), y
+        ldy #(3 * 2 + 1)
+        sec
+        sbc (frame_pointer), y
+        bmi .return_true
+        jmp .return_false ;; First LSB larger or equal.
+.first_negative:
+        +jump_unless_zero_stack_8bit 5, .both_negative
+        ;; Only the first parameter is negative.
+.return_true:
+        lda #1
+        jmp .return_a
+.both_negative:
+        ;; (- a) < (- b)  iff  a > b: negate and swap
+        +negate_stack_16bit 2, 4
+        +negate_stack_16bit 3, 2
+        +stack_to_stack_16bit 4, 3
+        jmp .both_positive
+.return_a:
+        pha
+        +swap_stacks
+        ldy #(.toslot * 2)
+        pla
+        sta (frame_pointer), y
+        ;; MSB is always #0.
+        lda #0
+        iny
+        sta (frame_pointer), y
+}
+
+!macro greater_than_stack_16bit .fromslot1, .fromslot2, .toslot {
+        +less_than_stack_16bit .fromslot2, .fromslot1, .toslot
+}
+
+!macro less_than_or_equal_to_stack_16bit .fromslot1, .fromslot2, .toslot {
+        +equal_stack_16bit .fromslot1, .fromslot2, .toslot
+        +jump_when_zero_stack_8bit .toslot, .less_than
+        jmp .after ;; The result is already correct
+.less_than:
+        +less_than_stack_16bit .fromslot2, .fromslot1, .toslot
+.after:
+}
+
+!macro greater_than_or_equal_to_stack_16bit .fromslot1, .fromslot2, .toslot {
+        +less_than_or_equal_to_stack_16bit .fromslot2, .fromslot1, .toslot
+}
+
+;; FIXME: 16-bit copies should probably be done like this:
+;; 	lda .source
+;;      ldx .source + 1
+;; 	sta .target
+;; 	stx .target + 1
+
+
+;;;;; Tests to be called from the machine-language driver
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone tests_to_be_called_from_the_machine_language_driver
+
+test_division:
+        lda #(0 - 1)
+        jsr divide_by_10_8bit
+        stx B1
+        sta B2
+
+        lda B1
+        jsr print_decimal_8bit
+        jsr print_return
+        lda B2
+        jsr print_decimal_8bit
+        jsr print_return
+        rts
+
+
+;;; FIXME: move to the runtime block
+initialize_runtime:
+        ;; Store the initial frame pointer in our zeropage pointer.
+        lda #<stack
+        sta frame_pointer
+        lda #>stack
+        sta frame_pointer + 1
+        ;; Store the initial other-stack pointer in our zeropage pointer.
+        lda #<other_stack
+        sta other_stack_pointer
+        lda #>other_stack
+        sta other_stack_pointer + 1
+        rts
+
+
+test_stack:
+        ;; BEGIN ------------------------------
+        ;; +literal_to_stack_16bit 32 + 256 * 3, 2
+        ;; +literal_to_stack_16bit 10 + 256 * 2, 3
+        ;; +literal_to_stack_16bit 12345, 2;; 13 * 256 + 37, 2
+        ;; +literal_to_stack_16bit 1000, 3;; 13 * 256 + 37, 3
+        +literal_to_stack_16bit -2, 2;; 13 * 256 + 37, 2
+        +literal_to_stack_16bit -2, 3;; 13 * 256 + 37, 3
+        +print_stack 2
+        +print_stack 3
+        jsr print_return
+        ;; +sum_stack_16bit 2, 3, 4
+        ;; +subtract_stack_16bit 2, 3, 4
+        ;; ;; +multiply_stack_8_bit 2, 3, 4
+        ;; +left_shift_1_stack_16bit 2, 4
+        ;; +not_equal_stack_16bit 2, 3, 4
+        +less_than_or_equal_to_stack_16bit 2, 3, 4
+        ;; +negate_stack_16bit 2, 4
+        ;; ;; +divide_stack_16bit 2, 3, 4
+        ;; +logical_right_shift_1_stack_16bit 2, 4
+        ;; +sum_stack_16bit 2, 3, 4
+        +print_stack 2
+        +print_stack 3
+        +print_stack 4
+
+        rts
+after:
+        lda #11
+        jsr set_border
+        rts
+
+
+;;;;; Scratch
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+

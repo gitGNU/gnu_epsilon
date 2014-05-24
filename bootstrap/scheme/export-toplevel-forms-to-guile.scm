@@ -40,3 +40,8 @@
 (export-to-guile-toplevel e1:define-keyword-syntax)
 
 (export-to-guile-toplevel e1:define-regexp)
+
+(export-to-guile-toplevel c64:sprite)
+(export-to-guile-toplevel c64:parse-sprite)
+(export-to-guile-toplevel e1:define-c64-single-color-sprite)
+(export-to-guile-toplevel e1:define-c64-multi-color-sprite)

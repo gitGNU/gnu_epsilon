@@ -128,3 +128,9 @@
 
 (e1:define configuration:CCAS "@CCAS@")
 (e1:define configuration:CCASFLAGS "@CCASFLAGS@")
+
+
+;;;;; Cross-assembling support
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define configuration:HAS_ACME #@has_acme@)

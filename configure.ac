@@ -220,6 +220,17 @@ if test "$YACC" != "bison -y"; then
    fi
 fi
 
+# If the ACME cross-assembler is installed we can support
+# cross-compiling to 6502 systems.
+AC_CHECK_PROG(HAS_ACME, acme, yes, no)
+if test "x$HAS_ACME" = "xyes"; then
+  AC_MSG_NOTICE([Found the ACME cross-assembler: supporting 6502 systems])
+  AC_SUBST(has_acme, "t")
+else
+  AC_MSG_WARN([ACME cross-assembler not found: 6502 systems will not be supported])
+  AC_SUBST(has_acme, "f")
+fi
+
 # Checks that required libraries are installed:
 AC_LANG(C) # We're looking for C libraries:
 

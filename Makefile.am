@@ -134,6 +134,7 @@ EXTRA_DIST += \
   runtime/backend-specific/powerpc/backend-specific-s.S \
   runtime/backend-specific/mips/backend-specific-c.c \
   runtime/backend-specific/mips/backend-specific-s.S \
+  runtime/backend-specific/c64/runtime.a \
   runtime/backend-specific/always-fail runtime/backend-specific/i386 runtime/backend-specific/i486 runtime/backend-specific/i586 runtime/backend-specific/i686 runtime/backend-specific/mips runtime/backend-specific/mips64 runtime/backend-specific/mips64el runtime/backend-specific/mipsel runtime/backend-specific/powerpc runtime/backend-specific/ppc runtime/backend-specific/svm runtime/backend-specific/x86 runtime/backend-specific/x86_64 runtime/backend-specific/x86-64
 
 # Source files which are *not* dumped into unexeced images, so that

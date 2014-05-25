@@ -96,19 +96,11 @@ frame_pointer = $c1
 other_stack_pointer = $c3
 
 ML_START:
-        jsr disable_BASIC
-
         jsr initialize_runtime
-        ;; jsr test_division
-        jsr test_stack
-
+        ;; jsr test_stack
+        jsr epsilon_main_entry_point
         jsr reenable_BASIC
         rts
-
-
-;;; FIXME: move to runtime data structures
-jmp_location:
-!byte 0, 0
 
 tail_call_set_border:
         lda #0

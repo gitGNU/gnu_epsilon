@@ -56,12 +56,38 @@
 (e1:define (compiler:c64-compile-to-assembly main target-file-name)
   (e1:let* ((data-graph (data-graph:graph-from-compiled-only main))
             (f (io:open-file target-file-name io:write-mode)))
-    (fio:write-to f ";;; This is a compiler-generated -*- asm -*- file for ACME.
+    (fio:write-to f ";;;;; This is machine-generated -*- asm -*- for ACME.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;; Built by the GNU epsilon compiler.
+;;;;; http://www.gnu.org/software/epsilon
+
+
+;;;;; Runtime library
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; Include assembly runtime library.
-!source \"" (st configuration:abs_top_srcdir) "/runtime/backend-specific/c64/runtime.a\"\n\n")
+!source \"" (st configuration:abs_top_srcdir) "/runtime/backend-specific/c64/runtime.a\"\n")
     (compiler:c64-compile-data f data-graph)
-    (io:write-string f ";;; Procedures\n")
+    (fio:write-to f "
+
+;;;;; Machine-language entry point
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone machine_language_entry_point
+
+;;; This is called from the machine-language driver, which is called from
+;;; the BASIC driver.
+epsilon_main_entry_point:
+  jmp ")
+    (trivial-compiler:emit-symbol-identifier f main)
+    (fio:write-to f " ; tail-call the main procedure " (sy main) "
+
+
+;;;;; Procedures
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone compiled_procedures
+
+")
     (e1:dolist (procedure-name (data-graph:graph-get-procedures data-graph))
       (compiler:c64-compile-procedure f procedure-name data-graph))
     (io:close-file f)))
@@ -71,14 +97,28 @@
   (e1:let* ((hash (data-graph:graph-get-pointer-hash data-graph))
             (pointers (data-graph:graph-get-pointers data-graph))
             (symbol-hash (data-graph:graph-get-symbol-hash data-graph)))
-    (fio:write-to f ";;; Global data\n")
-    (fio:write-to f "global_data_beginning:\n")
-    (fio:write-to f "p0:
-  !16 $bad ; omitted from compilation
+    (fio:write-to f "
+
+;;;;; Special global definitions.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;;; Conventional values for constants not fitting in 16 bits.
 ;;; If we start really using them we're probably in trouble.
 out_of_bounds_low = -32768
 out_of_bounds_high = 32767
+
+
+;;;;; Global data.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone compiled_globals
+
+;;; By convention we render a pointer to data whose content is not compiled
+;;; as a pointer to this datum:
+p0:
+  !16 $ff
+
+;;; Globals.
+global_data_beginning:
 
 ")
     (e1:dolist (pointer pointers)
@@ -109,59 +149,32 @@ out_of_bounds_high = 32767
                     (fio:write-to f "p")
                     (fio:write-to f (i (unboxed-hash:get hash element))))))))
           (fio:write-to f "\n"))))
-    (fio:write-to f "global_data_end:
-  !16 0\n\n\n")))
+    (fio:write-to f "
+global_data_end:
+  !16 0\n")))
 
 (e1:define (compiler:c64-compile-procedure f procedure-name data-graph)
   (e1:let* ((formals (state:procedure-get-formals procedure-name))
             (body (state:procedure-get-body procedure-name))
             (procedure (trivial-compiler:compile-procedure procedure-name formals body data-graph)))
-    (io:write-string f "\n")
-    (io:write-string f ";;;;;;;;; ")
-    (io:write-symbol f procedure-name)
-    (io:write-string f " (mangled as \"")
+    (fio:write-to f ";;;;; " (sy procedure-name) "\n")
+    (fio:write-to f ";;; io-no is "
+                  (i (trivial-compiler:procedure-get-io-no procedure)) "
+;;; leaf is "
+                  (s (e1:if (trivial-compiler:procedure-get-leaf procedure) "#t" "#f")) "
+;;; local-no is "
+                  (i (trivial-compiler:procedure-get-local-no procedure)) "
+;;; scratch-no is "
+                  (i (trivial-compiler:procedure-get-scratch-no procedure))
+                  "\n")
     (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (io:write-string f "\")\n")
-    (io:write-string f ";;; io-no is ")
-    (io:write-fixnum f (trivial-compiler:procedure-get-io-no procedure))
-    (io:write-string f "\n")
-    (io:write-string f ";;; leaf is ")
-    (io:write-string f (e1:if (trivial-compiler:procedure-get-leaf procedure) "#t" "#f"))
-    (io:write-string f "\n")
-    (io:write-string f ";;; local-no is ")
-    (io:write-fixnum f (trivial-compiler:procedure-get-local-no procedure))
-    (io:write-string f "\n")
-    (io:write-string f ";;; scratch-no is ")
-    (io:write-fixnum f (trivial-compiler:procedure-get-scratch-no procedure))
-    (io:write-string f "
-  .balign 8 ;.align 2
-  .globl ")
+    (fio:write-to f ":\n")
     (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (io:write-string f "
-  .ent ")
-    (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (io:write-string f "
-  .type ")
-    (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (io:write-string f ", @function\n")
-    (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (io:write-string f ":\n")
-    (io:write-string f "  sw $31, ")
-    (io:write-fixnum f (fixnum:* 4 (compiler:c64-return-stack-index procedure)))
-    (io:write-string f "($16) ; Save return address\n")
-    (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (io:write-string f "_TAIL:\n")
-    (io:write-string f ";;;;;;;;;;;;;;;; BEGIN\n")
+    (fio:write-to f "_TAIL:\n")
+    (fio:write-to f ";;;;;;;;;;;;;;;; BEGIN\n")
     (compiler:c64-compile-instructions f procedure (trivial-compiler:procedure-get-instructions procedure))
-    (io:write-string f ";;;;;;;;;;;;;;;; END
-  .end ")
-    (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (io:write-string f "
-  .size ")
-    (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (io:write-string f ", .-")
-    (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (io:write-string f "\n\n")))
+    (fio:write-to f ";;;;;;;;;;;;;;;; END
+  rts ; FIXME: is this needed?\n\n")))
 
 (e1:define (compiler:c64-io->stack-index procedure io)
   io)
@@ -378,3 +391,11 @@ out_of_bounds_high = 32767
   `(compiler:compile-to-assembly-with compiler:c64 ,executable-file-name ,@forms))
 (e1:define-macro (c #;64:compile executable-file-name . forms)
   `(compiler:compile-with compiler:c64 ,executable-file-name ,@forms))
+
+(e1:define-macro (can assembly-file-name . forms)
+  `(e1:begin
+     (e1:define (main)
+       ,@forms)
+     (compiler:compile-procedure-to-assembly-with compiler:c64
+                                                  (e1:value main)
+                                                  ,assembly-file-name)))

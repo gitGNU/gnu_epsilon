@@ -77,10 +77,26 @@
 
 ;;; This is called from the machine-language driver, which is called from
 ;;; the BASIC driver.
-epsilon_main_entry_point:
-  jmp ")
+epsilon_main_entry_point:")
+    ;; (fio:write-to f "  jmp ")
+    ;; (trivial-compiler:emit-symbol-identifier f main)
+    (fio:write-to f "  jsr ")
     (trivial-compiler:emit-symbol-identifier f main)
-    (fio:write-to f " ; tail-call the main procedure " (sy main) "
+    (fio:write-to f "
+  ;; FIXME: this is test code
+print_string
+  +print_string string_slot0
+  +print_stack 0
+  jsr print_return
+  +print_string string_slot1
+  +print_stack 1
+  jsr print_return
+  rts
+string_slot0:
+  !pet \"first:  \", 0
+string_slot1:
+  !pet \"second: \", 0
+
 
 
 ;;;;; Procedures
@@ -193,10 +209,13 @@ global_data_end:
             ;;1 ;; saved frame pointer
             (trivial-compiler:procedure-get-local-no procedure)
             scratch))
+
+;;; FIXME: nothing similar is probably applicable to the 6502
 (e1:define (compiler:c64-emit-stack-access f stack-index)
   (io:write-fixnum f (fixnum:* stack-index 4))
   (io:write-string f "($16)"))
 
+;;; FIXME: nothing similar is probably applicable to the 6502
 (e1:define (compiler:c64-emit-load-value-to-$2 f procedure value)
   (e1:if (e0:primitive whatever:atom? value)
     (e1:begin
@@ -213,164 +232,80 @@ global_data_end:
         (io:write-symbol f value))))
   (io:write-string f "\n"))
 
+(e1:define (compiler:c64-limit n)
+  (e1:cond ((fixnum:< n -32768)
+            -32768)
+           ((fixnum:> n 32767)
+            32767)
+           (else
+            n)))
+
 (e1:define (compiler:c64-compile-instructions f procedure ii)
   (e1:dolist (i (list:reverse ii))
     (e1:match i
       ((trivial-compiler:instruction-return)
-       (io:write-string f "  ; return: BEGIN\n")
-       (io:write-string f "  lw $31, ")
-       (compiler:c64-emit-stack-access f (compiler:c64-return-stack-index procedure))
-       (io:write-string f "\n")
-       (io:write-string f "  jr $31 ; return\n")
-       (io:write-string f "  nop ; empty delay slot\n")
-       (io:write-string f "  ; return: END\n"))
+       (fio:write-to f "  ;; return: FIXME: unimplemented\n"))
       ((trivial-compiler:instruction-tail-call name)
-       (io:write-string f "  ; tail-call: BEGIN\n")
-       (io:write-string f "  la $2, ")
+       (fio:write-to f "  ;; tail-call: FIXME: BEGIN (tentative)\n")
+       (fio:write-to f "  jmp ")
        (trivial-compiler:emit-symbol-identifier f name)
-       (io:write-string f " ; load destination (may be large)\n")
-       (io:write-string f "  jr $2 ; jump\n")
-       (io:write-string f "  lw $31, ")
-       (compiler:c64-emit-stack-access f (compiler:c64-return-stack-index procedure))
-       (io:write-string f " ; pass the return address via $31 (delay slot)\n")
-       (io:write-string f "  ; tail-call: END\n"))
+       (fio:write-to f " ;; " (sy name) "\n")
+       (fio:write-to f "  ;; tail-call: FIXME: END (tentative)\n"))
       ((trivial-compiler:instruction-tail-call-indirect local-index)
-       (io:write-string f "  ; tail-call-indirect: BEGIN\n")
-       (io:write-string f "  lw $25, ")
-       (compiler:c64-emit-stack-access f (compiler:c64-local->stack-index procedure local-index))
-       (io:write-string f " ; load code address\n")
-       (io:write-string f "  lw $25, 9*4($25) ; Load native code address from symbol\n")
-       (io:write-string f "  jr $25\n")
-       (io:write-string f "  lw $31, ")
-       (compiler:c64-emit-stack-access f (compiler:c64-return-stack-index procedure))
-       (io:write-string f " ; delay slot: pass the return address via $31\n")
-       (io:write-string f "  ; tail-call-indirect: END\n"))
+       (fio:write-to f "  ;; tail-call-indirect: FIXME: unimplemented\n"))
       ((trivial-compiler:instruction-nontail-call name scratch-index)
-       (io:write-string f "  ; nontail-call: BEGIN\n")
-       (io:write-string f "  la $2, ")
-       (trivial-compiler:emit-symbol-identifier f name)
-       (io:write-string f "\n")
-       (io:write-string f "  jalr $2\n")
-       (io:write-string f "  addiu $16, $16, ")
-       (io:write-fixnum f (fixnum:* (compiler:c64-scratch->stack-index procedure scratch-index) 4))
-       (io:write-string f " ; delay slot: pass frame pointer\n")
-       (io:write-string f "  addiu $16, $16, -")
-       (io:write-fixnum f (fixnum:* (compiler:c64-scratch->stack-index procedure scratch-index) 4))
-       (io:write-string f " ; restore frame pointer\n")
-       (io:write-string f "  ; nontail-call: END\n"))
+       (fio:write-to f "  ;; nontail-call: FIXME: unimplemented\n"))
       ((trivial-compiler:instruction-nontail-call-indirect local-index scratch-index)
-       (io:write-string f "  ; nontail-call-indirect: BEGIN\n")
-       (io:write-string f "  lw $25, ")
-       (compiler:c64-emit-stack-access f (compiler:c64-local->stack-index procedure local-index))
-       (io:write-string f " ; load symbol address\n")
-       (io:write-string f "  lw $25, 9*4($25) ; Load native code address from symbol\n")
-       (io:write-string f "  jalr $25\n")
-       (io:write-string f "  addiu $16, $16, ")
-       (io:write-fixnum f (fixnum:* (compiler:c64-scratch->stack-index procedure scratch-index) 4))
-       (io:write-string f " ; delay slot: pass frame pointer\n")
-       (io:write-string f "  addiu $16, $16, -")
-       (io:write-fixnum f (fixnum:* (compiler:c64-scratch->stack-index procedure scratch-index) 4))
-       (io:write-string f " ; restore frame pointer\n")
-       (io:write-string f "  ; nontail-call-indirect: END\n"))
+       (fio:write-to f "  ;; nontail-call-indirect: FIXME: unimplemented\n"))
       ((trivial-compiler:instruction-get-io io-index scratch-index)
-       (io:write-string f "  ; get-io: BEGIN\n")
-       (io:write-string f "  lw $2, ")
-       (compiler:c64-emit-stack-access f (compiler:c64-io->stack-index procedure io-index))
-       (io:write-string f "\n")
-       (io:write-string f "  sw $2, ")
-       (compiler:c64-emit-stack-access f (compiler:c64-scratch->stack-index procedure scratch-index))
-       (io:write-string f "\n")
-       (io:write-string f "  ; get-io: END\n"))
+       (fio:write-to f "  +stack_to_stack_16bit "
+                     (i (compiler:c64-io->stack-index procedure io-index))
+                     ", "
+                     (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                     " ;; get-io\n"))
       ((trivial-compiler:instruction-set-io scratch-index io-index)
-       (io:write-string f "  ; set-io: BEGIN\n")
-       (io:write-string f "  lw $2, ")
-       (compiler:c64-emit-stack-access f (compiler:c64-scratch->stack-index procedure scratch-index))
-       (io:write-string f "\n")
-       (io:write-string f "  sw $2, ")
-       (compiler:c64-emit-stack-access f (compiler:c64-io->stack-index procedure io-index))
-       (io:write-string f "\n")
-       (io:write-string f "  ; set-io: END\n"))
+       (fio:write-to f "  +stack_to_stack_16bit "
+                     (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                     ", "
+                     (i (compiler:c64-io->stack-index procedure io-index))
+                     " ;; set-io\n"))
       ((trivial-compiler:instruction-get-local local-index scratch-index)
-       (io:write-string f "  ; get-local: BEGIN\n")
-       (io:write-string f "  lw $2, ")
-       (compiler:c64-emit-stack-access f (compiler:c64-local->stack-index procedure local-index))
-       (io:write-string f "\n")
-       (io:write-string f "  sw $2, ")
-       (compiler:c64-emit-stack-access f (compiler:c64-scratch->stack-index procedure scratch-index))
-       (io:write-string f "\n")
-       (io:write-string f "  ; get-local: END\n"))
+       (fio:write-to f "  ;; get-local: FIXME: unimplemented\n"))
       ((trivial-compiler:instruction-set-local scratch-index local-index)
-       (io:write-string f "  ; set-local: BEGIN\n")
-       (io:write-string f "  lw $2, ")
-       (compiler:c64-emit-stack-access f (compiler:c64-scratch->stack-index procedure scratch-index))
-       (io:write-string f "\n")
-       (io:write-string f "  sw $2, ")
-       (compiler:c64-emit-stack-access f (compiler:c64-local->stack-index procedure local-index))
-       (io:write-string f "\n")
-       (io:write-string f "  ; set-local: END\n"))
+       (fio:write-to f "  ;; set-local: FIXME: unimplemented\n"))
       ((trivial-compiler:instruction-get-global global-name scratch-index)
-       ;;; FIXME: this is correct, but I could generate better code by exploiting global immutability
-       (io:write-string f "  ; get-global: BEGIN\n")
-       (compiler:c64-emit-load-value-to-$2 f procedure global-name)
-       (io:write-string f "  lw $2, 2*4($2) ; Load global binding from symbol\n")
-       (io:write-string f "  sw $2, ")
-       (compiler:c64-emit-stack-access f (compiler:c64-scratch->stack-index procedure scratch-index))
-       (io:write-string f "\n")
-       (io:write-string f "  ; get-global: END\n"))
-      ;; ((trivial-compiler:instruction-set-global scratch-index global-name)
-      ;;  (io:write-string f "  # set-global [FIXME: IMPLEMENT]\n"))
+       (fio:write-to f "  ;; get-local: FIXME: unimplemented\n"))
       ((trivial-compiler:instruction-get-value value scratch-index)
-       (io:write-string f "  ; get-value: BEGIN\n")
-       (compiler:c64-emit-load-value-to-$2 f procedure value)
-       (io:write-string f "  sw $2, ")
-       (compiler:c64-emit-stack-access f (compiler:c64-scratch->stack-index procedure scratch-index))
-       (io:write-string f "\n")
-       (io:write-string f "  ; get-value: END\n"))
+       (fio:write-to f "  +literal_to_stack_16bit "
+                     (i (compiler:c64-limit value))
+                     ", "
+                     (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                     " ;; get-value\n"))
       ((trivial-compiler:instruction-primitive name scratch-index)
-       (io:write-string f "  ; primitive: BEGIN\n")
-       (io:write-string f "  lw $25, (4 * ")
-       (io:write-fixnum f (state:primitive-get-index name))
-       (io:write-string f ")($22) ; Load primitive address\n")
-       (io:write-string f "  jalr $25\n")
-       (io:write-string f "  addiu $4, $16, ")
-       (io:write-fixnum f (fixnum:* (compiler:c64-scratch->stack-index procedure scratch-index) 4))
-       (io:write-string f " ; delay slot: pass the frame pointer\n")
-       (io:write-string f "  move $28, $21 # Restore $gp, trashed by C functions under o32\n")
-       (io:write-string f "  ; primitive: END\n"))
+       (compiler:c64-compile-primitive f procedure name scratch-index))
       ((trivial-compiler:instruction-fork name scratch-index)
-       (io:write-string f "  ; fork\n")
-       (io:write-string f "  ; [NOT IMPLEMENTED YET]\n"))
+       (fio:write-to f "  ;; fork: FIXME: unimplemented\n"))
       ((trivial-compiler:instruction-join scratch-index)
-       (io:write-string f "  ; join\n")
-       (io:write-string f "  ; [NOT IMPLEMENTED YET]\n"))
+       (fio:write-to f "  ;; join: FIXME: unimplemented\n"))
       ((trivial-compiler:instruction-if-in scratch-index values then-instructions else-instructions)
-       (io:write-string f "  ; if-in: BEGIN\n")
-       (e1:let ((then-label (trivial-compiler:fresh-label "then"))
-                (after-label (trivial-compiler:fresh-label "after")))
-         (io:write-string f "  lw $3, ")
-         (compiler:c64-emit-stack-access f (compiler:c64-scratch->stack-index procedure scratch-index))
-         (io:write-string f " ; load the discriminand\n")
-         (e1:dolist (value values)
-           (compiler:c64-emit-load-value-to-$2 f procedure value)
-           (io:write-string f "  beq $3, $2, ")
-           (io:write-string f then-label)
-           (io:write-string f " ; branch if equal\n")
-           (io:write-string f "  nop\n"))
-         ;;(io:write-string f "  # The next instruction should be an lw, harmless as a delay slot; anyway I want to avoid an assembler warning in case the next command is a multi-instruction macro\n")
-         (compiler:c64-compile-instructions f procedure else-instructions)
-         (io:write-string f "  j ")
-         (io:write-string f after-label)
-         (io:write-string f " ; skip the \"else\" branch\n")
-         (io:write-string f "  nop ; Delay slot\n")
-         (io:write-string f then-label)
-         (io:write-string f ":\n")
-         (compiler:c64-compile-instructions f procedure then-instructions)
-         (io:write-string f after-label)
-         (io:write-string f ":\n"))
-       (io:write-string f "  ; if-in: END\n"))
+       (fio:write-to f "  ;; if-in: FIXME: unimplemented\n"))
       (_
        (e1:error "impossible")))))
 
+(e1:define (compiler:c64-compile-primitive f procedure primitive-name scratch-index)
+  (fio:write-to f "  ;; primitive " (sy primitive-name) ": FIXME begin\n")
+  (e1:case primitive-name
+    ((fixnum:+)
+     (fio:write-to f "  +sum_stack_16bit "
+                   (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                   ", "
+                   (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                   ", "
+                   (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                   "\n"))
+    (else
+     (fio:write-to f "  ;; FIXME: UNIMPLEMENTED\n")))
+  (fio:write-to f "  ;; primitive " (sy primitive-name) ": FIXME END\n"))
 
 ;;;;; Scratch convenience macros
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -424,6 +424,8 @@
                                (e1:not (unboxed-hash:has? hash element)))
                 (unboxed-hash:set! hash element (fixnum:1+ (unboxed-hash:element-no hash)))
                 (imperative-stack:push! stack element)))))))
+    ;; (e1:dolist (p (box:get procedures))
+    ;;   (fio:write "* " (sy p) "\n"))
     (data-graph:graph
        (box:get procedures);(imperative-stack:imperative-stack->vector procedures)
        (box:get globals);(imperative-stack:imperative-stack->vector globals)

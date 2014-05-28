@@ -33,8 +33,9 @@ BASIC_START = $0801 ;; 2049
 
 BASIC_LINE_10:
 ;;; 10 SYSML_START
-;;; FIXME: I've followed the documentation but there's something I don't understand.
-;;; Small changing in this don't seem to affect anything, which is very strange.
+;;; FIXME: I've followed the documentation but there's something I don't
+;;; understand here.  Small changes in this don't seem to affect anything,
+;;; which is very strange.
 !byte >BASIC_TERMINATOR, <BASIC_TERMINATOR
 
 !word 10 ;; line number (low, high)

@@ -232,6 +232,7 @@ global_data_end:
         (io:write-symbol f value))))
   (io:write-string f "\n"))
 
+;;; FIXME: factor?
 (e1:define (compiler:c64-limit n)
   (e1:cond ((fixnum:< n -32768)
             -32768)
@@ -239,6 +240,21 @@ global_data_end:
             32767)
            (else
             n)))
+
+;;; FIXME: factor, using this more often.
+(e1:define (compiler:c64-emit-literal f n)
+  (e1:cond ((fixnum:< n -32768)
+            (fio:write-to f "out_of_bounds_low"))
+           ((fixnum:> n 32767)
+            (fio:write-to f "out_of_bounds_high"))
+           (else
+            (fio:write-to f (i n)))))
+
+(e1:define (compiler:c64-emit-value f pointer-hash value)
+  (e1:if (e0:primitive whatever:atom? value)
+    (compiler:c64-emit-literal f value)
+    (e1:let ((index (unboxed-hash:get pointer-hash value)))
+      (fio:write-to f "p" (i index)))))
 
 (e1:define (compiler:c64-compile-instructions f procedure ii)
   (e1:dolist (i (list:reverse ii))
@@ -270,11 +286,27 @@ global_data_end:
                      (i (compiler:c64-io->stack-index procedure io-index))
                      " ;; set-io\n"))
       ((trivial-compiler:instruction-get-local local-index scratch-index)
-       (fio:write-to f "  ;; get-local: FIXME: unimplemented\n"))
+       (fio:write-to f "  +stack_to_stack_16bit "
+                     (i (compiler:c64-local->stack-index procedure local-index))
+                     ", "
+                     (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                     " ;; get-local\n"))
       ((trivial-compiler:instruction-set-local scratch-index local-index)
-       (fio:write-to f "  ;; set-local: FIXME: unimplemented\n"))
+       (fio:write-to f "  +stack_to_stack_16bit "
+                     (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                     ", "
+                     (i (compiler:c64-local->stack-index procedure local-index))
+                     " ;; set-local\n"))
       ((trivial-compiler:instruction-get-global global-name scratch-index)
-       (fio:write-to f "  ;; get-local: FIXME: unimplemented\n"))
+       (e1:let* ((data-graph (trivial-compiler:procedure-get-data-graph procedure))
+                 (pointer-hash (data-graph:graph-get-pointer-hash data-graph))
+                 (global-value (buffer:get global-name 2))) ;; third symbol slot
+         (fio:write-to f "  +literal_to_stack_16bit ")
+         (compiler:c64-emit-value f pointer-hash global-value)
+         (fio:write-to f
+                       ", "
+                       (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                       " ;; get-global " (sy global-name) "\n")))
       ((trivial-compiler:instruction-get-value value scratch-index)
        (fio:write-to f "  +literal_to_stack_16bit "
                      (i (compiler:c64-limit value))
@@ -292,20 +324,57 @@ global_data_end:
       (_
        (e1:error "impossible")))))
 
-(e1:define (compiler:c64-compile-primitive f procedure primitive-name scratch-index)
-  (fio:write-to f "  ;; primitive " (sy primitive-name) ": FIXME begin\n")
-  (e1:case primitive-name
+(e1:define (compiler:c64-emit-unary-primitive f name procedure scratch-index)
+  (fio:write-to f "  +" (st name) " "
+                (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                ", "
+                (i (compiler:c64-scratch->stack-index procedure scratch-index))))
+
+(e1:define (compiler:c64-emit-binary-primitive f name procedure scratch-index)
+  (fio:write-to f "  +" (st name) " "
+                (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                ", "
+                (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                ", "
+                (i (compiler:c64-scratch->stack-index procedure scratch-index))))
+
+;;; A ternary primitive with no results.  FIXME: generalize?
+(e1:define (compiler:c64-emit-store-primitive f name procedure scratch-index)
+  (fio:write-to f "  +" (st name) " "
+                (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                ", "
+                (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                ", "
+                (i (compiler:c64-scratch->stack-index procedure (fixnum:+ scratch-index 2)))))
+
+(e1:define (compiler:c64-compile-primitive f p name scratch-index)
+  (e1:case name
     ((fixnum:+)
-     (fio:write-to f "  +sum_stack_16bit "
-                   (i (compiler:c64-scratch->stack-index procedure scratch-index))
-                   ", "
-                   (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
-                   ", "
-                   (i (compiler:c64-scratch->stack-index procedure scratch-index))
-                   "\n"))
+     (compiler:c64-emit-binary-primitive f "sum_stack_16bit" p scratch-index))
+    ((fixnum:-)
+     (compiler:c64-emit-binary-primitive f "subtract_stack_16bit" p scratch-index))
+
+    ((whatever:eq?)
+     (compiler:c64-emit-binary-primitive f "equal_stack_16bit" p scratch-index))
+    ((fixnum:<)
+     (compiler:c64-emit-binary-primitive f "less_than_stack_16bit" p scratch-index))
+    ((fixnum:<=)
+     (compiler:c64-emit-binary-primitive f "less_than_or_equal_stack_16bit" p scratch-index))
+
+    ((fixnum:negate)
+     (compiler:c64-emit-unary-primitive f "negate_stack_16bit" p scratch-index))
+
+    ((buffer:get)
+     (compiler:c64-emit-binary-primitive f "buffer_get_stack_16bit" p scratch-index))
+    ((buffer:set! buffer:initialize!)
+     ;; a ternary primitive with no results.  FIXME: generalize?
+     (compiler:c64-emit-store-primitive f "buffer_set_stack_16bit" p scratch-index))
+
     (else
-     (fio:write-to f "  ;; FIXME: UNIMPLEMENTED\n")))
-  (fio:write-to f "  ;; primitive " (sy primitive-name) ": FIXME END\n"))
+     (fio:write "About the primitive " (sy name) ":\n")
+     (e1:error "unsupported primitive")))
+  (fio:write-to f "  ;; primitive " (sy name) "\n"))
+
 
 ;;;;; Scratch convenience macros
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -327,6 +396,7 @@ global_data_end:
 (e1:define-macro (c #;64:compile executable-file-name . forms)
   `(compiler:compile-with compiler:c64 ,executable-file-name ,@forms))
 
+;;; Scratch version not using closures (hence not depending on memory primitives)
 (e1:define-macro (can assembly-file-name . forms)
   `(e1:begin
      (e1:define (main)

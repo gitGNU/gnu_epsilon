@@ -95,6 +95,11 @@ B2 = 3334 ;; another one
 frame_pointer = $c1
 other_stack_pointer = $c3
 
+;;; Zeropage two-byte areas, useful to pass values around, including pointers.
+zeropage_arg1 = $6f
+zeropage_arg2 = $71
+zeropage_arg3 = $67
+
 ML_START:
         jsr initialize_runtime
         ;; jsr test_stack
@@ -305,14 +310,14 @@ print_decimal_16bit:
         sta .destination_address
         iny
         lda (frame_pointer), y
-        sta (.destination_address + 1)
+        sta .destination_address + 1
 }
 
-!macro to_stack_16bit .value, .slot {
-        lda <#.value
+!macro to_stack_16bit .source_address, .slot {
+        lda .source_address
         ldy #(.slot * 2)
         sta (frame_pointer), y
-        lda >#.value
+        lda .source_address + 1
         iny ;; ldy #(.slot * 2 + 1) would also work and would be just as fast, but iny is smaller
         sta (frame_pointer), y
 }
@@ -814,6 +819,87 @@ swap_stacks:
 !macro greater_than_or_equal_to_stack_16bit .fromslot1, .fromslot2, .toslot {
         +less_than_or_equal_to_stack_16bit .fromslot2, .fromslot1, .toslot
 }
+
+!macro buffer_get_stack_16bit .fromslot1, .fromslot2, .toslot {
+        +stack_to_16bit .fromslot1, zeropage_arg1
+        +stack_to_16bit .fromslot2, zeropage_arg2
+        jsr buffer_get_16bit
+        +to_stack_16bit zeropage_arg1, .toslot
+}
+
+!macro buffer_set_stack_16bit .fromslot1, .fromslot2, .fromslot3 {
+        +stack_to_16bit .fromslot1, zeropage_arg1
+        +stack_to_16bit .fromslot2, zeropage_arg2
+        +stack_to_16bit .fromslot3, zeropage_arg3
+        jsr buffer_set_16bit
+}
+
+;;; Single parameter and result in zeropage_arg1.
+;;; Clobbers A, Y.
+load_16bit:
+        ldy #0
+        lda (zeropage_arg1), y
+        sta zeropage_arg1
+        iny
+        lda (zeropage_arg1), y
+        sta zeropage_arg1 + 1
+        rts
+
+;;; Address parameter in zeropage_arg1, offset parameter (in 16-bit words)
+;;; in zeropage_arg2, result in zeropage_arg1.
+;;; Clobbers A, Y, zeropage_arg2.
+buffer_get_16bit:
+        ;; Left-shift zeropage_arg2.
+        lda zeropage_arg2
+        asl
+        sta zeropage_arg2
+        lda zeropage_arg2 + 1
+        rol
+        sta zeropage_arg2 + 1
+        ;; Sum zeropage_arg1 and zeropage_arg2 into zeropage_arg2.
+        clc
+        lda zeropage_arg1
+        adc zeropage_arg2
+        sta zeropage_arg2
+        lda zeropage_arg1 + 1
+        adc zeropage_arg2 + 1
+        sta zeropage_arg2 + 1
+        ;; Load from the pointer at zeropage_arg2 into zeropage_arg1.
+        ldy #0
+        lda (zeropage_arg2), y
+        sta zeropage_arg1
+        iny
+        lda (zeropage_arg2), y
+        sta zeropage_arg1 + 1
+        rts
+
+;;; Address parameter in zeropage_arg1, offset parameter (in 16-bit words)
+;;; in zeropage_arg2, new-content parameter in zeropage_arg3.
+;;; Clobbers A, Y, zeropage_arg2.
+buffer_set_16bit:
+        ;; Left-shift zeropage_arg2.
+        lda zeropage_arg2
+        asl
+        sta zeropage_arg2
+        lda zeropage_arg2 + 1
+        rol
+        sta zeropage_arg2 + 1
+        ;; Sum zeropage_arg1 and zeropage_arg2 into zeropage_arg2.
+        clc
+        lda zeropage_arg1
+        adc zeropage_arg2
+        sta zeropage_arg2
+        lda zeropage_arg1 + 1
+        adc zeropage_arg2 + 1
+        sta zeropage_arg2 + 1
+        ;; Store data at zeropage_arg3 into the pointer at zeropage_arg2.
+        lda zeropage_arg3
+        ldy #0
+        sta (zeropage_arg2), y
+        lda zeropage_arg3 + 1
+        iny
+        sta (zeropage_arg2), y
+        rts
 
 ;; FIXME: 16-bit copies should probably be done like this:
 ;; 	lda .source

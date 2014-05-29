@@ -97,9 +97,9 @@ frame_pointer = $c1
 other_stack_pointer = $c3
 
 ;;; Zeropage two-byte areas, useful to pass values around, including pointers.
-zeropage_arg1 = $6f
-zeropage_arg2 = $71
-zeropage_arg3 = $67
+zeropage_arg1 = $02
+zeropage_arg2 = $fb
+zeropage_arg3 = $fd
 
 ML_START:
         jsr initialize_runtime
@@ -698,13 +698,19 @@ swap_stacks:
 !macro jump_when_zero_stack_8bit .fromslot, .destination {
         ldy #(.fromslot * 2)
         lda (frame_pointer), y
-        beq .destination
+        ;; bne can only jump a short range away, and I'm generating long basic blocks.
+        bne .after
+        jmp .destination
+.after:
 }
 
 !macro jump_unless_zero_stack_8bit .fromslot, .destination {
         ldy #(.fromslot * 2)
         lda (frame_pointer), y
-        bne .destination
+        ;; bne can only jump a short range away, and I'm generating long basic blocks.
+        beq .after
+        jmp .destination
+.after:
 }
 
 !macro increment_stack_16bit .fromslot, .toslot {

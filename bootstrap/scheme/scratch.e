@@ -31,6 +31,12 @@
   (e1:dotimes (i n)
     (fio:write "fibo(" (i i) ") = " (i (fibo i)) "\n")))
 
+(e1:define (iter a b)
+  (e1:if-in a (0)
+    b
+    (iter (e0:primitive fixnum:1- a)
+          (e0:primitive fixnum:1+ b))))
+
 
 ;;;;; C64 compiler
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -210,28 +216,6 @@ global_data_end:
             (trivial-compiler:procedure-get-local-no procedure)
             scratch))
 
-;;; FIXME: nothing similar is probably applicable to the 6502
-(e1:define (compiler:c64-emit-stack-access f stack-index)
-  (io:write-fixnum f (fixnum:* stack-index 4))
-  (io:write-string f "($16)"))
-
-;;; FIXME: nothing similar is probably applicable to the 6502
-(e1:define (compiler:c64-emit-load-value-to-$2 f procedure value)
-  (e1:if (e0:primitive whatever:atom? value)
-    (e1:begin
-      (io:write-string f "  li $2, ")
-      (io:write-fixnum f value))
-    (e1:let* ((data-graph (trivial-compiler:procedure-get-data-graph procedure))
-              (pointer-hash (data-graph:graph-get-pointer-hash data-graph))
-              (symbol-hash (data-graph:graph-get-symbol-hash data-graph))
-              (index (unboxed-hash:get pointer-hash value)))
-      (io:write-string f "  la $2, p")
-      (io:write-fixnum f index)
-      (e1:when (unboxed-hash:has? symbol-hash value)
-        (io:write-string f " ; ")
-        (io:write-symbol f value))))
-  (io:write-string f "\n"))
-
 ;;; FIXME: factor?
 (e1:define (compiler:c64-limit n)
   (e1:cond ((fixnum:< n -32768)
@@ -250,11 +234,13 @@ global_data_end:
            (else
             (fio:write-to f (i n)))))
 
-(e1:define (compiler:c64-emit-value f pointer-hash value)
-  (e1:if (e0:primitive whatever:atom? value)
-    (compiler:c64-emit-literal f value)
-    (e1:let ((index (unboxed-hash:get pointer-hash value)))
-      (fio:write-to f "p" (i index)))))
+(e1:define (compiler:c64-emit-value f procedure value)
+  (e1:let* ((data-graph (trivial-compiler:procedure-get-data-graph procedure))
+            (pointer-hash (data-graph:graph-get-pointer-hash data-graph)))
+    (e1:if (e0:primitive whatever:atom? value)
+      (compiler:c64-emit-literal f value)
+      (e1:let ((index (unboxed-hash:get pointer-hash value)))
+        (fio:write-to f "p" (i index))))))
 
 (e1:define (compiler:c64-compile-instructions f procedure ii)
   (e1:dolist (i (list:reverse ii))
@@ -298,11 +284,9 @@ global_data_end:
                      (i (compiler:c64-local->stack-index procedure local-index))
                      " ;; set-local\n"))
       ((trivial-compiler:instruction-get-global global-name scratch-index)
-       (e1:let* ((data-graph (trivial-compiler:procedure-get-data-graph procedure))
-                 (pointer-hash (data-graph:graph-get-pointer-hash data-graph))
-                 (global-value (buffer:get global-name 2))) ;; third symbol slot
+       (e1:let ((global-value (buffer:get global-name 2))) ;; third symbol slot
          (fio:write-to f "  +literal_to_stack_16bit ")
-         (compiler:c64-emit-value f pointer-hash global-value)
+         (compiler:c64-emit-value f procedure global-value)
          (fio:write-to f
                        ", "
                        (i (compiler:c64-scratch->stack-index procedure scratch-index))
@@ -320,7 +304,32 @@ global_data_end:
       ((trivial-compiler:instruction-join scratch-index)
        (fio:write-to f "  ;; join: FIXME: unimplemented\n"))
       ((trivial-compiler:instruction-if-in scratch-index values then-instructions else-instructions)
-       (fio:write-to f "  ;; if-in: FIXME: unimplemented\n"))
+       (e1:let ((then-label (trivial-compiler:fresh-label "then"))
+                (after-label (trivial-compiler:fresh-label "after_if")))
+         (fio:write-to f "  ;; if-in: FIXME: begin\n")
+         (e1:dolist (v values)
+           (fio:write-to f "  +literal_to_stack_16bit ")
+           (compiler:c64-emit-value f procedure v)
+           (fio:write-to f ", "
+                         (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                         " ;; candidate discriminator\n")
+           (fio:write-to f "  +equal_stack_16bit "
+                         (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                         ", "
+                         (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                         ", "
+                         (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                         " ;; compare\n")
+           (fio:write-to f "  +jump_unless_zero_stack_8bit "
+                         (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                         ", " (st then-label) "\n"))
+         (fio:write-to f ";; else branch\n")
+         (compiler:c64-compile-instructions f procedure else-instructions)
+         (fio:write-to f "  jmp " (st after-label) "\n")
+         (fio:write-to f (st then-label) ":\n")
+         (compiler:c64-compile-instructions f procedure then-instructions)
+         (fio:write-to f (st after-label) ":\n")
+         (fio:write-to f "  ;; if-in: FIXME: unimplemented\n")))
       (_
        (e1:error "impossible")))))
 
@@ -352,6 +361,19 @@ global_data_end:
     ((fixnum:+)
      (compiler:c64-emit-binary-primitive f "sum_stack_16bit" p scratch-index))
     ((fixnum:-)
+     (compiler:c64-emit-binary-primitive f "subtract_stack_16bit" p scratch-index))
+
+    ((fixnum:1+)
+     (fio:write-to f
+                   "  +literal_to_stack_16bit 1, "
+                   (i (compiler:c64-scratch->stack-index p (fixnum:1+ scratch-index)))
+                   "\n")
+     (compiler:c64-emit-binary-primitive f "sum_stack_16bit" p scratch-index))
+    ((fixnum:1-)
+     (fio:write-to f
+                   "  +literal_to_stack_16bit 1, "
+                   (i (compiler:c64-scratch->stack-index p (fixnum:1+ scratch-index)))
+                   "\n")
      (compiler:c64-emit-binary-primitive f "subtract_stack_16bit" p scratch-index))
 
     ((whatever:eq?)

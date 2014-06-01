@@ -88,6 +88,15 @@ B2 = 3334 ;; another one
 ;; Experimental BASIC area: END
 
 
+;;;;; Special global definitions.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Conventional values for constants not fitting in 16 bits.
+;;; If we start really using them we're probably in trouble.
+out_of_bounds_low = -32768
+out_of_bounds_high = 32767
+
+
 ;;;;; Machine-language driver
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 !zone machine_language_driver
@@ -184,16 +193,17 @@ set_border:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 !zone runtime_data_structures
 
-;; Scratch area.
-scratch:
-!fill 16, $ff ;; Reserve a little more space than we need.
-scratch1 = scratch + 1
-scratch2 = scratch + 2
-scratch3 = scratch + 3
-scratch4 = scratch + 4
-scratch5 = scratch + 5
-return1 = scratch + 6
-return2 = scratch + 7
+
+;; ;;; Scratch area. [FIXME: remove]
+;; scratch:
+;; !fill 16, $ff ;; Reserve a little more space than we need.
+;; scratch1 = scratch + 1
+;; scratch2 = scratch + 2
+;; scratch3 = scratch + 3
+;; scratch4 = scratch + 4
+;; scratch5 = scratch + 5
+;; return1 = scratch + 6
+;; return2 = scratch + 7
 
 ;;; User-defined stack.
 ;; Align to page [FIXME: why did I do that?  Is it important?], and
@@ -216,6 +226,10 @@ heap_allocation_pointer:
 !byte >heap, <heap
 
 heap_limit = heap + heap_size
+
+;;; Return-address passing area.  FIXME: is it worth to move this to pagezero?
+return_address:
+  !16 0
 
 
 ;;;;; Arithmetic routines
@@ -304,6 +318,13 @@ print_decimal_16bit:
 !zone convenience_macros
 
 ;;; from -> to
+
+!macro literal_to_16bit .literal, .destination_address {
+        lda #<.literal
+        sta .destination_address
+        lda #>.literal
+        sta .destination_address + 1
+}
 
 !macro stack_to_16bit .slot, .destination_address {
         ldy #(.slot * 2)
@@ -403,14 +424,17 @@ print_decimal_16bit:
         sta (frame_pointer), y
 }
 
+
+
 ;;; This is needed to work around the famous 6502 bug about not
 ;;; fetching from the correct address if the indirect address is on a
 ;;; page boundary.  Having the first byte on an even address is enough.
+;;; FIXME: is this worth to move to zeropage?
 !align 2, 0
 jump_to_stack_location:
 !byte 0, 0
 
-!macro jump_to_stack .slot {
+!macro jump_to_stack_16bit .slot {
         ldy #(.slot * 2)
         lda (frame_pointer), y
         sta jump_to_stack_location
@@ -420,12 +444,88 @@ jump_to_stack_location:
         jmp (jump_to_stack_location)
 }
 
-;;; FIXME: this is 8-bit only.
-!macro adjust_frame_pointer .slot_delta {
-        lda #(.slot_delta * 2)
-        adc frame_pointer
+!macro adjust_frame_pointer_16bit .slot_delta {
+        clc
+        ;; Update the frame pointer LSB.
+        lda frame_pointer
+        adc #<(.slot_delta * 2)
         sta frame_pointer
+        ;; Update the frame pointer MSB.
+        lda frame_pointer + 1
+        adc #>(.slot_delta * 2)
+        sta frame_pointer + 1
+
+!if (.slot_delta * 2 / 256) <> 0 {
+        !error "Very large adjustment: this is suspect"
+        }
 }
+
+!macro bitwise_not_stack_16bit .fromslot, .toslot {
+        ;; Xor the LSB with an all-1 bitmask:
+        ldy #(.fromslot * 2)
+        lda (frame_pointer), y
+        eor #255
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+        ;; Xor the MSB with an all-1 bitmask:
+        ldy #(.fromslot * 2 + 1)
+        lda (frame_pointer), y
+        eor #255
+        ldy #(.toslot * 2 + 1)
+        sta (frame_pointer), y
+}
+
+!macro bitwise_and_stack_16bit .fromslot1, .fromslot2, .toslot {
+        ;; And LSB:
+        ldy #(.fromslot1 * 2)
+        lda (frame_pointer), y
+        ldy #(.fromslot2 * 2)
+        and (frame_pointer), y
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+        ;; And MSB:
+        ldy #(.fromslot1 * 2 + 1)
+        lda (frame_pointer), y
+        ldy #(.fromslot2 * 2 + 1)
+        and (frame_pointer), y
+        ldy #(.toslot * 2 + 1)
+        sta (frame_pointer), y
+}
+
+!macro bitwise_or_stack_16bit .fromslot1, .fromslot2, .toslot {
+        ;; And LSB:
+        ldy #(.fromslot1 * 2)
+        lda (frame_pointer), y
+        ldy #(.fromslot2 * 2)
+        ora (frame_pointer), y
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+        ;; And MSB:
+        ldy #(.fromslot1 * 2 + 1)
+        lda (frame_pointer), y
+        ldy #(.fromslot2 * 2 + 1)
+        ora (frame_pointer), y
+        ldy #(.toslot * 2 + 1)
+        sta (frame_pointer), y
+}
+
+!macro bitwise_xor_stack_16bit .fromslot1, .fromslot2, .toslot {
+        ;; And LSB:
+        ldy #(.fromslot1 * 2)
+        lda (frame_pointer), y
+        ldy #(.fromslot2 * 2)
+        eor (frame_pointer), y
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+        ;; And MSB:
+        ldy #(.fromslot1 * 2 + 1)
+        lda (frame_pointer), y
+        ldy #(.fromslot2 * 2 + 1)
+        eor (frame_pointer), y
+        ldy #(.toslot * 2 + 1)
+        sta (frame_pointer), y
+}
+
 
 !macro sum_stack_8bit .fromslot1, .fromslot2, .toslot {
         ldy #(.fromslot1 * 2)
@@ -509,7 +609,7 @@ jump_to_stack_location:
         sta (frame_pointer), y
 }
 
-!macro logical_right_shift_1_stack_16bit .fromslot, .toslot {
+!macro logic_right_shift_1_stack_16bit .fromslot, .toslot {
         ldy #(.fromslot * 2 + 1)
         lda (frame_pointer), y
         lsr
@@ -567,19 +667,6 @@ left_shift_1_16bit:
         rol left_shift_1_16bit_a
         rol left_shift_1_16bit_a + 1
         rts
-
-;; ;;; Arguments in A and X.  Clobber Y [FIXME: really?].
-;; multiply_a:
-;;         !byte 0
-;; multiply_b:
-;;         !byte 0
-;; multiply_result:
-;;         !byte 0
-;; multiply_16bit:
-;; ;;;  FIXME: really implement
-;;         ;; sta multiply_a
-;;         ;; stx multiply_b
-;;         jsr
 
 ;;; Useful for debugging.  Unfortunately there's no way to pass strings
 ;;; as parameters in ACME.
@@ -695,10 +782,22 @@ swap_stacks:
         sta (frame_pointer), y
 }
 
+!macro jump_when_zero_stack_16bit .fromslot, .destination {
+        ldy #(.fromslot * 2)
+        lda (frame_pointer), y
+        bne .after
+        iny
+        lda (frame_pointer), y
+        ;; beq could only jump a short range away, and I'm generating long basic blocks.
+        bne .after
+        jmp .destination
+.after:
+}
+
 !macro jump_when_zero_stack_8bit .fromslot, .destination {
         ldy #(.fromslot * 2)
         lda (frame_pointer), y
-        ;; bne can only jump a short range away, and I'm generating long basic blocks.
+        ;; beq could only jump a short range away, and I'm generating long basic blocks.
         bne .after
         jmp .destination
 .after:
@@ -707,7 +806,7 @@ swap_stacks:
 !macro jump_unless_zero_stack_8bit .fromslot, .destination {
         ldy #(.fromslot * 2)
         lda (frame_pointer), y
-        ;; bne can only jump a short range away, and I'm generating long basic blocks.
+        ;; bne could only jump a short range away, and I'm generating long basic blocks.
         beq .after
         jmp .destination
 .after:
@@ -968,7 +1067,7 @@ test_stack:
         +less_than_or_equal_to_stack_16bit 2, 3, 4
         ;; +negate_stack_16bit 2, 4
         ;; ;; +divide_stack_16bit 2, 3, 4
-        ;; +logical_right_shift_1_stack_16bit 2, 4
+        ;; +logic_right_shift_1_stack_16bit 2, 4
         ;; +sum_stack_16bit 2, 3, 4
         +print_stack 2
         +print_stack 3

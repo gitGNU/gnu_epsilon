@@ -1,9 +1,8 @@
 /* epsilon primitives implemented in C.
 
-   Copyright (C) 2012, 2013 Luca Saiu
+   Copyright (C) 2012, 2013, 2014 Luca Saiu
    Copyright (C) 2012 Université Paris 13
    Written by Luca Saiu
-   Updated in 2013 and 2014 by Luca Saiu
 
    This file is part of GNU epsilon.
 
@@ -150,6 +149,10 @@ static void epsilon_primitive_bitwise_xor(epsilon_value *stack){*stack = epsilon
 static void epsilon_primitive_left_shift(epsilon_value *stack){*stack = epsilon_int_to_epsilon_value(epsilon_value_to_epsilon_int(stack[0]) << epsilon_value_to_epsilon_int(stack[1]));}
 static void epsilon_primitive_arithmetic_right_shift(epsilon_value *stack){*stack = epsilon_int_to_epsilon_value(epsilon_value_to_epsilon_int(stack[0]) >> epsilon_value_to_epsilon_int(stack[1]));}
 static void epsilon_primitive_logic_right_shift(epsilon_value *stack){*stack = epsilon_int_to_epsilon_value(epsilon_value_to_epsilon_unsigned(stack[0]) >> epsilon_value_to_epsilon_int(stack[1]));}
+static void epsilon_primitive_left_shift_1_bit(epsilon_value *stack){*stack = epsilon_int_to_epsilon_value(epsilon_value_to_epsilon_int(stack[0]) << 1);}
+static void epsilon_primitive_arithmetic_right_shift_1_bit(epsilon_value *stack){*stack = epsilon_int_to_epsilon_value(epsilon_value_to_epsilon_int(stack[0]) >> 1);}
+static void epsilon_primitive_logic_right_shift_1_bit(epsilon_value *stack){*stack = epsilon_int_to_epsilon_value(epsilon_value_to_epsilon_unsigned(stack[0]) >> 1);}
+
 static void epsilon_primitive_gc_disable(epsilon_value *stack){
 /* #ifndef EPSILON_RUNTIME_SMOB */
 /*   GC_disable(); */
@@ -561,6 +564,9 @@ void epsilon_c_primitives_initialize(void){
   epsilon_initialize_c_primitive("fixnum:left-shift", epsilon_primitive_left_shift, 2, 1);
   epsilon_initialize_c_primitive("fixnum:arithmetic-right-shift", epsilon_primitive_arithmetic_right_shift, 2, 1);
   epsilon_initialize_c_primitive("fixnum:logic-right-shift", epsilon_primitive_logic_right_shift, 2, 1);
+  epsilon_initialize_c_primitive("fixnum:left-shift-1-bit", epsilon_primitive_left_shift_1_bit, 1, 1);
+  epsilon_initialize_c_primitive("fixnum:arithmetic-right-shift-1-bit", epsilon_primitive_arithmetic_right_shift_1_bit, 1, 1);
+  epsilon_initialize_c_primitive("fixnum:logic-right-shift-1-bit", epsilon_primitive_logic_right_shift_1_bit, 1, 1);
 
   epsilon_initialize_c_primitive("gc:disable!", epsilon_primitive_gc_disable, 0, 0);
   epsilon_initialize_c_primitive("gc:reenable!", epsilon_primitive_gc_reenable, 0, 0);

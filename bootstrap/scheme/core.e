@@ -163,6 +163,25 @@
       (fixnum:non-primitive-*-non-negative-b-acc (fixnum:double a) (fixnum:half b) acc) ; a*2c = 2a*c
       (fixnum:non-primitive-*-non-negative-b-acc (fixnum:double a) (fixnum:half b) (fixnum:+ acc a))))) ; a*(2c+1) = (2a*c)+a
 
+;;; Non-primitive shift operators, shifting one bit at a time.
+(e1:define (fixnum:non-primitive-left-shift a b)
+  (e0:if-in b (0)
+    a
+    (fixnum:non-primitive-left-shift (fixnum:left-shift-1-bit a)
+                                     (fixnum:1- b))))
+(e1:define (fixnum:non-primitive-arithmetic-right-shift a b)
+  (e0:if-in b (0)
+    a
+    (fixnum:non-primitive-arithmetic-right-shift
+        (fixnum:arithmetic-right-shift-1-bit a)
+        (fixnum:1- b))))
+(e1:define (fixnum:non-primitive-logic-right-shift a b)
+  (e0:if-in b (0)
+    a
+    (fixnum:non-primitive-logic-right-shift
+        (fixnum:logic-right-shift-1-bit a)
+        (fixnum:1- b))))
+
 (e1:define (fixnum:** base exponent)
   (e0:if-in exponent (0)
     (e0:value 1)

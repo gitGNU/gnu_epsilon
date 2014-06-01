@@ -142,6 +142,15 @@ static void epsilon_primitive_modulo(epsilon_value *stack){
     epsilon_runtime_appropriate_fail("fixnum:%");
   *stack = epsilon_int_to_epsilon_value(epsilon_value_to_epsilon_int(stack[0]) % y_as_epsilon_int);
 }
+static void epsilon_primitive_divided_and_modulo(epsilon_value *stack){
+  epsilon_int x_as_epsilon_int = epsilon_value_to_epsilon_int(stack[0]);
+  epsilon_int y_as_epsilon_int = epsilon_value_to_epsilon_int(stack[1]);
+  EPSILON_IF_UNLIKELY(y_as_epsilon_int == 0)
+    //epsilon_value_out_of_range("fixnum:%", stack[1]);
+    epsilon_runtime_appropriate_fail("fixnum:%/");
+  stack[0] = epsilon_int_to_epsilon_value(x_as_epsilon_int / y_as_epsilon_int);
+  stack[1] = epsilon_int_to_epsilon_value(x_as_epsilon_int % y_as_epsilon_int);
+}
 static void epsilon_primitive_bitwise_not(epsilon_value *stack){*stack = epsilon_int_to_epsilon_value(~ epsilon_value_to_epsilon_int(stack[0]));}
 static void epsilon_primitive_bitwise_and(epsilon_value *stack){*stack = epsilon_int_to_epsilon_value(epsilon_value_to_epsilon_int(stack[0]) & epsilon_value_to_epsilon_int(stack[1]));}
 static void epsilon_primitive_bitwise_or(epsilon_value *stack){*stack = epsilon_int_to_epsilon_value(epsilon_value_to_epsilon_int(stack[0]) | epsilon_value_to_epsilon_int(stack[1]));}
@@ -556,6 +565,7 @@ void epsilon_c_primitives_initialize(void){
   epsilon_initialize_c_primitive("fixnum:*", epsilon_primitive_times, 2, 1);
   epsilon_initialize_c_primitive("fixnum:/", epsilon_primitive_divided, 2, 1);
   epsilon_initialize_c_primitive("fixnum:%", epsilon_primitive_modulo, 2, 1);
+  epsilon_initialize_c_primitive("fixnum:/%", epsilon_primitive_divided_and_modulo, 2, 2);
 
   epsilon_initialize_c_primitive("fixnum:bitwise-not", epsilon_primitive_bitwise_not, 1, 1);
   epsilon_initialize_c_primitive("fixnum:bitwise-and", epsilon_primitive_bitwise_and, 2, 1);

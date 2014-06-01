@@ -107,15 +107,15 @@ epsilon_end:
   ;; FIXME: this is test code
   +print_string string_slot0
   +print_stack 0
-  jsr print_return
-  +print_string string_slot1
-  +print_stack 1
-  jsr print_return
+  ;; jsr print_return
+  ;; +print_string string_slot1
+  ;; +print_stack 1
+  ;; jsr print_return
   rts
 string_slot0:
   !pet \"first:  \", 0
-string_slot1:
-  !pet \"second: \", 0
+;; string_slot1:
+;;   !pet \"second: \", 0
 
 
 ;;;;; Procedures
@@ -194,15 +194,19 @@ global_data_end:
                   (i (trivial-compiler:procedure-get-scratch-no procedure))
                   "\n")
     (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (fio:write-to f "_in:\n  !pet \"welcome to   " (sy procedure-name) "\", 0\n")
+    (fio:write-to f "_in:\n  !pet \"" (sy procedure-name) ": begin\", 0\n")
     (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (fio:write-to f "_out:\n  !pet \"goodbye from " (sy procedure-name) "\", 0\n")
+    (fio:write-to f "_calling:\n  !pet \"  c " (sy procedure-name) "\", 0\n")
+    (trivial-compiler:emit-symbol-identifier f procedure-name)
+    (fio:write-to f "_tail_calling:\n  !pet \"  t-c " (sy procedure-name) "\", 0\n")
+    (trivial-compiler:emit-symbol-identifier f procedure-name)
+    (fio:write-to f "_out:\n  !pet \"" (sy procedure-name) ": return\", 0\n")
     (trivial-compiler:emit-symbol-identifier f procedure-name)
     (fio:write-to f ":\n")
     (fio:write-to f ";;;;;;;;;;;;;;;; BEGIN\n")
-    (fio:write-to f ";;  +print_string ")
+    (fio:write-to f "  +print_string ")
     (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (fio:write-to f "_in\n;;  jsr print_return\n")
+    (fio:write-to f "_in\n")
     (fio:write-to f
                   "  +to_stack_16bit return_address, "
                   (i (compiler:c64-return-stack-index procedure))
@@ -260,13 +264,16 @@ global_data_end:
     (e1:match i
       ((trivial-compiler:instruction-return)
        (e1:let ((procedure-name (trivial-compiler:procedure-get-name procedure)))
-         (fio:write-to f ";;  +print_string ")
+         (fio:write-to f "  +print_string ")
          (trivial-compiler:emit-symbol-identifier f procedure-name)
-         (fio:write-to f "_out\n;;  jsr print_return\n"))
+         (fio:write-to f "_out\n"))
        (fio:write-to f "  +jump_to_stack_16bit "
                      (i (compiler:c64-return-stack-index procedure))
                      " ;; return\n"))
       ((trivial-compiler:instruction-tail-call name)
+       (fio:write-to f "  +print_string ")
+       (trivial-compiler:emit-symbol-identifier f name)
+       (fio:write-to f "_tail_calling\n")
        (fio:write-to f "  +stack_to_16bit "
                      (i (compiler:c64-return-stack-index procedure))
                      ", return_address ;; copy return address\n")
@@ -278,6 +285,9 @@ global_data_end:
       ((trivial-compiler:instruction-nontail-call name scratch-index)
        (e1:let ((return-label (trivial-compiler:fresh-label "return")))
          (fio:write-to f "  ;; nontail-call [tentative]: BEGIN\n")
+         (fio:write-to f "  +print_string ")
+         (trivial-compiler:emit-symbol-identifier f name)
+         (fio:write-to f "_calling\n")
          (fio:write-to f "  +literal_to_16bit "
                        (st return-label)
                        ", return_address ;; pass return address\n")
@@ -483,6 +493,9 @@ global_data_end:
                                                   ,assembly-file-name)))
 
 
-;; FIXME: this computes the wrong result (non-primitive * and shifts work fine in epsilon
-;; using C primitives)
-;;(can "/tmp/q.a" (fixnum:* 1 2))
+;; FIXME: compiled code apparently loops, in a complex way:
+;; (can "/tmp/q.a" (fact 7))
+;;
+;; Notice that (can "/tmp/q.a" (fixnum:* 1 2 3 4 5 6 7)) works fine;
+;; and so does (can "/tmp/q.a" (fixnum:* 7 6 5 4 3 2 1)).
+

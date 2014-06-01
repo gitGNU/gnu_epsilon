@@ -107,6 +107,13 @@
 (e1:define configuration:c_char_unsigned #@c_char_unsigned@)
 
 
+;;;;; CPU features
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define configuration:bits-per-word
+  (fixnum:* configuration:sizeof_void_p 8))
+
+
 ;;;;; Compilation and linking
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

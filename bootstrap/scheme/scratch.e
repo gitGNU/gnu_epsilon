@@ -22,6 +22,21 @@
 ;;;;; Scratch
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(e1:define (fixnum:* a b) (fixnum:non-primitive-* a b))
+(e1:define (fixnum:left-shift a b) (fixnum:non-primitive-left-shift a b))
+(e1:define (fixnum:arithmetic-right-shift a b) (fixnum:non-primitive-arithmetic-right-shift a b))
+(e1:define (fixnum:logic-right-shift a b) (fixnum:non-primitive-logic-right-shift a b))
+
+(e1:define (fact n)
+  (e1:if-in n (0)
+    1
+    (fixnum:* n (fact (fixnum:1- n)))))
+
+(e1:define (gauss n)
+  (e0:if-in n (0)
+    0
+    (e0:primitive fixnum:+ n (gauss (e0:primitive fixnum:1- n)))))
+
 (e1:define (fibo n)
   (e1:if (fixnum:< n 2)
     n
@@ -83,14 +98,13 @@
 
 ;;; This is called from the machine-language driver, which is called from
 ;;; the BASIC driver.
-epsilon_main_entry_point:")
-    ;; (fio:write-to f "  jmp ")
-    ;; (trivial-compiler:emit-symbol-identifier f main)
-    (fio:write-to f "  jsr ")
+epsilon_main_entry_point:
+  +literal_to_16bit epsilon_end, return_address
+  jmp ")
     (trivial-compiler:emit-symbol-identifier f main)
-    (fio:write-to f "
+(fio:write-to f " ;; call main procedure
+epsilon_end:
   ;; FIXME: this is test code
-print_string
   +print_string string_slot0
   +print_stack 0
   jsr print_return
@@ -102,7 +116,6 @@ string_slot0:
   !pet \"first:  \", 0
 string_slot1:
   !pet \"second: \", 0
-
 
 
 ;;;;; Procedures
@@ -120,15 +133,6 @@ string_slot1:
             (pointers (data-graph:graph-get-pointers data-graph))
             (symbol-hash (data-graph:graph-get-symbol-hash data-graph)))
     (fio:write-to f "
-
-;;;;; Special global definitions.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;; Conventional values for constants not fitting in 16 bits.
-;;; If we start really using them we're probably in trouble.
-out_of_bounds_low = -32768
-out_of_bounds_high = 32767
-
 
 ;;;;; Global data.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -190,13 +194,22 @@ global_data_end:
                   (i (trivial-compiler:procedure-get-scratch-no procedure))
                   "\n")
     (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (fio:write-to f ":\n")
+    (fio:write-to f "_in:\n  !pet \"welcome to   " (sy procedure-name) "\", 0\n")
     (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (fio:write-to f "_TAIL:\n")
+    (fio:write-to f "_out:\n  !pet \"goodbye from " (sy procedure-name) "\", 0\n")
+    (trivial-compiler:emit-symbol-identifier f procedure-name)
+    (fio:write-to f ":\n")
     (fio:write-to f ";;;;;;;;;;;;;;;; BEGIN\n")
+    (fio:write-to f ";;  +print_string ")
+    (trivial-compiler:emit-symbol-identifier f procedure-name)
+    (fio:write-to f "_in\n;;  jsr print_return\n")
+    (fio:write-to f
+                  "  +to_stack_16bit return_address, "
+                  (i (compiler:c64-return-stack-index procedure))
+                  " ;; save return address on the stack\n")
     (compiler:c64-compile-instructions f procedure (trivial-compiler:procedure-get-instructions procedure))
     (fio:write-to f ";;;;;;;;;;;;;;;; END
-  rts ; FIXME: is this needed?\n\n")))
+  ;;rts ; FIXME: is this needed?\n\n")))
 
 (e1:define (compiler:c64-io->stack-index procedure io)
   io)
@@ -246,17 +259,39 @@ global_data_end:
   (e1:dolist (i (list:reverse ii))
     (e1:match i
       ((trivial-compiler:instruction-return)
-       (fio:write-to f "  ;; return: FIXME: unimplemented\n"))
+       (e1:let ((procedure-name (trivial-compiler:procedure-get-name procedure)))
+         (fio:write-to f ";;  +print_string ")
+         (trivial-compiler:emit-symbol-identifier f procedure-name)
+         (fio:write-to f "_out\n;;  jsr print_return\n"))
+       (fio:write-to f "  +jump_to_stack_16bit "
+                     (i (compiler:c64-return-stack-index procedure))
+                     " ;; return\n"))
       ((trivial-compiler:instruction-tail-call name)
-       (fio:write-to f "  ;; tail-call: FIXME: BEGIN (tentative)\n")
+       (fio:write-to f "  +stack_to_16bit "
+                     (i (compiler:c64-return-stack-index procedure))
+                     ", return_address ;; copy return address\n")
        (fio:write-to f "  jmp ")
        (trivial-compiler:emit-symbol-identifier f name)
-       (fio:write-to f " ;; " (sy name) "\n")
-       (fio:write-to f "  ;; tail-call: FIXME: END (tentative)\n"))
+       (fio:write-to f " ;; tail-call " (sy name) "\n"))
       ((trivial-compiler:instruction-tail-call-indirect local-index)
        (fio:write-to f "  ;; tail-call-indirect: FIXME: unimplemented\n"))
       ((trivial-compiler:instruction-nontail-call name scratch-index)
-       (fio:write-to f "  ;; nontail-call: FIXME: unimplemented\n"))
+       (e1:let ((return-label (trivial-compiler:fresh-label "return")))
+         (fio:write-to f "  ;; nontail-call [tentative]: BEGIN\n")
+         (fio:write-to f "  +literal_to_16bit "
+                       (st return-label)
+                       ", return_address ;; pass return address\n")
+         (fio:write-to f "  +adjust_frame_pointer_16bit "
+                       (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                       " ;; advance frame pointer\n")
+         (fio:write-to f "  jmp ")
+         (trivial-compiler:emit-symbol-identifier f name)
+         (fio:write-to f " ;; non-tail call " (sy name) "\n")
+         (fio:write-to f (st return-label) ":\n")
+         (fio:write-to f "  +adjust_frame_pointer_16bit -"
+                       (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                       " ;; reset frame pointer\n")
+         (fio:write-to f "  ;; nontail-call [tentative]: END\n")))
       ((trivial-compiler:instruction-nontail-call-indirect local-index scratch-index)
        (fio:write-to f "  ;; nontail-call-indirect: FIXME: unimplemented\n"))
       ((trivial-compiler:instruction-get-io io-index scratch-index)
@@ -308,21 +343,27 @@ global_data_end:
                 (after-label (trivial-compiler:fresh-label "after_if")))
          (fio:write-to f "  ;; if-in: FIXME: begin\n")
          (e1:dolist (v values)
-           (fio:write-to f "  +literal_to_stack_16bit ")
-           (compiler:c64-emit-value f procedure v)
-           (fio:write-to f ", "
-                         (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
-                         " ;; candidate discriminator\n")
-           (fio:write-to f "  +equal_stack_16bit "
-                         (i (compiler:c64-scratch->stack-index procedure scratch-index))
-                         ", "
-                         (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
-                         ", "
-                         (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
-                         " ;; compare\n")
-           (fio:write-to f "  +jump_unless_zero_stack_8bit "
-                         (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
-                         ", " (st then-label) "\n"))
+           (e1:if (fixnum:zero? v)
+             ;; We can be slightly more efficient in this (common) case.
+             (fio:write-to f "  +jump_when_zero_stack_16bit "
+                           (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                           ", " (st then-label) "\n")
+             (e1:begin ;; nonzero v
+               (fio:write-to f "  +literal_to_stack_16bit ")
+               (compiler:c64-emit-value f procedure v)
+               (fio:write-to f ", "
+                             (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                             " ;; candidate discriminator [FIXME: use a designed scratch slot or, better, write a jump_when_equal_stack_immediate_16bit macro]\n")
+               (fio:write-to f "  +equal_stack_16bit "
+                             (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                             ", "
+                             (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                             ", "
+                             (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                             " ;; compare\n")
+               (fio:write-to f "  +jump_unless_zero_stack_8bit "
+                             (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                             ", " (st then-label) "\n"))))
          (fio:write-to f ";; else branch\n")
          (compiler:c64-compile-instructions f procedure else-instructions)
          (fio:write-to f "  jmp " (st after-label) "\n")
@@ -362,19 +403,31 @@ global_data_end:
      (compiler:c64-emit-binary-primitive f "sum_stack_16bit" p scratch-index))
     ((fixnum:-)
      (compiler:c64-emit-binary-primitive f "subtract_stack_16bit" p scratch-index))
+    ((fixnum:bitwise-and)
+     (compiler:c64-emit-binary-primitive f "bitwise_and_stack_16bit" p scratch-index))
+    ((fixnum:bitwise-or)
+     (compiler:c64-emit-binary-primitive f "bitwise_or_stack_16bit" p scratch-index))
+    ((fixnum:bitwise-xor)
+     (compiler:c64-emit-binary-primitive f "bitwise_xor_stack_16bit" p scratch-index))
 
     ((fixnum:1+)
      (fio:write-to f
                    "  +literal_to_stack_16bit 1, "
                    (i (compiler:c64-scratch->stack-index p (fixnum:1+ scratch-index)))
-                   "\n")
+                   ";; [FIXME: use a designed scratch slot]\n")
      (compiler:c64-emit-binary-primitive f "sum_stack_16bit" p scratch-index))
     ((fixnum:1-)
      (fio:write-to f
                    "  +literal_to_stack_16bit 1, "
                    (i (compiler:c64-scratch->stack-index p (fixnum:1+ scratch-index)))
-                   "\n")
+                   ";; [FIXME: use a designed scratch slot]\n")
      (compiler:c64-emit-binary-primitive f "subtract_stack_16bit" p scratch-index))
+    ((fixnum:left-shift-1-bit)
+     (compiler:c64-emit-unary-primitive f "left_shift_1_stack_16bit" p scratch-index))
+    ((fixnum:arithmetic-right-shift-1-bit)
+     (compiler:c64-emit-unary-primitive f "arithmetic_right_shift_1_stack_16bit" p scratch-index))
+    ((fixnum:logic-right-shift-1-bit)
+     (compiler:c64-emit-unary-primitive f "logic_right_shift_1_stack_16bit" p scratch-index))
 
     ((whatever:eq?)
      (compiler:c64-emit-binary-primitive f "equal_stack_16bit" p scratch-index))
@@ -385,6 +438,8 @@ global_data_end:
 
     ((fixnum:negate)
      (compiler:c64-emit-unary-primitive f "negate_stack_16bit" p scratch-index))
+    ((fixnum:bitwise-not)
+     (compiler:c64-emit-unary-primitive f "bitwise_not_stack_16bit" p scratch-index))
 
     ((buffer:get)
      (compiler:c64-emit-binary-primitive f "buffer_get_stack_16bit" p scratch-index))
@@ -426,3 +481,8 @@ global_data_end:
      (compiler:compile-procedure-to-assembly-with compiler:c64
                                                   (e1:value main)
                                                   ,assembly-file-name)))
+
+
+;; FIXME: this computes the wrong result (non-primitive * and shifts work fine in epsilon
+;; using C primitives)
+;;(can "/tmp/q.a" (fixnum:* 1 2))

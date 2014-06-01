@@ -116,6 +116,12 @@
   (e0:primitive fixnum:arithmetic-right-shift a b))
 (e1:define (fixnum:logic-right-shift a b)
   (e0:primitive fixnum:logic-right-shift a b))
+(e1:define (fixnum:left-shift-1-bit a)
+  (e0:primitive fixnum:left-shift-1-bit a))
+(e1:define (fixnum:arithmetic-right-shift-1-bit a)
+  (e0:primitive fixnum:arithmetic-right-shift-1-bit a))
+(e1:define (fixnum:logic-right-shift-1-bit a)
+  (e0:primitive fixnum:logic-right-shift-1-bit a))
 
 (e1:define (fixnum:min a b)
   (e0:if-in (fixnum:< a b) (#f)
@@ -1812,6 +1818,9 @@
 (state:primitive-set! (e0:value fixnum:left-shift)  (e0:value 2) (e0:value 1) (e0:value #f) (e0:value #f))
 (state:primitive-set! (e0:value fixnum:arithmetic-right-shift) (e0:value 2) (e0:value 1) (e0:value #f) (e0:value #f))
 (state:primitive-set! (e0:value fixnum:logic-right-shift) (e0:value 2) (e0:value 1) (e0:value #f) (e0:value #f))
+(state:primitive-set! (e0:value fixnum:left-shift-1-bit)  (e0:value 1) (e0:value 1) (e0:value #f) (e0:value #f))
+(state:primitive-set! (e0:value fixnum:arithmetic-right-shift-1-bit) (e0:value 1) (e0:value 1) (e0:value #f) (e0:value #f))
+(state:primitive-set! (e0:value fixnum:logic-right-shift-1-bit) (e0:value 1) (e0:value 1) (e0:value #f) (e0:value #f))
 
 (state:primitive-set! (e0:value whatever:duplicate) (e0:value 1) (e0:value 2) (e0:value #f) (e0:value #f))
 (state:primitive-set! (e0:value whatever:swap)      (e0:value 2) (e0:value 2) (e0:value #f) (e0:value #f))

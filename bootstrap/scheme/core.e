@@ -135,9 +135,9 @@
 (e1:define (fixnum:square a)
   (fixnum:* a a))
 (e1:define (fixnum:half a) ;; with positive arguments, return the floor
-  (fixnum:arithmetic-right-shift a (e0:value 1)))
+  (fixnum:arithmetic-right-shift-1-bit a))
 (e1:define (fixnum:double a)
-  (fixnum:left-shift a (e0:value 1)))
+  (fixnum:left-shift-1-bit a))
 
 (e1:define (fixnum:odd? a)
   (fixnum:bitwise-and a (e0:value 1)))

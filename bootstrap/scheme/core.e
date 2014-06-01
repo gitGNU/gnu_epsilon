@@ -648,6 +648,16 @@
 (e1:define vector:empty (vector:make (e0:value 0)))
 
 
+;;;;; Low-level I/O
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (io:load-byte address)
+  (e0:primitive io:load-byte address))
+
+(e1:define (io:store-byte! address new-value)
+  (e0:primitive io:store-byte! address new-value))
+
+
 ;;;;; Characters and Strings
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -1846,6 +1856,9 @@
 
 (state:primitive-set! (e0:value whatever:duplicate) (e0:value 1) (e0:value 2) (e0:value #f) (e0:value #f))
 (state:primitive-set! (e0:value whatever:swap)      (e0:value 2) (e0:value 2) (e0:value #f) (e0:value #f))
+
+(state:primitive-set! (e0:value io:load-byte)       (e0:value 1) (e0:value 1) (e0:value #t) (e0:value #f))
+(state:primitive-set! (e0:value io:store-byte!)     (e0:value 2) (e0:value 0) (e0:value #t) (e0:value #f))
 
 (state:primitive-set! (e0:value io:standard-input)  (e0:value 0) (e0:value 1) (e0:value #f) (e0:value #f))
 (state:primitive-set! (e0:value io:standard-output) (e0:value 0) (e0:value 1) (e0:value #f) (e0:value #f))

@@ -371,6 +371,12 @@ static void epsilon_primitive_io_read_32bit_bigendian(epsilon_value *stack){
   FILE *file_star = epsilon_value_to_foreign_pointer(stack[0]);
   stack[0] = epsilon_int_to_epsilon_value(read_32bit_bigendian(file_star));
 }
+static void epsilon_primitive_io_load_byte(epsilon_value *stack){
+  epsilon_runtime_appropriate_fail("io:load-byte [unimplemented]");
+}
+static void epsilon_primitive_io_store_byte(epsilon_value *stack){
+  epsilon_runtime_appropriate_fail("io:store-byte! [unimplemented]");
+}
 static void epsilon_primitive_io_standard_input(epsilon_value *stack){
   stack[0] = epsilon_foreign_pointer_to_epsilon_value(stdin);
 }
@@ -585,6 +591,9 @@ void epsilon_c_primitives_initialize(void){
   epsilon_initialize_c_primitive("whatever:buffer?", epsilon_primitive_buffer_p, 1, 1);
   epsilon_initialize_c_primitive("whatever:thread?", epsilon_primitive_thread_p, 1, 1);
   epsilon_initialize_c_primitive("buffer:length", epsilon_primitive_buffer_length, 1, 1);
+
+  epsilon_initialize_c_primitive("io:load-byte", epsilon_primitive_io_load_byte, 1, 1);
+  epsilon_initialize_c_primitive("io:store-byte!", epsilon_primitive_io_store_byte, 2, 0);
 
   epsilon_initialize_c_primitive("io:standard-input", epsilon_primitive_io_standard_input, 0, 1);
   epsilon_initialize_c_primitive("io:standard-output", epsilon_primitive_io_standard_output, 0, 1);

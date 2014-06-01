@@ -111,15 +111,12 @@ zeropage_arg2 = $fb
 zeropage_arg3 = $fd
 
 ML_START:
+        jsr disable_BASIC
+        ;; jsr toggle_shifted_character_set
+        jsr enable_shifted_character_set
         jsr initialize_runtime
         ;; jsr test_stack
         jsr epsilon_main_entry_point
-        jsr reenable_BASIC
-        rts
-
-tail_call_set_border:
-        lda #0
-        jsr set_border
         jsr reenable_BASIC
         rts
 
@@ -164,9 +161,9 @@ reenable_BASIC:
         rts
 
 
-;;;;; Border and background color support
+;;;;; Character-set, border and background color support
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-!zone border_and_background_color_support
+!zone character_set_border_and_background_color_support
 
 border = 53280
 background = 53281
@@ -186,6 +183,24 @@ restore_border:
 ;;; Parameter in A.
 set_border:
         sta border
+        rts
+
+toggle_shifted_character_set:
+        lda 53272
+        eor #3
+        sta 53272
+        rts
+
+enable_shifted_character_set:
+        lda 53272
+        ora #3
+        sta 53272
+        rts
+
+disable_shifted_character_set:
+        lda 53272
+        and #!3
+        sta 53272
         rts
 
 
@@ -703,7 +718,7 @@ left_shift_1_16bit:
 swap_stacks_strings:
 !pet "swapping stacks (fixme: big error)", 0
 swap_stacks:
-        +print_string swap_stacks_strings
+        ;; +print_string swap_stacks_strings
         +swap_memory_16bit frame_pointer, other_stack_pointer
         rts
 !macro swap_stacks {

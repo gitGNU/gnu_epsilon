@@ -921,6 +921,7 @@ swap_stacks:
 .after:
 }
 
+;;; FIXME: write an immediate sum macro instead of this.  Get rid of stack swapping.
 !macro increment_stack_16bit .fromslot, .toslot {
         +stack_to_other_stack_16bit .fromslot, 0
         +swap_stacks
@@ -962,59 +963,50 @@ swap_stacks:
         sta (frame_pointer), y
 }
 
-;;; Parameter in A, X.  Clobber X, Y.
+;;; Parameters in zeropage_arg1 and zeropage_arg2.  Result LSB in A.
+;;; Result MSB is always zero, and not represented.  Doesn't clobber
+;;; anything.
+less_than_16bit:
+        ;; Compare signs.
+        lda zeropage_arg1 + 1
+        bmi negative_unknown
+        lda zeropage_arg2 + 1
+        bmi nonnegative_negative
+;; same sign: in two's complement I can just compare unsigned representations.
+same_sign:
+        ;; When I arrive here, from either path, I have the second MSB in A.
+        cmp zeropage_arg1 + 1 ; set C if second MSB >= first MSB, Z if equal
+        beq first_bytes_equal
+        bcc nonnegative_negative ; second MSB < first MSB: return #0
+        ;; If we arrived here then second MSB > first MSB: return #1
+        jmp negative_nonnegative
+first_bytes_equal:
+        lda zeropage_arg1
+        cmp zeropage_arg2 ; set C if first LSB >= second LSB
+        bcc negative_nonnegative ; first LSB < second LSB: return #1
+        lda #0 ; trade space for speed: don't jump to nonnegative_negative
+        rts
+negative_unknown:
+        lda zeropage_arg2 + 1
+        bmi same_sign ; negative_negative
+negative_nonnegative:
+        lda #1
+        rts
+nonnegative_negative:
+        lda #0
+        rts
 
 !macro less_than_stack_16bit .fromslot1, .fromslot2, .toslot {
-        +stack_to_other_stack_16bit .fromslot1, 2
-        +stack_to_other_stack_16bit .fromslot2, 3
-        +swap_stacks
-        +negative_stack_16bit 2, 4
-        +negative_stack_16bit 3, 5
-        +jump_unless_zero_stack_8bit 4, .first_negative
-        +jump_when_zero_stack_8bit 5, .both_positive
-        ;; Only the second parameter is negative.
-.return_false:
-        lda #0
-        jmp .return_a
-.both_positive:
-        ldy #(2 * 2)
-        lda (frame_pointer), y
-        ldy #(3 * 2)
-        sec
-        sbc (frame_pointer), y
-        bmi .return_true ;; The first MSB is smaller
-        beq .msbs_equal
-        bmi .return_false ;; The first MSB is larger
-.msbs_equal:
-        ;; Compare LSBs
-        ldy #(2 * 2 + 1)
-        lda (frame_pointer), y
-        ldy #(3 * 2 + 1)
-        sec
-        sbc (frame_pointer), y
-        bmi .return_true
-        jmp .return_false ;; First LSB larger or equal.
-.first_negative:
-        +jump_unless_zero_stack_8bit 5, .both_negative
-        ;; Only the first parameter is negative.
-.return_true:
-        lda #1
-        jmp .return_a
-.both_negative:
-        ;; (- a) < (- b)  iff  a > b: negate and swap
-        +negate_stack_16bit 2, 4
-        +negate_stack_16bit 3, 2
-        +stack_to_stack_16bit 4, 3
-        jmp .both_positive
-.return_a:
-        pha
-        +swap_stacks
-        ldy #(.toslot * 2)
-        pla
-        sta (frame_pointer), y
-        ;; MSB is always #0.
-        lda #0
+        ;; Call the procedure doing the actual work.
+        +stack_to_16bit .fromslot1, zeropage_arg1
+        +stack_to_16bit .fromslot2, zeropage_arg2
+        jsr less_than_16bit
+        ;; Store the LSB.
+        +a_to_stack_8bit .toslot
+        ;; Store the MSB.  I assume that a_to_stack_8bit leaves Y to
+	;; #(.toslot * 2).
         iny
+        lda #0
         sta (frame_pointer), y
 }
 

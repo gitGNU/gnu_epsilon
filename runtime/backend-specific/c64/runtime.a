@@ -106,7 +106,6 @@ omitted = 0
 
 ;;; FIXME: if this is inadequate find another good place in zeropage.
 frame_pointer = $c1
-other_stack_pointer = $c3
 
 ;;; Zeropage two-byte areas, useful to pass values around, including pointers.
 zeropage_arg1 = $02
@@ -231,9 +230,6 @@ stack:
 ;; !fill 256, $ff
 ;; !byte 0, 10, 20, 30, 40, 50, 60, 70, 80, 90 ;; FIXME: this is a temporary test!
 !fill 256, $00
-
-other_stack:
-!fill 8, $00
 
 ;;; Heap (no deallocation support yet)
 heap_size = 2048
@@ -809,30 +805,6 @@ left_shift_1_16bit:
         +swap_memory_8bit .address1 + 1, .address2 + 1
 }
 
-swap_stacks_strings:
-!pet "swapping stacks (fixme: big error)", 0
-swap_stacks:
-        ;; +print_string swap_stacks_strings
-        +swap_memory_16bit frame_pointer, other_stack_pointer
-        rts
-!macro swap_stacks {
-        jsr swap_stacks
-}
-
-!macro stack_to_other_stack_16bit .fromslot, .toslot {
-        ldy #(.fromslot * 2)
-        lda (frame_pointer), y
-        ldy #(.toslot * 2)
-        sta (other_stack_pointer), y
-        ldy #(.fromslot * 2 + 1)
-        lda (frame_pointer), y
-        ldy #(.toslot * 2 + 1)
-        sta (other_stack_pointer), y
-}
-
-;;; other_stack_to_stack_16bit is not needed, since we can just use
-;;; stack_to_other_stack_16bit after swapping.
-
 !macro equal_stack_16bit .fromslot1, .fromslot2, .toslot {
         ;; Compare LSBs.
         ldy #(.fromslot1 * 2)
@@ -921,14 +893,28 @@ swap_stacks:
 .after:
 }
 
-;;; FIXME: write an immediate sum macro instead of this.  Get rid of stack swapping.
 !macro increment_stack_16bit .fromslot, .toslot {
-        +stack_to_other_stack_16bit .fromslot, 0
-        +swap_stacks
-        +literal_to_stack_16bit 1, 1
-        +sum_stack_16bit 0, 1, 1
-        +stack_to_other_stack_16bit 1, .toslot
-        +swap_stacks
+        +sum_stack_immediate_16bit .fromslot, 1, .toslot
+}
+
+!macro decrement_stack_16bit .fromslot, .toslot {
+        +sum_stack_immediate_16bit .fromslot, -1, .toslot
+}
+
+!macro sum_stack_immediate_16bit .fromslot, .immediate, .toslot {
+        clc
+        ;; Sum LSBs.
+        ldy #(.fromslot * 2)
+        lda (frame_pointer), y
+        adc #<(.immediate)
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+        ;; Sum MSBs, with carry.
+        ldy #(.fromslot * 2 + 1)
+        lda (frame_pointer), y
+        adc #>(.immediate)
+        ldy #(.toslot * 2 + 1)
+        sta (frame_pointer), y
 }
 
 !macro negate_stack_16bit .fromslot, .toslot {
@@ -1141,11 +1127,6 @@ initialize_runtime:
         sta frame_pointer
         lda #>stack
         sta frame_pointer + 1
-        ;; Store the initial other-stack pointer in our zeropage pointer.
-        lda #<other_stack
-        sta other_stack_pointer
-        lda #>other_stack
-        sta other_stack_pointer + 1
         rts
 
 

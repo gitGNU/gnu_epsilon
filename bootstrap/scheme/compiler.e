@@ -1993,17 +1993,9 @@ global_data_end:
                    ";; [FIXME: use a designed scratch slot]\n")
      (compiler:c64-emit-binary-primitive f "equal_stack_16bit" p scratch-index))
     ((fixnum:1+)
-     (fio:write-to f
-                   "  +literal_to_stack_16bit 1, "
-                   (i (compiler:c64-scratch->stack-index p (fixnum:1+ scratch-index)))
-                   ";; [FIXME: use a designed scratch slot]\n")
-     (compiler:c64-emit-binary-primitive f "sum_stack_16bit" p scratch-index))
+     (compiler:c64-emit-unary-primitive f "increment_stack_16bit" p scratch-index))
     ((fixnum:1-)
-     (fio:write-to f
-                   "  +literal_to_stack_16bit 1, "
-                   (i (compiler:c64-scratch->stack-index p (fixnum:1+ scratch-index)))
-                   ";; [FIXME: use a designed scratch slot]\n")
-     (compiler:c64-emit-binary-primitive f "subtract_stack_16bit" p scratch-index))
+     (compiler:c64-emit-unary-primitive f "decrement_stack_16bit" p scratch-index))
     ((fixnum:left-shift-1-bit)
      (compiler:c64-emit-unary-primitive f "left_shift_1_stack_16bit" p scratch-index))
     ((fixnum:arithmetic-right-shift-1-bit)

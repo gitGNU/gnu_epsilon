@@ -952,6 +952,27 @@ left_shift_1_16bit:
 ;;; Parameters in zeropage_arg1 and zeropage_arg2.  Result LSB in A.
 ;;; Result MSB is always zero, and not represented.  Doesn't clobber
 ;;; anything.
+less_than_or_equal_to_16bit:
+        ;; Compare MSBs first, signs and all.
+        lda zeropage_arg1 + 1
+        cmp zeropage_arg2 + 1
+        beq compare_lsbs
+        jmp less_than_16bit ;; The two parameters are not equal.
+compare_lsbs:
+        ;; MSBs are equal: in this easier case we can avoid sign
+	;; comparisons, and do away with less_than_16bit.
+        lda zeropage_arg2
+        cmp zeropage_arg1
+        bcs less_than_or_equal_to_16bit_return_true
+        lda #0
+        rts
+less_than_or_equal_to_16bit_return_true:
+        lda #1
+        rts
+
+;;; Parameters in zeropage_arg1 and zeropage_arg2.  Result LSB in A.
+;;; Result MSB is always zero, and not represented.  Doesn't clobber
+;;; anything.
 less_than_16bit:
         ;; Compare signs.
         lda zeropage_arg1 + 1
@@ -989,8 +1010,8 @@ nonnegative_negative:
         jsr less_than_16bit
         ;; Store the LSB.
         +a_to_stack_8bit .toslot
-        ;; Store the MSB.  I assume that a_to_stack_8bit leaves Y to
-	;; #(.toslot * 2).
+        ;; Store the MSB.  I rely on a_to_stack_8bit leaving Y to
+        ;; #(.toslot * 2).
         iny
         lda #0
         sta (frame_pointer), y
@@ -1001,12 +1022,17 @@ nonnegative_negative:
 }
 
 !macro less_than_or_equal_to_stack_16bit .fromslot1, .fromslot2, .toslot {
-        +equal_stack_16bit .fromslot1, .fromslot2, .toslot
-        +jump_when_zero_stack_8bit .toslot, .less_than
-        jmp .after ;; The result is already correct
-.less_than:
-        +less_than_stack_16bit .fromslot2, .fromslot1, .toslot
-.after:
+        ;; Call the procedure doing the actual work.
+        +stack_to_16bit .fromslot1, zeropage_arg1
+        +stack_to_16bit .fromslot2, zeropage_arg2
+        jsr less_than_or_equal_to_16bit
+        ;; Store the LSB.
+        +a_to_stack_8bit .toslot
+        ;; Store the MSB.  I rely on a_to_stack_8bit leaving Y to
+	;; #(.toslot * 2).
+        iny
+        lda #0
+        sta (frame_pointer), y
 }
 
 !macro greater_than_or_equal_to_stack_16bit .fromslot1, .fromslot2, .toslot {

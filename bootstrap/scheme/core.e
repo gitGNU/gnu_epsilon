@@ -153,7 +153,8 @@
       (e0:value 1)
       (e0:value -1))))
 
-;;; Useful for backends with no hardware multiplication. [FIXME: use it]
+;;; This implementation is useful for machines with no hardware
+;;; multiplication.
 (e1:define (fixnum:non-primitive-* a b)
   (e0:if-in (fixnum:< b (e0:value 0)) (#f)
     (fixnum:non-primitive-*-non-negative-b-acc a b (e0:value 0))
@@ -164,6 +165,67 @@
     (e0:if-in (fixnum:odd? b) (#f)
       (fixnum:non-primitive-*-non-negative-b-acc (fixnum:double a) (fixnum:half b) acc) ; a*2c = 2a*c
       (fixnum:non-primitive-*-non-negative-b-acc (fixnum:double a) (fixnum:half b) (fixnum:+ acc a))))) ; a*(2c+1) = (2a*c)+a
+
+;;; Long division.  This implementation is useful for machines with no
+;;; hardware division, and in particular for small machines: it only
+;;; requires subtraction, bitwise and and or, comparisons and 1-bit
+;;; shifts.  Like in C99 and later the remainder sign is truncated
+;;; towards zero -- which means that the remainder has the same sign
+;;; as the dividend n, and the same absolute value as the remainder of
+;;; the division of the two absolute values.  Undefined behavior if d
+;;; is zero.
+(e1:define (fixnum:non-primitive-/% n d)
+  (e0:if-in (fixnum:>= n (e0:value 0)) (#f)
+    ;; n < 0
+    (e0:if-in (fixnum:>= d (e0:value 0)) (#f)
+      ;; n < 0, d < 0
+      (e0:let (qm rm)
+          (fixnum:non-primitive-/%-unsigned (fixnum:negate n) (fixnum:negate d))
+        (e0:bundle qm (fixnum:negate rm)))
+      ;; n < 0, d >= 0
+      (e0:let (qm rm)
+          (fixnum:non-primitive-/%-unsigned (fixnum:negate n) d)
+        (e0:bundle (fixnum:negate qm) (fixnum:negate rm))))
+    ;; n >= 0
+    (e0:if-in (fixnum:>= d (e0:value 0)) (#f)
+      ;; n >= 0, d < 0
+      (e0:let (qm rm)
+          (fixnum:non-primitive-/%-unsigned n (fixnum:negate d))
+        (e0:bundle (fixnum:negate qm) rm))
+      ;; n >= 0, d >= 0
+      (fixnum:non-primitive-/%-unsigned n d))))
+(e1:define (fixnum:non-primitive-/ n d)
+  (e0:let (q r) (fixnum:non-primitive-/% n d)
+    q))
+(e1:define (fixnum:non-primitive-% n d)
+  (e0:let (q r) (fixnum:non-primitive-/% n d)
+    r))
+(e1:define (fixnum:non-primitive-/%-unsigned n d)
+  ;; (e1:let* (;;(initial-i (fixnum:- configuration:bits-per-word 2)) ;; FIXME: take taggedness into account.
+  ;;           (initial-mask ;;(fixnum:left-shift 1 initial-i)))
+  ;;            (fixnum:long-division-initial-mask 1)))
+  (e0:let (initial-mask) (fixnum:long-division-initial-mask (e0:value 1))
+    (fixnum:non-primitive-/%-unsigned-helper n d initial-mask (e0:value 0) (e0:value 0))))
+(e1:define (fixnum:non-primitive-/%-unsigned-helper n d mask q r)
+  (e0:if-in (fixnum:zero? mask) (#f)
+    (e0:let (r) (e0:if-in (fixnum:bitwise-and n mask) (#f)
+                  (fixnum:left-shift-1-bit r)
+                  (fixnum:bitwise-or (fixnum:left-shift-1-bit r) (e0:value 1)))
+      (e0:let (next-mask) (fixnum:logic-right-shift-1-bit mask)
+        (e0:if-in (fixnum:< r d) (#f)
+          (fixnum:non-primitive-/%-unsigned-helper n d next-mask (fixnum:bitwise-or q mask) (fixnum:- r d))
+          (fixnum:non-primitive-/%-unsigned-helper n d next-mask q r))))
+    (e1:bundle q r)))
+;;; FIXME: this is inefficient but more easily portable, as it doesn't
+;;; depend on the word size being known at compile time.  FIXME:
+;;; remove this and replace its call when I develop a reasonable way
+;;; to overlay some globals at cross-compile time.
+(e1:define (fixnum:long-division-initial-mask mask)
+  (e0:let (next-candidate) (fixnum:left-shift-1-bit mask)
+    (e0:if-in next-candidate (0)
+      mask
+      (fixnum:long-division-initial-mask next-candidate))))
+
 
 ;;; Non-primitive shift operators, shifting one bit at a time.
 (e1:define (fixnum:non-primitive-left-shift a b)

@@ -773,6 +773,14 @@ left_shift_1_16bit:
         rol left_shift_1_16bit_a + 1
         rts
 
+debug_fail_string:
+  !pet "Failure", 0
+!macro debug_fail {
+        +print_string debug_fail_string
+.label:
+        jmp .label
+}
+
 ;;; Useful for debugging.  Unfortunately there's no way to pass strings
 ;;; as parameters in ACME.
 ;;; FIXME: make it into a procedure.

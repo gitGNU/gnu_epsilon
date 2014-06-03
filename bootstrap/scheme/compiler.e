@@ -1500,105 +1500,6 @@ epsilon_main_entry_point:
   `(compiler:compile-to-assembly ,@stuff))
 
 
-;;;;; What follows is tentative code: Commodore 64 compiler
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;; Long division.  This implementation is useful for very small
-;;; machines as it only requires sum, subtraction, bitwise and and or,
-;;; comparison and 1-bit shifts.  Like in C99 and later the remainder
-;;; sign is truncated towards zero -- which means that the remainder
-;;; has the same sign as the dividend n, and the same absolute value
-;;; as the remainder of the division of the two absolute values.
-;;; Undefined behavior if d is zero.
-(e1:define (fixnum:non-primitive-/% n d)
-  (e1:if (fixnum:< n (e0:value 0))
-    (e1:if (fixnum:< d (e0:value 0))
-      ;; n < 0, d < 0
-      (e0:let (qm rm)
-          (fixnum:non-primitive-/%-unsigned (fixnum:negate n) (fixnum:negate d))
-        (e0:bundle qm (fixnum:negate rm)))
-      ;; n < 0, d >= 0
-      (e0:let (qm rm)
-          (fixnum:non-primitive-/%-unsigned (fixnum:negate n) d)
-        (e0:bundle (fixnum:negate qm) (fixnum:negate rm))))
-    (e1:if (fixnum:< d (e0:value 0))
-      ;; n >= 0, d < 0
-      (e0:let (qm rm)
-          (fixnum:non-primitive-/%-unsigned n (fixnum:negate d))
-        (e0:bundle (fixnum:negate qm) rm))
-      ;; n >= 0, d >= 0
-      (fixnum:non-primitive-/%-unsigned n d))))
-(e1:define (fixnum:non-primitive-/ n d)
-  (e0:let (q r) (fixnum:non-primitive-/% n d)
-    q))
-(e1:define (fixnum:non-primitive-% n d)
-  (e0:let (q r) (fixnum:non-primitive-/% n d)
-    r))
-;; FIXME: this is obviously inefficient.  See the following
-;; commented-out definition.
-(e1:define (fixnum:non-primitive-/%-unsigned n d)
-  (fixnum:non-primitive-/%-unsigned-acc n d (e0:value 0)))
-(e1:define (fixnum:non-primitive-/%-unsigned-acc n d q)
-  (e0:if-in (fixnum:> d n) (#f)
-    (fixnum:non-primitive-/%-unsigned-acc (fixnum:- n d) d (fixnum:1+ q))
-    (e0:bundle q n)))
-;; ;; This works fine on host, but has a strange behavoir on the 6502.  FIXME: investigate.
-;; (e1:define (fixnum:non-primitive-/%-unsigned n d)
-;;   (e1:let* ((initial-i (fixnum:- configuration:bits-per-word
-;;                                  2)) ;; FIXME: take taggedness into account.
-;;             (initial-mask ;;(fixnum:left-shift 1 initial-i)))
-;;              (fixnum:long-division-initial-mask 1)))
-;;     (fixnum:non-primitive-/%-unsigned-helper n d initial-mask 0 0)))
-;; (e1:define (fixnum:non-primitive-/%-unsigned-helper n d mask q r)
-;;   (e1:if (fixnum:zero? mask)
-;;     (e1:bundle q r)
-;;     (e1:let ((r (e1:if (fixnum:bitwise-and n mask)
-;;                   (fixnum:bitwise-or (fixnum:left-shift-1-bit r) 1)
-;;                   (fixnum:left-shift-1-bit r)))
-;;              (next-mask (fixnum:logic-right-shift-1-bit mask)))
-;;       (e1:if (fixnum:>= r d)
-;;         (fixnum:non-primitive-/%-unsigned-helper n d next-mask (fixnum:bitwise-or q mask) (fixnum:- r d))
-;;         (fixnum:non-primitive-/%-unsigned-helper n d next-mask q r)))))
-;; ;;; FIXME: this is inefficient but more easily portable, as it doesn't
-;; ;;; depend on the word size being known at compile time.  FIXME:
-;; ;;; remove this and replace its call when I develop a reasonable way
-;; ;;; to shadow some globals at cross-compile time.
-;; (e1:define (fixnum:long-division-initial-mask mask)
-;;   (e0:let (next-candidate) (fixnum:left-shift-1-bit mask)
-;;     (e0:if-in next-candidate (0)
-;;       mask
-;;       (fixnum:long-division-initial-mask next-candidate))))
-
-
-;;;;; Scratch
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(e1:define (fact n)
-  (e1:if-in n (0)
-    1
-    (fixnum:* n (fact (fixnum:1- n)))))
-
-(e1:define (gauss n)
-  (e0:if-in n (0)
-    0
-    (e0:primitive fixnum:+ n (gauss (e0:primitive fixnum:1- n)))))
-
-(e1:define (fibo n)
-  (e1:if (fixnum:< n 2)
-    n
-    (fixnum:+ (fibo (fixnum:- n 2))
-              (fibo (fixnum:1- n)))))
-(e1:define (test n)
-  (e1:dotimes (i n)
-    (fio:write "fibo(" (i i) ") = " (i (fibo i)) "\n")))
-
-(e1:define (iter a b)
-  (e1:if-in a (0)
-    b
-    (iter (e0:primitive fixnum:1- a)
-          (e0:primitive fixnum:1+ b))))
-
-
 ;;;;; C64 compiler
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -1975,6 +1876,9 @@ global_data_end:
 
 (e1:define (compiler:c64-compile-primitive f p name scratch-index)
   (e1:case name
+    ((debug:fail)
+     (fio:write-to f "  +debug_fail"))
+
     ((fixnum:+)
      (compiler:c64-emit-binary-primitive f "sum_stack_16bit" p scratch-index))
     ((fixnum:-)
@@ -2061,7 +1965,8 @@ global_data_end:
                   executable-file-name . forms)
   `(compiler:compile-with compiler:c64 ,executable-file-name ,@forms))
 
-;;; Scratch version not using closures (hence not depending on memory primitives)
+;;; Scratch version not using closures (hence not depending on memory
+;;; primitives or indirect calls).
 (e1:define-macro (can assembly-file-name . forms)
   `(e1:begin
      (e1:define (main)
@@ -2069,27 +1974,3 @@ global_data_end:
      (compiler:compile-procedure-to-assembly-with compiler:c64
                                                   (e1:value main)
                                                   ,assembly-file-name)))
-
-
-;; FIXME: compiled code apparently loops, in a complex way:
-;; (can "/tmp/q.a" (fact 7))
-;;
-;; Notice that (can "/tmp/q.a" (fixnum:* 1 2 3 4 5 6 7)) works fine;
-;; and so does (can "/tmp/q.a" (fixnum:* 7 6 5 4 3 2 1)).
-
-
-;;;;; Scratch convenience syntax
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(e1:toplevel (e1:when #f
-  ;;(e1:define configuration:bits-per-word 16)
-  (e1:define (fixnum:* a b) (fixnum:non-primitive-* a b))
-  (e1:define (fixnum:/% a b) (fixnum:non-primitive-/% a b))
-  (e1:define (fixnum:/ a b) (fixnum:non-primitive-/ a b))
-  (e1:define (fixnum:% aq bq) (fixnum:non-primitive-% aq bq))
-  (e1:define (fixnum:left-shift a b) (fixnum:non-primitive-left-shift a b))
-  (e1:define (fixnum:arithmetic-right-shift a b) (fixnum:non-primitive-arithmetic-right-shift a b))
-  (e1:define (fixnum:logic-right-shift a b) (fixnum:non-primitive-logic-right-shift a b))
-  ))
-
-;; (can "/tmp/q.a" (e1:dolist (s (list:list "foo" "bar")) (fio:write s "\n")))

@@ -215,7 +215,7 @@
         (e0:if-in (fixnum:< r d) (#f)
           (fixnum:non-primitive-/%-unsigned-helper n d next-mask (fixnum:bitwise-or q mask) (fixnum:- r d))
           (fixnum:non-primitive-/%-unsigned-helper n d next-mask q r))))
-    (e1:bundle q r)))
+    (e0:bundle q r)))
 ;;; FIXME: this is inefficient but more easily portable, as it doesn't
 ;;; depend on the word size being known at compile time.  FIXME:
 ;;; remove this and replace its call when I develop a reasonable way

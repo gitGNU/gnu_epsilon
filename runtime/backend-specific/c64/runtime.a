@@ -74,19 +74,25 @@ ML_END:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 !zone debugging_support_from_BASIC
 
-;;; Experimental BASIC area: BEGIN
-;;; Reserve some space for BASIC program and variable.  This is only
-;;; useful for debugging, and should be commented-out in the end.
-ML_START = BASIC_START + 2048
-B1 = 3333 ;; a convenient addres to type from BASIC
-* = B1
-!byte 30
-B2 = 3334 ;; another one
-* = B2
-!byte 31
-* = ML_START ;; The machine-language driver has to start RIGHT HERE
-;; Experimental BASIC area: END
+;; ;;; Experimental BASIC area: BEGIN
+;; ;;; Reserve some space for BASIC program and variable.  This is only
+;; ;;; useful for debugging, and should be commented-out in the end.
+;; ML_START = BASIC_START + 2048
+;; B1 = 3333 ;; a convenient addres to type from BASIC
+;; * = B1
+;; !byte 30
+;; B2 = 3334 ;; another one
+;; * = B2
+;; !byte 31
+;; * = ML_START ;; The machine-language driver has to start RIGHT HERE
+;; ;; Experimental BASIC area: END
 
+
+;;;;; Tentative: Reserve space for graphics (bank 0)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone grapics
+
+!fill 18000, 0 ;; obviously too much
 
 ;;;;; Special global definitions.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -776,6 +782,7 @@ left_shift_1_16bit:
 debug_fail_string:
   !pet "Failure", 0
 !macro debug_fail {
+        jsr print_newline
         +print_string debug_fail_string
 .label:
         jmp .label
@@ -1133,25 +1140,6 @@ buffer_set_16bit:
 ;;      ldx .source + 1
 ;; 	sta .target
 ;; 	stx .target + 1
-
-
-;;;;; Tests to be called from the machine-language driver
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-!zone tests_to_be_called_from_the_machine_language_driver
-
-test_division:
-        lda #(0 - 1)
-        jsr divide_by_10_8bit
-        stx B1
-        sta B2
-
-        lda B1
-        jsr print_decimal_8bit
-        jsr print_newline
-        lda B2
-        jsr print_decimal_8bit
-        jsr print_newline
-        rts
 
 
 ;;; FIXME: move to the runtime block

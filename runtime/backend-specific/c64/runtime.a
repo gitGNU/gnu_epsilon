@@ -548,8 +548,23 @@ jump_to_stack_location:
         }
 }
 
+;; ;;; Clobbers zeropage_arg1.
+;; !macro io_load_byte_8bit .fromslot, .toslot {
+;;         ;; Read the byte into A.
+;;         +stack_to_16bit .fromslot, zeropage_arg1
+;;         ldy #0
+;;         lda (zeropage_arg1), y
+;;         ;; Store A into .toslot's LSB.
+;;         ldy #(.toslot * 2)
+;;         sta (frame_pointer), y
+;;         ;; The MSB is always zero.
+;;         iny
+;;         lda #0
+;;         sta (frame_pointer), y
+;; }
+
 ;;; Clobbers zeropage_arg1.
-!macro io_load_byte_16bit .fromslot, .toslot {
+!macro io_load_byte_8bit .fromslot, .toslot {
         ;; Read the byte into A.
         +stack_to_16bit .fromslot, zeropage_arg1
         ldy #0

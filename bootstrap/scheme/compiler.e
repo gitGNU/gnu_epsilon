@@ -1670,7 +1670,7 @@ global_data_end:
     (trivial-compiler:emit-symbol-identifier f procedure-name)
     (fio:write-to f "_in\n")
     (fio:write-to f
-                  "  +to_stack_16bit return_address, "
+                  "  +absolute_to_stack_16bit return_address, "
                   (i (compiler:c64-return-stack-index procedure))
                   " ;; save return address on the stack\n")
     (compiler:c64-compile-instructions f procedure (trivial-compiler:procedure-get-instructions procedure))
@@ -1736,7 +1736,7 @@ global_data_end:
        (fio:write-to f "  ;+print_string ")
        (trivial-compiler:emit-symbol-identifier f name)
        (fio:write-to f "_tail_calling\n")
-       (fio:write-to f "  +stack_to_16bit "
+       (fio:write-to f "  +stack_to_absolute_16bit "
                      (i (compiler:c64-return-stack-index procedure))
                      ", return_address ;; copy return address\n")
        (fio:write-to f "  jmp ")

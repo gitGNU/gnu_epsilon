@@ -61,6 +61,12 @@
             (256n (fixnum:4* 64n)))
     (fixnum:+ 64n 256n)))
 
+;; n * 40 = n * 32 + n * 8 = n * 8 + n * 8 * 4
+(e1:define (fixnum:40* n)
+  (e1:let* ((8n (fixnum:8* n))
+            (32n (fixnum:4* 8n)))
+    (fixnum:+ 32n 8n)))
+
 (e1:define (fixnum:2/ n)
   (e1:primitive fixnum:arithmetic-right-shift-1-bit n))
 (e1:define (fixnum:4/ n)
@@ -200,16 +206,16 @@
     (io:fill-from-to! (fixnum:1+ from) (fixnum:1- how-many) byte)))
 
 (e1:define (plot x y c)
-  (e1:let* ((row (fixnum:non-primitive-/ y 8))
-            (column (fixnum:non-primitive-/ x 8))
+  (e1:let* ((row (fixnum:8/ y))
+            (column (fixnum:8/ x))
             (line (fixnum:bitwise-and y 7))
             (bit (fixnum:- 7 (fixnum:bitwise-and x 7)))
             (byte (fixnum:+ 24576
-                            (fixnum:non-primitive-* row 320)
-                            (fixnum:non-primitive-* column 8)
+                            (fixnum:320* row 320)
+                            (fixnum:8* column 8)
                             line))
             (cbyte (fixnum:+ 17408
-                             (fixnum:non-primitive-* row 40)
+                             (fixnum:40* row 40)
                              col)))
     #;(io:store-byte! byte
                     (fixnum:bitwise-or (io:load-byte byte)
@@ -275,7 +281,7 @@
     (plot-column x 0)
     (plot-everything (fixnum:+ x 1))))
 (e1:define (plot-column x y)
-  (e1:when (fixnum:< y 200)
+  (e1:when (fixnum:- y 200)
     (vic2:plot-pixel x y)
     (plot-column x (fixnum:1+ y))))
 (e1:define (go)

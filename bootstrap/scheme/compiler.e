@@ -1926,7 +1926,7 @@ global_data_end:
      (compiler:c64-emit-ternary-no-result-primitive f "buffer_set_stack_16bit" p scratch-index))
 
     ((io:load-byte)
-     (compiler:c64-emit-unary-primitive f "io_load_byte_16bit" p scratch-index))
+     (compiler:c64-emit-unary-primitive f "io_load_byte_8bit" p scratch-index))
     ((io:store-byte!)
      (compiler:c64-emit-binary-no-result-primitive f "io_store_byte_8bit" p scratch-index))
 

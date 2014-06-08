@@ -530,6 +530,17 @@ jump_to_stack_location:
         lda (frame_pointer), y
         sta jump_to_stack_location + 1
         jmp (jump_to_stack_location)
+;;; This has the same cycle count as the previous implementation, but is
+;;; slightly bigger because of the two sta's.
+;; ;;; Non-reentrant (self-modifying code).
+;;         ldy #(.slot * 2)
+;;         lda (frame_pointer), y
+;;         sta .instruction_to_modify + 1
+;;         iny
+;;         lda (frame_pointer), y
+;;         sta .instruction_to_modify + 2
+;; .instruction_to_modify:
+;;         jmp $ffff
 }
 
 !macro adjust_frame_pointer_16bit .slot_delta {
@@ -948,6 +959,7 @@ debug_fail_string:
         +increment_stack_16bit .toslot, .toslot
 }
 
+;;; The result MSB is always 0, and not represented.
 !macro negative_stack_16bit .fromslot, .toslot {
         ;; Only look at the MSB sign
         ldx #0
@@ -959,10 +971,10 @@ debug_fail_string:
         txa
         ldy #(.toslot * 2)
         sta (frame_pointer), y
-        ;; The result MSB is always 0.
-        lda #0
-        iny
-        sta (frame_pointer), y
+        ;; ;; The result MSB is always 0.
+        ;; lda #0
+        ;; iny
+        ;; sta (frame_pointer), y
 }
 
 ;;; Parameters in zeropage_arg1 and zeropage_arg2.  Result LSB in A.
@@ -1019,6 +1031,7 @@ nonnegative_negative:
         lda #0
         rts
 
+;;; The MSB is always zero and not represented.
 !macro less_than_stack_16bit .fromslot1, .fromslot2, .toslot {
         ;; Call the procedure doing the actual work.
         +stack_to_absolute_16bit .fromslot1, zeropage_arg1
@@ -1026,11 +1039,11 @@ nonnegative_negative:
         jsr less_than_16bit
         ;; Store the LSB.
         +a_to_stack_8bit .toslot
-        ;; Store the MSB.  I rely on a_to_stack_8bit leaving Y to
-        ;; #(.toslot * 2).
-        iny
-        lda #0
-        sta (frame_pointer), y
+        ;; ;; Store the MSB.  I rely on a_to_stack_8bit leaving Y to
+        ;; ;; #(.toslot * 2).
+        ;; iny
+        ;; lda #0
+        ;; sta (frame_pointer), y
 }
 
 !macro greater_than_stack_16bit .fromslot1, .fromslot2, .toslot {

@@ -19,28 +19,236 @@
 ;;;;; along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
+;;;;; FIXME: move this back to compiler.e
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (compiler:c64-compile-instructions f procedure ii)
+  (e1:dolist (i (list:reverse ii))
+    (e1:match i
+      ((trivial-compiler:instruction-return)
+       (e1:let ((procedure-name (trivial-compiler:procedure-get-name procedure)))
+         (fio:write-to f "  ;+print_string ")
+         (trivial-compiler:emit-symbol-identifier f procedure-name)
+         (fio:write-to f "_out\n"))
+       (fio:write-to f "  +jump_to_stack_16bit "
+                     (i (compiler:c64-return-stack-index procedure))
+                     " ;; return\n"))
+      ((trivial-compiler:instruction-tail-call name)
+       (fio:write-to f "  ;+print_string ")
+       (trivial-compiler:emit-symbol-identifier f name)
+       (fio:write-to f "_tail_calling\n")
+       (fio:write-to f "  +stack_to_absolute_16bit "
+                     (i (compiler:c64-return-stack-index procedure))
+                     ", return_address ;; copy return address\n")
+       (fio:write-to f "  jmp ")
+       (trivial-compiler:emit-symbol-identifier f name)
+       (fio:write-to f " ;; tail-call " (sy name) "\n"))
+      ((trivial-compiler:instruction-tail-call-indirect local-index)
+       (fio:write-to f "  ;; tail-call-indirect: FIXME: unimplemented\n"))
+      ((trivial-compiler:instruction-nontail-call name scratch-index)
+       (e1:let ((return-label (trivial-compiler:fresh-label "return")))
+         (fio:write-to f "  ;; nontail-call: begin\n")
+         (fio:write-to f "  ;+print_string ")
+         (trivial-compiler:emit-symbol-identifier f name)
+         (fio:write-to f "_calling\n")
+         (fio:write-to f "  +literal_to_16bit "
+                       (st return-label)
+                       ", return_address ;; pass return address\n")
+         (fio:write-to f "  +adjust_frame_pointer_16bit "
+                       (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                       " ;; advance frame pointer\n")
+         (fio:write-to f "  jmp ")
+         (trivial-compiler:emit-symbol-identifier f name)
+         (fio:write-to f " ;; non-tail call " (sy name) "\n")
+         (fio:write-to f (st return-label) ":\n")
+         (fio:write-to f "  +adjust_frame_pointer_16bit -"
+                       (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                       " ;; reset frame pointer\n")
+         (fio:write-to f "  ;; nontail-call: end\n")))
+      ((trivial-compiler:instruction-nontail-call-indirect local-index scratch-index)
+       (fio:write-to f "  ;; nontail-call-indirect: FIXME: unimplemented\n"))
+      ((trivial-compiler:instruction-get-io io-index scratch-index)
+       (fio:write-to f "  +stack_to_stack_16bit "
+                     (i (compiler:c64-io->stack-index procedure io-index))
+                     ", "
+                     (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                     " ;; get-io\n"))
+      ((trivial-compiler:instruction-set-io scratch-index io-index)
+       (fio:write-to f "  +stack_to_stack_16bit "
+                     (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                     ", "
+                     (i (compiler:c64-io->stack-index procedure io-index))
+                     " ;; set-io\n"))
+      ((trivial-compiler:instruction-get-local local-index scratch-index)
+       (fio:write-to f "  +stack_to_stack_16bit "
+                     (i (compiler:c64-local->stack-index procedure local-index))
+                     ", "
+                     (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                     " ;; get-local\n"))
+      ((trivial-compiler:instruction-set-local scratch-index local-index)
+       (fio:write-to f "  +stack_to_stack_16bit "
+                     (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                     ", "
+                     (i (compiler:c64-local->stack-index procedure local-index))
+                     " ;; set-local\n"))
+      ((trivial-compiler:instruction-get-global global-name scratch-index)
+       (e1:let ((global-value (buffer:get global-name 2))) ;; third symbol slot
+         (fio:write-to f "  +literal_to_stack_16bit ")
+         (compiler:c64-emit-value f procedure global-value)
+         (fio:write-to f
+                       ", "
+                       (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                       " ;; get-global " (sy global-name) "\n")))
+      ((trivial-compiler:instruction-get-value value scratch-index)
+       (fio:write-to f "  +literal_to_stack_16bit ")
+       (compiler:c64-emit-value f procedure value)
+       (fio:write-to f
+                     ", "
+                     (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                     " ;; get-value\n"))
+      ((trivial-compiler:instruction-primitive name scratch-index)
+       (compiler:c64-compile-primitive f procedure name scratch-index))
+      ((trivial-compiler:instruction-fork name scratch-index)
+       (e1:error "fork: unimplemented\n"))
+      ((trivial-compiler:instruction-join scratch-index)
+       (e1:error "join: unimplemented\n"))
+      ((trivial-compiler:instruction-if-in scratch-index values then-instructions else-instructions)
+       (e1:let ((then-label (trivial-compiler:fresh-label "then"))
+                (after-label (trivial-compiler:fresh-label "after_if")))
+         (fio:write-to f "  ;; if-in: begin\n")
+         (e1:dolist (v values)
+           (e1:if (fixnum:zero? v)
+             ;; We can be slightly more efficient in this (common) case.
+             (fio:write-to f "  +jump_when_zero_stack_16bit "
+                           (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                           ", " (st then-label) "\n")
+             (e1:begin ;; nonzero v
+               (fio:write-to f "  +literal_to_stack_16bit ")
+               (compiler:c64-emit-value f procedure v)
+               (fio:write-to f ", "
+                             (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                             " ;; candidate discriminator [FIXME: use a designed scratch slot or, better, write a jump_when_equal_stack_immediate_16bit macro]\n")
+               (fio:write-to f "  +equal_stack_16bit "
+                             (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                             ", "
+                             (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                             ", "
+                             (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                             " ;; compare\n")
+               (fio:write-to f "  +jump_unless_zero_stack_8bit "
+                             (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                             ", " (st then-label) "\n"))))
+         (fio:write-to f ";; else branch\n")
+         (compiler:c64-compile-instructions f procedure else-instructions)
+         (fio:write-to f "  jmp " (st after-label) "\n")
+         (fio:write-to f (st then-label) ":\n")
+         (compiler:c64-compile-instructions f procedure then-instructions)
+         (fio:write-to f (st after-label) ":\n")
+         (fio:write-to f "  ;; if-in: end\n")))
+      (_
+       (e1:error "impossible")))))
+
+(e1:define (compiler:c64-compile-primitive f p name scratch-index)
+  (e1:case name
+    ((debug:fail)
+     (fio:write-to f "  +debug_fail"))
+
+    ((fixnum:+)
+     (compiler:c64-emit-binary-primitive f "sum_stack_16bit" p scratch-index))
+    ((fixnum:-)
+     (compiler:c64-emit-binary-primitive f "subtract_stack_16bit" p scratch-index))
+    ((fixnum:bitwise-and)
+     (compiler:c64-emit-binary-primitive f "bitwise_and_stack_16bit" p scratch-index))
+    ((fixnum:bitwise-or)
+     (compiler:c64-emit-binary-primitive f "bitwise_or_stack_16bit" p scratch-index))
+    ((fixnum:bitwise-xor)
+     (compiler:c64-emit-binary-primitive f "bitwise_xor_stack_16bit" p scratch-index))
+
+    ((whatever:zero?)
+     (fio:write-to f
+                   "  +literal_to_stack_16bit 0, "
+                   (i (compiler:c64-scratch->stack-index p (fixnum:1+ scratch-index)))
+                   ";; [FIXME: use a designed scratch slot]\n")
+     (compiler:c64-emit-binary-primitive f "equal_stack_16bit" p scratch-index))
+    ((fixnum:1+)
+     (compiler:c64-emit-unary-primitive f "increment_stack_16bit" p scratch-index))
+    ((fixnum:1-)
+     (compiler:c64-emit-unary-primitive f "decrement_stack_16bit" p scratch-index))
+    ((fixnum:left-shift-1-bit)
+     (compiler:c64-emit-unary-primitive f "left_shift_1_stack_16bit" p scratch-index))
+    ((fixnum:arithmetic-right-shift-1-bit)
+     (compiler:c64-emit-unary-primitive f "arithmetic_right_shift_1_stack_16bit" p scratch-index))
+    ((fixnum:logic-right-shift-1-bit)
+     (compiler:c64-emit-unary-primitive f "logic_right_shift_1_stack_16bit" p scratch-index))
+
+    ((whatever:eq?)
+     (compiler:c64-emit-binary-primitive f "equal_stack_16bit" p scratch-index))
+    ((fixnum:<)
+     (compiler:c64-emit-binary-primitive f "less_than_stack_16bit" p scratch-index))
+    ((fixnum:<=)
+     (compiler:c64-emit-binary-primitive f "less_than_or_equal_to_stack_16bit" p scratch-index))
+
+    ((fixnum:negate)
+     (compiler:c64-emit-unary-primitive f "negate_stack_16bit" p scratch-index))
+    ((fixnum:bitwise-not)
+     (compiler:c64-emit-unary-primitive f "bitwise_not_stack_16bit" p scratch-index))
+
+    ((buffer:make)
+     (compiler:c64-emit-unary-primitive f "buffer_make_stack_16bit" p scratch-index))
+    ((buffer:get)
+     (compiler:c64-emit-binary-primitive f "buffer_get_stack_16bit" p scratch-index))
+    ((buffer:set! buffer:initialize!)
+     ;; a ternary primitive with no results.  FIXME: generalize?
+     (compiler:c64-emit-ternary-no-result-primitive f "buffer_set_stack_16bit" p scratch-index))
+
+    ((io:load-byte)
+     (compiler:c64-emit-unary-primitive f "io_load_byte_8bit" p scratch-index))
+    ((io:store-byte!)
+     (compiler:c64-emit-binary-no-result-primitive f "io_store_byte_8bit" p scratch-index))
+
+    ((io:standard-output)
+     (fio:write-to f "  ;; Return an undefined value for io:standard-output\n"))
+    ((io:write-character) ;; FIXME: no file support yet: ignore the first parameter
+     (fio:write-to f "  +stack_to_a_8bit "
+                   (i (compiler:c64-scratch->stack-index p (fixnum:1+ scratch-index)))
+                   "\n")
+     (fio:write-to f "  jsr io_write_character"))
+    (else
+     (fio:write "About the primitive " (sy name) ":\n")
+     (e1:error "unsupported primitive")))
+  (fio:write-to f " ;; primitive " (sy name) "\n"))
+
+
 ;;;;; What follows is tentative code: Commodore 64 tests
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:define (fixnum:absolute-value n)
-  (e1:if (fixnum:< n 0)
-    (fixnum:negate n)
-    n))
+(e1:define (list:sum xs)
+  (list:sum-acc xs 0))
+(e1:define (list:sum-acc xs a)
+  (e1:if (list:null? xs)
+    a
+    (list:sum-acc (list:tail xs)
+                  (fixnum:+ (list:head xs) a))))
 
-(e1:define fixnum:random-seed
-  (box:make 1234))
-(e1:define (fixnum:random)
-  (e1:let* ((old-seed (box:get fixnum:random-seed))
-            (old-seed old-seed)
-            (new-seed (e0:if-in old-seed (0)
-                        1
-                        (fixnum:non-primitive-% (fixnum:+ old-seed
-                                                          (fixnum:non-primitive-* old-seed
-                                                                                  213))
-                                                32323)))
-            (new-seed (fixnum:absolute-value new-seed)))
-    (box:set! fixnum:random-seed new-seed)
-    new-seed))
+;; (e1:define (fixnum:absolute-value n)
+;;   (e1:if (fixnum:< n 0)
+;;     (fixnum:negate n)
+;;     n))
+
+;; (e1:define fixnum:random-seed
+;;   (box:make 1234))
+;; (e1:define (fixnum:random)
+;;   (e1:let* ((old-seed (box:get fixnum:random-seed))
+;;             (old-seed old-seed)
+;;             (new-seed (e0:if-in old-seed (0)
+;;                         1
+;;                         (fixnum:non-primitive-% (fixnum:+ old-seed
+;;                                                           (fixnum:non-primitive-* old-seed
+;;                                                                                   213))
+;;                                                 32323)))
+;;             (new-seed (fixnum:absolute-value new-seed)))
+;;     (box:set! fixnum:random-seed new-seed)
+;;     new-seed))
 
 (e1:define (fixnum:2* n)
   (e1:primitive fixnum:left-shift-1-bit n))
@@ -217,9 +425,9 @@
             (cbyte (fixnum:+ 17408
                              (fixnum:40* row 40)
                              col)))
-    #;(io:store-byte! byte
-                    (fixnum:bitwise-or (io:load-byte byte)
-                                       (fixnum:non-primitive-left-shift 1 bit)))
+    ;; (io:store-byte! byte
+    ;;                 (fixnum:bitwise-or (io:load-byte byte)
+    ;;                                    (fixnum:non-primitive-left-shift 1 bit)))
     (io:store-byte! cbyte c)
     ))
 
@@ -255,13 +463,10 @@
   ;; 90 BY=BASE+RO*320+8*CH+LN
   ;; 100 BI=7-(XAND7)
   ;; 110 POKEBY,PEEK(BY)OR(2^BI)
-  (e1:let* ((ch (fixnum:8/ x))
-            (ro (fixnum:8/ y))
-            (ln (fixnum:bitwise-and y 7))
-            (by (fixnum:+ base
-                          (fixnum:320* ro)
-                          (fixnum:8* ch)
-                          ln))
+  (e1:let* ((by (fixnum:+ base
+                          (fixnum:320* (fixnum:8/ y))
+                          (fixnum:8* (fixnum:8/ x))
+                          (fixnum:bitwise-and y 7)))
             (bi (fixnum:bitwise-and x 7)))
     (io:or! by (fixnum:lookup-bit-value bi))))
 
@@ -271,10 +476,10 @@
     (vic2:plot-pixel x y)
     (plot-line (fixnum:+ x 1) (fixnum:+ y 1))))
 
-(e1:define (plot-random x)
-  (e1:when (e1:and (fixnum:< x 320))
-    (vic2:plot-pixel x (fixnum:non-primitive-% (fixnum:random) 200))
-    (plot-random (fixnum:+ x 1))))
+;; (e1:define (plot-random x)
+;;   (e1:when (e1:and (fixnum:< x 320))
+;;     (vic2:plot-pixel x (fixnum:non-primitive-% (fixnum:random) 200))
+;;     (plot-random (fixnum:+ x 1))))
 
 (e1:define (plot-everything x)
   (e1:when (fixnum:< x 320)
@@ -326,11 +531,11 @@
 (e1:define (loop) (loop))
 
 (e1:define-macro (g)
-  '(can "/tmp/q.a" (go)))
+  '(c (go)))
 (e1:toplevel
 (e1:when #f
-  (can "/tmp/q.a" (stripes))
-  (can "/tmp/q.a" (test-sprites))
+  (c (stripes))
+  (c (test-sprites))
   ))
 (e1:toplevel (e1:when #f
   ;;(e1:define configuration:bits-per-word 16)
@@ -343,5 +548,5 @@
   (e1:define (fixnum:logic-right-shift a b) (fixnum:non-primitive-logic-right-shift a b))
   ))
 
-;; (can "/tmp/q.a" (e1:dolist (s (list:list "foo" "bar")) (fio:write s "\n")))
-(e1:toplevel (g))
+;; (c (e1:dolist (s (list:list "foo" "bar")) (fio:write s "\n")))
+;; (e1:toplevel (g))

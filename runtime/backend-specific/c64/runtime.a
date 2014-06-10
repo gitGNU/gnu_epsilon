@@ -242,8 +242,9 @@ heap_size = 2048
 heap:
 !fill heap_size, $00
 
+;;; FIXME: is it worth to move this to pagezero?
 heap_allocation_pointer:
-!byte >heap, <heap
+  !16 heap
 
 heap_limit = heap + heap_size
 
@@ -660,6 +661,10 @@ jump_to_stack_location:
         sta (frame_pointer), y
 }
 
+!macro sum_16bit .fromaddress1, .fromaddress2, .toaddress {
+        ????
+}
+
 !macro sum_stack_16bit .fromslot1, .fromslot2, .toslot {
         ;; Load the first operand low byte.
         ldy #(.fromslot1 * 2)
@@ -783,7 +788,7 @@ sum_16_bit:
 left_shift_1_16bit_a:
 left_shift_1_16bit_result:
 !byte 0, 0
-;;; Arguments in memory.  Overwrite the first.  Clobber A.
+;;; Argument in memory.  Overwrite it.  Clobber A.
 left_shift_1_16bit:
         ;; Load the first operand low byte.
         clc
@@ -1066,6 +1071,36 @@ nonnegative_negative:
 
 !macro greater_than_or_equal_to_stack_16bit .fromslot1, .fromslot2, .toslot {
         +less_than_or_equal_to_stack_16bit .fromslot2, .fromslot1, .toslot
+}
+
+;;; Parameter in zeropage_arg1.  Clobber A and zeropage_arg1.  No result.
+add_words_to_heap_allocation_pointer_16bit:
+        ;; Double zeropage_arg1, to have it in bytes rather than in words.
+        clc
+        rol zeropage_arg1
+        rol zeropage_arg1 + 1
+        ;; Add <zeropage_arg1 to <heap_allocation_pointer.
+        clc ; FIXME: unless the increment is ridiculously high, this won't be needed.
+        lda heap_allocation_pointer
+        adc zeropage_arg1
+        sta heap_allocation_pointer
+        ;; Add >zeropage_arg1 to >heap_allocation_pointer, with carry.
+        lda heap_allocation_pointer + 1
+        adc zeropage_arg1 + 1
+        sta heap_allocation_pointer + 1
+        rts
+
+!macro buffer_make_stack_16bit .fromslot, .toslot {
+        ;; Pass the increment to the routine, without calling it yet.
+        ;; We need to do this before setting the result, as .fromslot and
+        ;; .toslot might be equal.
+        +stack_to_absolute_16bit .fromslot, zeropage_arg1
+        ;; The result is always equal to the current allocation
+        ;; pointer.  Set it now, because the routine will change it.
+        +absolute_to_stack_16bit heap_allocation_pointer, .toslot
+        ;; Now we can finally call the routine, which returns nothing.
+        ;; We have already set the result.
+        jsr add_words_to_heap_allocation_pointer_16bit
 }
 
 !macro buffer_get_stack_16bit .fromslot1, .fromslot2, .toslot {

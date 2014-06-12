@@ -538,10 +538,36 @@ assembly_stripes_unrolled:
         sta (frame_pointer), y
 }
 
+;;; Clobber A, Y, zeropage_arg1.
+!macro symbol_native_code_to_absolute_stack_16bit .slot, .address {
+        ;; Load the stack slot + the offset to zeropage_arg1.
+        ldy #(.slot * 2)
+        lda (frame_pointer), y
+        clc
+        adc #(9 * 2) ; The symbol's tenth slot holds the native code pointer.
+        sta zeropage_arg1
+        iny
+        lda (frame_pointer), y
+        adc #0 ; add carry
+        sta zeropage_arg1 + 1
+        ;; Load 16 bits from the address whose LSB is at zeropage_arg1
+        ;; into zeropage_arg2.
+        ldy #0
+        lda (zeropage_arg1), y
+        sta .address
+        iny
+        lda (zeropage_arg1), y
+        sta .address + 1
+}
 
+;;; Clobber A, Y, zeropage_arg1, zeropage_arg2.
+!macro jump_indirect_stack_16bit .slot {
+        +symbol_native_code_to_absolute_stack_16bit .slot, zeropage_arg2
+        jmp (zeropage_arg2)
+}
 
-;;; This is needed to work around the famous 6502 bug about not
-;;; fetching from the correct address if the indirect address is on a
+;;; The alignment directive is needed to work around the famous 6502 bug about
+;;; not fetching from the correct address if the indirect address is on a
 ;;; page boundary.  Having the first byte on an even address is enough.
 ;;; FIXME: is this worth to move to zeropage?
 !align 2, 0
@@ -1131,7 +1157,7 @@ add_words_to_heap_allocation_pointer_16bit:
 !macro buffer_get_stack_16bit .fromslot1, .fromslot2, .toslot {
         +stack_to_absolute_16bit .fromslot1, zeropage_arg1
         +stack_to_absolute_16bit .fromslot2, zeropage_arg2
-        jsr buffer_get_16bit
+        jsr buffer_get_with_offset_in_words_16bit
         +absolute_to_stack_16bit zeropage_arg1, .toslot
 }
 
@@ -1156,7 +1182,7 @@ load_16bit:
 ;;; Address parameter in zeropage_arg1, offset parameter (in 16-bit words)
 ;;; in zeropage_arg2, result in zeropage_arg1.
 ;;; Clobbers A, Y, zeropage_arg2.
-buffer_get_16bit:
+buffer_get_with_offset_in_words_16bit:
         ;; Left-shift zeropage_arg2.
         lda zeropage_arg2
         asl
@@ -1164,6 +1190,13 @@ buffer_get_16bit:
         lda zeropage_arg2 + 1
         rol
         sta zeropage_arg2 + 1
+        ;; Fall thru buffer_get_offset_in_bytes_16bit.
+
+;;; Don't reorder!  The previous procedures falls thru.
+;;; Address parameter in zeropage_arg1, offset parameter (in 16-bit words)
+;;; in zeropage_arg2, result in zeropage_arg1.
+;;; Clobbers A, Y, zeropage_arg2.
+buffer_get_with_offset_in_bytes_16bit:
         ;; Sum zeropage_arg1 and zeropage_arg2 into zeropage_arg2.
         clc
         lda zeropage_arg1

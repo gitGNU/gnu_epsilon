@@ -333,10 +333,35 @@ print_decimal_16bit:
         jsr print_newline
         rts
 
-;;; Parameter in A.  Clobbers X, Y.
-io_write_character:
-        jsr chrout
-        rts
+;;; Parameter (in ASCII!) in A.  Clobbers X, Y.
+io_write_ASCII_character:
+        ;; If A has some value which is different in ASCII and PETSCII
+        ;; that we care to support, convert from ASCII to PETSCII and
+        ;; tail-call chrout.
+        cmp #10 ; ASCII '\\n'
+        bne io_write_ASCII_character_after_ASCII_newline
+        lda #13 ; PETSCII return
+        jmp chrout
+io_write_ASCII_character_after_ASCII_newline:
+        cmp #65 ; ASCII 'A'
+        bcc io_write_ASCII_character_default ; less than ASCII 'A'
+        ;; A >= 'A'
+        cmp #(90 + 1) ; ASCII 'Z' + 1
+        bcs io_write_ASCII_character_greater_than_ASCII_Z
+        clc
+        adc #(193 - 65) ; Add PETSCII 'A' - ASCII 'A'
+        jmp chrout
+io_write_ASCII_character_greater_than_ASCII_Z: ; A not in ['A', 'Z'] (ASCII).
+        cmp #97 ; ASCII 'a'
+        bcc io_write_ASCII_character_default:
+        ;; A >= 'a'
+        cmp #(122 + 1) ; ASCII 'z' + 1
+        bcs io_write_ASCII_character_default:
+        ;; 'a' <= A <= 'z' in ASCII
+        clc
+        adc #(65 - 97) ; Add PETSCII 'a' - ASCII 'a'
+io_write_ASCII_character_default:
+        jmp chrout
 
 ;;; FIXME: move.  However this is a good "visual" benchmark.
 assembly_stripes:

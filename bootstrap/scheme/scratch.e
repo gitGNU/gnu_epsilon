@@ -44,7 +44,7 @@
        (trivial-compiler:emit-symbol-identifier f name)
        (fio:write-to f " ;; tail-call " (sy name) "\n"))
       ((trivial-compiler:instruction-tail-call-indirect local-index)
-       (fio:write-to f "  ;; tail-call-indirect: FIXME: unimplemented\n"))
+       (e1:error "tail-call-indirect: FIXME: unimplemented"))
       ((trivial-compiler:instruction-nontail-call name scratch-index)
        (e1:let ((return-label (trivial-compiler:fresh-label "return")))
          (fio:write-to f "  ;; nontail-call: begin\n")
@@ -66,7 +66,7 @@
                        " ;; reset frame pointer\n")
          (fio:write-to f "  ;; nontail-call: end\n")))
       ((trivial-compiler:instruction-nontail-call-indirect local-index scratch-index)
-       (fio:write-to f "  ;; nontail-call-indirect: FIXME: unimplemented\n"))
+       (e1:error "nontail-call-indirect: FIXME: unimplemented"))
       ((trivial-compiler:instruction-get-io io-index scratch-index)
        (fio:write-to f "  +stack_to_stack_16bit "
                      (i (compiler:c64-io->stack-index procedure io-index))
@@ -212,7 +212,7 @@
      (fio:write-to f "  +stack_to_a_8bit "
                    (i (compiler:c64-scratch->stack-index p (fixnum:1+ scratch-index)))
                    "\n")
-     (fio:write-to f "  jsr io_write_character"))
+     (fio:write-to f "  jsr io_write_ASCII_character"))
     (else
      (fio:write "About the primitive " (sy name) ":\n")
      (e1:error "unsupported primitive")))

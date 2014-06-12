@@ -1641,41 +1641,7 @@ global_data_beginning:
 global_data_end:
   !16 0\n"))
 
-(e1:define (compiler:c64-compile-procedure f procedure-name data-graph)
-  (e1:let* ((formals (state:procedure-get-formals procedure-name))
-            (body (state:procedure-get-body procedure-name))
-            (procedure (trivial-compiler:compile-procedure procedure-name formals body data-graph)))
-    (fio:write-to f ";;;;; " (sy procedure-name) "\n")
-    (fio:write-to f ";;; io-no is "
-                  (i (trivial-compiler:procedure-get-io-no procedure)) "
-;;; leaf is "
-                  (s (e1:if (trivial-compiler:procedure-get-leaf procedure) "#t" "#f")) "
-;;; local-no is "
-                  (i (trivial-compiler:procedure-get-local-no procedure)) "
-;;; scratch-no is "
-                  (i (trivial-compiler:procedure-get-scratch-no procedure))
-                  "\n")
-    (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (fio:write-to f "_in:\n  !pet \"" (sy procedure-name) ": begin\", 0\n")
-    (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (fio:write-to f "_calling:\n  !pet \"  c " (sy procedure-name) "\", 0\n")
-    (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (fio:write-to f "_tail_calling:\n  !pet \"  t-c " (sy procedure-name) "\", 0\n")
-    (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (fio:write-to f "_out:\n  !pet \"" (sy procedure-name) ": return\", 0\n")
-    (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (fio:write-to f ":\n")
-    (fio:write-to f ";;;;;;;;;;;;;;;; BEGIN\n")
-    (fio:write-to f "  ;+print_string ")
-    (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (fio:write-to f "_in\n")
-    (fio:write-to f
-                  "  +absolute_to_stack_16bit return_address, "
-                  (i (compiler:c64-return-stack-index procedure))
-                  " ;; save return address on the stack\n")
-    (compiler:c64-compile-instructions f procedure (trivial-compiler:procedure-get-instructions procedure))
-    (fio:write-to f ";;;;;;;;;;;;;;;; END
-  ;;rts ; FIXME: is this needed?\n\n")))
+;;; FIXME: reinsert compiler:c64-compile-procedure
 
 (e1:define (compiler:c64-io->stack-index procedure io)
   io)

@@ -22,19 +22,55 @@
 ;;;;; FIXME: move this back to compiler.e
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(e1:define (compiler:c64-compile-procedure f procedure-name data-graph)
+  (e1:let* ((formals (state:procedure-get-formals procedure-name))
+            (body (state:procedure-get-body procedure-name))
+            (procedure (trivial-compiler:compile-procedure procedure-name formals body data-graph)))
+    (fio:write-to f ";;;;; " (sy procedure-name) "\n")
+    (fio:write-to f ";;; io-no is "
+                  (i (trivial-compiler:procedure-get-io-no procedure)) "
+;;; leaf is "
+                  (s (e1:if (trivial-compiler:procedure-get-leaf procedure) "#t" "#f")) "
+;;; local-no is "
+                  (i (trivial-compiler:procedure-get-local-no procedure)) "
+;;; scratch-no is "
+                  (i (trivial-compiler:procedure-get-scratch-no procedure))
+                  "\n")
+    (trivial-compiler:emit-symbol-identifier f procedure-name)
+    (fio:write-to f "_in:\n  !pet \"" (sy procedure-name) ": begin\", 0\n")
+    (trivial-compiler:emit-symbol-identifier f procedure-name)
+    (fio:write-to f "_calling:\n  !pet \"  c " (sy procedure-name) "\", 0\n")
+    (trivial-compiler:emit-symbol-identifier f procedure-name)
+    (fio:write-to f "_tail_calling:\n  !pet \"  t-c " (sy procedure-name) "\", 0\n")
+    (trivial-compiler:emit-symbol-identifier f procedure-name)
+    (fio:write-to f "_out:\n  !pet \"" (sy procedure-name) ": return\", 0\n")
+    (trivial-compiler:emit-symbol-identifier f procedure-name)
+    (fio:write-to f ":\n")
+    (fio:write-to f ";;;;;;;;;;;;;;;; BEGIN\n")
+    (fio:write-to f ";  +print_string ")
+    (trivial-compiler:emit-symbol-identifier f procedure-name)
+    (fio:write-to f "_in\n")
+    (fio:write-to f
+                  "  +absolute_to_stack_16bit return_address, "
+                  (i (compiler:c64-return-stack-index procedure))
+                  " ;; save return address on the stack\n")
+    (compiler:c64-compile-instructions f procedure (trivial-compiler:procedure-get-instructions procedure))
+    (fio:write-to f ";;;;;;;;;;;;;;;; END
+  ;;rts ; FIXME: is this needed?\n\n")))
+
 (e1:define (compiler:c64-compile-instructions f procedure ii)
   (e1:dolist (i (list:reverse ii))
     (e1:match i
       ((trivial-compiler:instruction-return)
        (e1:let ((procedure-name (trivial-compiler:procedure-get-name procedure)))
-         (fio:write-to f "  ;+print_string ")
+         (fio:write-to f ";  +print_string ")
          (trivial-compiler:emit-symbol-identifier f procedure-name)
          (fio:write-to f "_out\n"))
        (fio:write-to f "  +jump_to_stack_16bit "
                      (i (compiler:c64-return-stack-index procedure))
                      " ;; return\n"))
       ((trivial-compiler:instruction-tail-call name)
-       (fio:write-to f "  ;+print_string ")
+       (fio:write-to f ";  +print_string ")
        (trivial-compiler:emit-symbol-identifier f name)
        (fio:write-to f "_tail_calling\n")
        (fio:write-to f "  +stack_to_absolute_16bit "
@@ -44,7 +80,12 @@
        (trivial-compiler:emit-symbol-identifier f name)
        (fio:write-to f " ;; tail-call " (sy name) "\n"))
       ((trivial-compiler:instruction-tail-call-indirect local-index)
-       (e1:error "tail-call-indirect: FIXME: unimplemented"))
+       (fio:write-to f "  +stack_to_absolute_16bit "
+                     (i (compiler:c64-return-stack-index procedure))
+                     ", return_address ;; copy return address\n")
+       (fio:write-to f "  +jump_indirect_stack_16bit "
+                     (i (compiler:c64-local->stack-index procedure local-index))
+                     " ;; tail-call-indirect\n"))
       ((trivial-compiler:instruction-nontail-call name scratch-index)
        (e1:let ((return-label (trivial-compiler:fresh-label "return")))
          (fio:write-to f "  ;; nontail-call: begin\n")
@@ -66,7 +107,25 @@
                        " ;; reset frame pointer\n")
          (fio:write-to f "  ;; nontail-call: end\n")))
       ((trivial-compiler:instruction-nontail-call-indirect local-index scratch-index)
-       (e1:error "nontail-call-indirect: FIXME: unimplemented"))
+       ;; BBBBBBBBBBBBBBBBBBBBBBBBBB
+       (e1:let ((return-label (trivial-compiler:fresh-label "return")))
+         (fio:write-to f "  ;; nontail-call-indirect: begin\n")
+         (fio:write-to f "  +literal_to_16bit "
+                       (st return-label)
+                       ", return_address ;; copy return address\n")
+         (fio:write-to f "  +symbol_native_code_to_absolute_stack_16bit "
+                       (i (compiler:c64-local->stack-index procedure local-index))
+                       ", zeropage_arg2 ;; save nontail indirect call destination\n")
+         (fio:write-to f "  +adjust_frame_pointer_16bit "
+                       (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                       " ;; advance frame pointer\n")
+         (fio:write-to f "  jmp (zeropage_arg2) ; nontail indirect call\n")
+         (fio:write-to f (st return-label) ":\n")
+         (fio:write-to f "  +adjust_frame_pointer_16bit -"
+                       (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                       " ;; reset frame pointer\n")
+         (fio:write-to f "  ;; nontail-call-indirect: end\n")))
+       ;; EEEEEEEEEEEEEEEEEEEEEEEEEE
       ((trivial-compiler:instruction-get-io io-index scratch-index)
        (fio:write-to f "  +stack_to_stack_16bit "
                      (i (compiler:c64-io->stack-index procedure io-index))
@@ -550,3 +609,5 @@
 
 ;; (c (e1:dolist (s (list:list "foo" "bar")) (fio:write s "\n")))
 ;; (e1:toplevel (g))
+
+;; (c (list:fold (e1:lambda (a b) (fixnum:+ a b)) (list:iota 5)))

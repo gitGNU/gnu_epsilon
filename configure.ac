@@ -28,10 +28,12 @@
 ## We need to check for Guile features:
 m4_include([guile.m4])
 
-
 # ######################### Global values: begin #######################
+
+# The canonical GNUlib way to obtain version from git would be
+# m4_esyscmd([build-aux/git-version-gen .tarball-version]),
 AC_INIT([GNU epsilon],
-        [git-trunk],
+        m4_esyscmd([build-aux/get-version-from-git]),
         [epsilon-devel@gnu.org],
         [epsilon],
         [http://www.gnu.org/software/epsilon])

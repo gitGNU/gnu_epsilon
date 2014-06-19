@@ -5158,11 +5158,43 @@
   ;; (sexpression:set-string-escape! #\space #\space)
   )
 
-;;;;; Version
+
+;;;;; Object properties
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:define version:version-string
-  "git-snapshot")
+;;; A facility to associate user-defined data to arbitrary objects.
+;;; Notice that this essentially assumes a non-moving garbage
+;;; collector (if any), as pointers can be used as keys.
+
+(e1:define state:property-table
+  (unboxed-hash:make))
+
+(e1:define (state:get-property-alist object)
+  (e1:if (unboxed-hash:has? state:property-table object)
+    (unboxed-hash:get state:property-table object)
+    alist:nil))
+(e1:define (state:set-property-alist! object alist)
+  (unboxed-hash:set! state:property-table object alist))
+(e1:define (state:unset-property-alist! object)
+  (unboxed-hash:unset! state:property-table object))
+
+(e1:define (state:get-property object key)
+  (alist:lookup (state:get-property-alist object) key))
+
+(e1:define (state:has-property? object key)
+  (alist:has? (state:get-property-alist object) key))
+
+(e1:define (state:set-property! object key value)
+  (e1:let* ((old-alist (state:get-property-alist object))
+            (new-alist (alist:bind-unique old-alist key value)))
+    (state:set-property-alist! object new-alist)))
+
+(e1:define (state:unset-property! object key)
+  (e1:let* ((old-alist (state:get-property-alist object))
+            (new-alist (alist:unbind-one old-alist key)))
+    (e1:if (alist:null? new-alist)
+      (state:unset-property-alist! object)
+      (state:set-property-alist! object new-alist))))
 
 
 ;;;;; Source file loading

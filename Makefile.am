@@ -618,3 +618,20 @@ quick-repl:
 	ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "@abs_top_builddir@/dumps/repl.u"
 ## ####################################################### interactive targets: end
+
+## ####################################################### versioning: begin
+EXTRA_DIST += \
+	$(top_srcdir)/build-aux/get-version-from-git \
+	$(top_srcdir)/.version $(top_srcdir)/.tarball_version
+BUILT_SOURCES += \
+	$(top_srcdir)/.version
+$(top_srcdir)/.version:
+	echo $(VERSION) > $@-t && mv $@-t $@
+
+# Fail if .tarball-version, which is supposed to be manually-written,
+# doesn't exist.
+dist-hook: .tarball-version
+
+# dist-hook: .tarball-version
+# 	echo $(VERSION) > $(distdir)/.tarball-version
+## ####################################################### versioning: end

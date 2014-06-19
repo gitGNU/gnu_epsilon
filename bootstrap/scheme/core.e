@@ -500,6 +500,10 @@
 (e1:define alist:nil
   list:nil)
 
+(e1:define (alist:null? alist)
+  (list:null? alist))
+
+
 ;;; Return the given alist with a new binding prepended.  No bindings
 ;;; are removed in the result.
 (e1:define (alist:bind alist key value)

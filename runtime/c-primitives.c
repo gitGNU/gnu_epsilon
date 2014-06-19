@@ -288,13 +288,13 @@ static void epsilon_primitive_io_readline(epsilon_value *stack){
     stack[0] = epsilon_int_to_epsilon_value(0);
     return;
   }
-  add_history(c_string);
-  int result = write_history(NULL);
-  if (result != 0)
-    fprintf(stderr, "Warning: writing history failed\n");
   size_t nul_offset = strlen(c_string), length;
   if (nul_offset > 0)
-    add_history(c_string);
+    {
+      add_history(c_string);
+      if (write_history(NULL) != 0)
+        fprintf(stderr, "Warning: writing history failed\n");
+    }
   uint32_t *wide_string;
 #ifdef HAVE_LIBUNISTRING
   if (nul_offset == 0)

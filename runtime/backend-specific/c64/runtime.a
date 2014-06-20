@@ -88,11 +88,11 @@ ML_END:
 ;; ;; Experimental BASIC area: END
 
 
-;;;;; Tentative: Reserve space for graphics (bank 0)
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-!zone grapics
+;; ;;;;; Tentative: Reserve space for graphics (bank 0)
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; !zone grapics
 
-!fill 18000, 0 ;; obviously too much
+;; !fill 18000, 0 ;; obviously too much
 
 ;;;;; Special global definitions.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -235,7 +235,7 @@ disable_shifted_character_set:
 stack:
 ;; !fill 256, $ff
 ;; !byte 0, 10, 20, 30, 40, 50, 60, 70, 80, 90 ;; FIXME: this is a temporary test!
-!fill 256, $00
+!fill 1024, $00
 
 ;;; Heap (no deallocation support yet)
 heap_size = 2048

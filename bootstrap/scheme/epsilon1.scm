@@ -5196,6 +5196,14 @@
       (state:unset-property-alist! object)
       (state:set-property-alist! object new-alist))))
 
+;;; Attach the given property to the object which is being built, and
+;;; return it.
+(e1:define-macro (state:with-property key value . forms)
+  (e1:let ((result-name (sexpression:fresh-symbol)))
+    `(e1:let ((,result-name ,@forms))
+       (state:set-property! ,result-name ,key ,value)
+       ,result-name)))
+
 
 ;;;;; Source file loading
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

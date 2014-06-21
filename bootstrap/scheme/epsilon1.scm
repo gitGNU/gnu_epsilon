@@ -5158,6 +5158,47 @@
   ;; (sexpression:set-string-escape! #\space #\space)
   )
 
+;;;;; String utility
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (string:trim s)
+  (e1:let* ((first-index (string:trim-index-left s))
+            (last-index (string:trim-index-right s))
+            (result-length (fixnum:- last-index first-index -1))
+            (result-length (e1:if (fixnum:>= result-length 0)
+                                   result-length
+                                   0))
+            (result (vector:make result-length)))
+    (vector:blit result 0 s first-index result-length)
+    result))
+;;; Return the first non-whitespace character index, or 0.
+(e1:define (string:trim-index-left s)
+  (string:trim-index-left-from s 0))
+(e1:define (string:trim-index-left-from s i)
+  (e1:cond ((fixnum:= i (string:length s))
+            0)
+           (bind (c (string:get s i)))
+           ((e1:or (whatever:eq? c #\space)
+                   (whatever:eq? c #\newline)
+                   (whatever:eq? c #\tab))
+            (string:trim-index-left-from s (fixnum:1+ i)))
+           (else
+            i)))
+
+;;; Return the last non-whitespace character index, or the length predecessor.
+(e1:define (string:trim-index-right s)
+  (string:trim-index-right-from s (fixnum:1- (string:length s))))
+(e1:define (string:trim-index-right-from s i)
+  (e1:cond ((fixnum:= i -1)
+            (fixnum:1- (string:length s)))
+           (bind (c (string:get s i)))
+           ((e1:or (whatever:eq? c #\space)
+                   (whatever:eq? c #\newline)
+                   (whatever:eq? c #\tab))
+            (string:trim-index-right-from s (fixnum:1- i)))
+           (else
+            i)))
+
 
 ;;;;; Object properties
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

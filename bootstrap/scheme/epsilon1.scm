@@ -5245,6 +5245,8 @@
        (state:set-property! ,result-name ,key ,value)
        ,result-name)))
 
+;;; FIXME: update unexec to keep properties into account.
+
 
 ;;;;; Source file loading
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

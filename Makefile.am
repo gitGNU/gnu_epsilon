@@ -588,12 +588,10 @@ strip: all
 	strip $(bin_PROGRAMS)
 
 ## ####################################################### interactive targets: begin
-@abs_top_builddir@/dumps:
-	mkdir -p "$@"
-
-@abs_top_builddir@/dumps/quick-start.dump: $(bin_PROGRAMS) $(lib_LIBRARIES) @abs_top_builddir@/dumps $(EPSILON_DUMPED_SOURCE_FILES)
+@abs_top_builddir@/dumps/quick-start.dump: $(bin_PROGRAMS) $(lib_LIBRARIES) $(EPSILON_DUMPED_SOURCE_FILES)
 	rm -f "$@" # Remove the files we're about to generate, just in case we fail later.
 	rm -f "@abs_top_builddir@/dumps/repl.u"
+	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
 	ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
 	  "@abs_top_builddir@/bin/guile+whatever" \
 	  @GUILE_NO_AUTO_COMPILE@ \
@@ -604,12 +602,14 @@ strip: all
 @abs_top_builddir@/dumps/repl.u: @abs_top_builddir@/dumps/quick-start.dump
 
 guile+whatever-repl: @abs_top_builddir@/dumps/quick-start.dump
+	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
 	ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
 	  "@abs_top_builddir@/bin/guile+whatever" \
 	  @GUILE_NO_AUTO_COMPILE@ \
 	  -l "@abs_top_srcdir@/bootstrap/scheme/quick-start.scm"
 
 repl: @abs_top_builddir@/dumps/repl.u
+	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
 	ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "@abs_top_builddir@/dumps/repl.u"
 

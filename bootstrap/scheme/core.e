@@ -714,6 +714,22 @@
 (e1:define vector:empty (vector:make (e0:value 0)))
 
 
+;;;;; Converting a list to a buffer
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; The converse is possible with run-time buffer-length information,
+;;; only available with boxedness tags.
+
+(e1:define (list:list->buffer list)
+  (e0:let (buffer) (buffer:make (list:length list))
+    (list:list->buffer-acc list (e0:value 0) buffer)))
+(e1:define (list:list->buffer-acc list index buffer)
+  (e0:if-in list (0)
+    buffer
+    (e0:let () (buffer:set! buffer index (list:head list))
+      (list:list->buffer-acc (list:tail list) (fixnum:1+ index) buffer))))
+
+
 ;;;;; Low-level I/O
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

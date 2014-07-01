@@ -392,6 +392,7 @@
 ;;; roots.
 
 (e1:define (data-graph:graph-from-excluding main-object symbol-indices-to-exclude)
+  (fio:write "Building data graph...\n")
   (e1:let* ((symbol-hash (string-hash:invert-into-unboxed-hash symbol:table)) ;; symbol -> whatever
             (hash (unboxed-hash:make)) ;; pointer -> index
             (stack (imperative-stack:make))
@@ -1525,10 +1526,10 @@ epsilon_main_entry_point:
   (e1:let* ((data-graph (data-graph:graph-from-compiled-only main))
             (f (io:open-file target-file-name io:write-mode)))
     (fio:write-to f ";;;;; This is machine-generated -*- asm -*- for ACME.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;;; Built by the GNU epsilon compiler.
+;;;;;
+;;;;; Compiled by GNU epsilon version " (st version:string) ".
 ;;;;; http://www.gnu.org/software/epsilon
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 ;;;;; Runtime library
@@ -1572,6 +1573,8 @@ string_slot1:
 ")
     (e1:dolist (procedure-name (data-graph:graph-get-procedures data-graph))
       (compiler:c64-compile-procedure f procedure-name data-graph))
+    (fio:write-to f "!warn \"Compiled data and procedures take \", * - epsilon_main_entry_point, \" bytes (up to \", *, \").\"
+!sl \"/tmp/labels.a ;;; Save a debugging dump of global labels\"\n")
     (io:close-file f)))
 
 ;;; FIXME: factor, sharing code with trivial-compiler:c64-compile-data.
@@ -1594,16 +1597,23 @@ p0:
 global_data_beginning:
 
 ")
+    (fio:write "Compiling data...\n")
     (e1:dolist (pointer pointers)
       (e1:let* ((index (unboxed-hash:get hash pointer))
                 (is-symbol (unboxed-hash:has? symbol-hash pointer))
-                (is-procedure-name (e1:and is-symbol (symbol:procedure-name? pointer))))
+                (is-procedure-name (e1:and is-symbol (symbol:procedure-name? pointer)))
+                (sprite (state:has-property? pointer (e1:value c64:sprite))))
         (e1:unless (fixnum:zero? index)
+          (e1:when sprite
+            (fio:write "Compiling a sprite...\n")
+            (fio:write-to f "+begin_sprite\n"))
           (fio:write-to f "p" (i index) ":")
           (e1:when is-symbol
             (fio:write-to f " ; the symbol " (sy pointer)))
           (fio:write-to f "\n")
-          (fio:write-to f "  !16")
+          (e1:if sprite
+            (fio:write-to f "  !8")
+            (fio:write-to f "  !16"))
           (e1:dotimes (j (e0:primitive buffer:length pointer))
             (e1:unless (fixnum:zero? j)
               (io:write-string f ","))
@@ -1636,12 +1646,49 @@ global_data_beginning:
                           (e1:begin
                             (fio:write-to f "p")
                             (fio:write-to f (i (unboxed-hash:get hash element)))))))))
-          (fio:write-to f "\n")))))
+          (fio:write-to f "\n")
+          (e1:when sprite
+            (fio:write-to f "+end_sprite\n"))))))
     (fio:write-to f "
 global_data_end:
   !16 0\n"))
 
-;;; FIXME: reinsert compiler:c64-compile-procedure
+(e1:define (compiler:c64-compile-procedure f procedure-name data-graph)
+  (e1:let* ((formals (state:procedure-get-formals procedure-name))
+            (body (state:procedure-get-body procedure-name))
+            (procedure (trivial-compiler:compile-procedure procedure-name formals body data-graph)))
+    (fio:write "Compiling " (sy procedure-name) "...\n")
+    (fio:write-to f ";;;;; " (sy procedure-name) "\n")
+    (fio:write-to f ";;; io-no is "
+                  (i (trivial-compiler:procedure-get-io-no procedure)) "
+;;; leaf is "
+                  (s (e1:if (trivial-compiler:procedure-get-leaf procedure) "#t" "#f")) "
+;;; local-no is "
+                  (i (trivial-compiler:procedure-get-local-no procedure)) "
+;;; scratch-no is "
+                  (i (trivial-compiler:procedure-get-scratch-no procedure))
+                  "\n")
+    (trivial-compiler:emit-symbol-identifier f procedure-name)
+    (fio:write-to f "_in:\n  !pet \"" (sy procedure-name) ": begin\", 0\n")
+    (trivial-compiler:emit-symbol-identifier f procedure-name)
+    (fio:write-to f "_calling:\n  !pet \"  c " (sy procedure-name) "\", 0\n")
+    (trivial-compiler:emit-symbol-identifier f procedure-name)
+    (fio:write-to f "_tail_calling:\n  !pet \"  t-c " (sy procedure-name) "\", 0\n")
+    (trivial-compiler:emit-symbol-identifier f procedure-name)
+    (fio:write-to f "_out:\n  !pet \"" (sy procedure-name) ": return\", 0\n")
+    (trivial-compiler:emit-symbol-identifier f procedure-name)
+    (fio:write-to f ":\n")
+    (fio:write-to f ";;;;;;;;;;;;;;;; BEGIN\n")
+    (fio:write-to f ";  +print_string ")
+    (trivial-compiler:emit-symbol-identifier f procedure-name)
+    (fio:write-to f "_in\n")
+    (fio:write-to f
+                  "  +absolute_to_stack_16bit return_address, "
+                  (i (compiler:c64-return-stack-index procedure))
+                  " ;; save return address on the stack\n")
+    (compiler:c64-compile-instructions f procedure (trivial-compiler:procedure-get-instructions procedure))
+    (fio:write-to f ";;;;;;;;;;;;;;;; END
+  ;;rts ; FIXME: is this needed?\n\n")))
 
 (e1:define (compiler:c64-io->stack-index procedure io)
   io)
@@ -1687,7 +1734,156 @@ global_data_end:
       (e1:let ((index (unboxed-hash:get pointer-hash value)))
         (fio:write-to f "p" (i index))))))
 
-;;; FIXME: insert compiler:c64-compile-instructions, from scratch.e
+(e1:define (compiler:c64-compile-instructions f procedure ii)
+  (e1:dolist (i (list:reverse ii))
+    (e1:match i
+      ((trivial-compiler:instruction-return)
+       (e1:let ((procedure-name (trivial-compiler:procedure-get-name procedure)))
+         (fio:write-to f ";  +print_string ")
+         (trivial-compiler:emit-symbol-identifier f procedure-name)
+         (fio:write-to f "_out\n"))
+       (fio:write-to f "  +jump_to_stack_16bit "
+                     (i (compiler:c64-return-stack-index procedure))
+                     " ;; return\n"))
+      ((trivial-compiler:instruction-tail-call name)
+       (fio:write-to f ";  +print_string ")
+       (trivial-compiler:emit-symbol-identifier f name)
+       (fio:write-to f "_tail_calling\n")
+       (fio:write-to f "  +stack_to_absolute_16bit "
+                     (i (compiler:c64-return-stack-index procedure))
+                     ", return_address ;; copy return address\n")
+       (fio:write-to f "  jmp ")
+       (trivial-compiler:emit-symbol-identifier f name)
+       (fio:write-to f " ;; tail-call " (sy name) "\n"))
+      ((trivial-compiler:instruction-tail-call-indirect local-index)
+       (fio:write-to f "  +stack_to_absolute_16bit "
+                     (i (compiler:c64-return-stack-index procedure))
+                     ", return_address ;; copy return address\n")
+       (fio:write-to f "  +jump_indirect_stack_16bit "
+                     (i (compiler:c64-local->stack-index procedure local-index))
+                     " ;; tail-call-indirect\n"))
+      ((trivial-compiler:instruction-nontail-call name scratch-index)
+       (e1:let ((return-label (trivial-compiler:fresh-label "return")))
+         (fio:write-to f "  ;; nontail-call: begin\n")
+         (fio:write-to f "  ;+print_string ")
+         (trivial-compiler:emit-symbol-identifier f name)
+         (fio:write-to f "_calling\n")
+         (fio:write-to f "  +literal_to_16bit "
+                       (st return-label)
+                       ", return_address ;; pass return address\n")
+         (fio:write-to f "  +adjust_frame_pointer_16bit "
+                       (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                       " ;; advance frame pointer\n")
+         (fio:write-to f "  jmp ")
+         (trivial-compiler:emit-symbol-identifier f name)
+         (fio:write-to f " ;; non-tail call " (sy name) "\n")
+         (fio:write-to f (st return-label) ":\n")
+         (fio:write-to f "  +adjust_frame_pointer_16bit -"
+                       (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                       " ;; reset frame pointer\n")
+         (fio:write-to f "  ;; nontail-call: end\n")))
+      ((trivial-compiler:instruction-nontail-call-indirect local-index scratch-index)
+       (e1:let ((return-label (trivial-compiler:fresh-label "return")))
+         (fio:write-to f "  ;; nontail-call-indirect: begin\n")
+         (fio:write-to f "  +literal_to_16bit "
+                       (st return-label)
+                       ", return_address ;; copy return address\n")
+         (fio:write-to f "  +symbol_native_code_to_absolute_stack_16bit "
+                       (i (compiler:c64-local->stack-index procedure local-index))
+                       ", zeropage_arg2 ;; save nontail indirect call destination\n")
+         (fio:write-to f "  +adjust_frame_pointer_16bit "
+                       (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                       " ;; advance frame pointer\n")
+         (fio:write-to f "  jmp (zeropage_arg2) ; nontail indirect call\n")
+         (fio:write-to f (st return-label) ":\n")
+         (fio:write-to f "  +adjust_frame_pointer_16bit -"
+                       (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                       " ;; reset frame pointer\n")
+         (fio:write-to f "  ;; nontail-call-indirect: end\n")))
+      ((trivial-compiler:instruction-get-io io-index scratch-index)
+       (fio:write-to f "  +stack_to_stack_16bit "
+                     (i (compiler:c64-io->stack-index procedure io-index))
+                     ", "
+                     (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                     " ;; get-io\n"))
+      ((trivial-compiler:instruction-set-io scratch-index io-index)
+       (fio:write-to f "  +stack_to_stack_16bit "
+                     (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                     ", "
+                     (i (compiler:c64-io->stack-index procedure io-index))
+                     " ;; set-io\n"))
+      ((trivial-compiler:instruction-get-local local-index scratch-index)
+       (fio:write-to f "  +stack_to_stack_16bit "
+                     (i (compiler:c64-local->stack-index procedure local-index))
+                     ", "
+                     (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                     " ;; get-local\n"))
+      ((trivial-compiler:instruction-set-local scratch-index local-index)
+       (fio:write-to f "  +stack_to_stack_16bit "
+                     (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                     ", "
+                     (i (compiler:c64-local->stack-index procedure local-index))
+                     " ;; set-local\n"))
+      ((trivial-compiler:instruction-get-global global-name scratch-index)
+       (e1:let ((global-value (buffer:get global-name 2))) ;; third symbol slot
+         (fio:write-to f "  +literal_to_stack_16bit ")
+         (compiler:c64-emit-value f procedure global-value)
+         (fio:write-to f
+                       ", "
+                       (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                       " ;; get-global " (sy global-name) "\n")))
+      ((trivial-compiler:instruction-get-value value scratch-index)
+       (fio:write-to f "  +literal_to_stack_16bit ")
+       (compiler:c64-emit-value f procedure value)
+       (fio:write-to f
+                     ", "
+                     (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                     " ;; get-value\n"))
+      ((trivial-compiler:instruction-primitive name scratch-index)
+       (compiler:c64-compile-primitive f procedure name scratch-index))
+      ((trivial-compiler:instruction-fork name scratch-index)
+       (e1:error "fork: unimplemented\n"))
+      ((trivial-compiler:instruction-join scratch-index)
+       (e1:error "join: unimplemented\n"))
+      ((trivial-compiler:instruction-if-in scratch-index values then-instructions else-instructions)
+       (e1:let ((then-label (trivial-compiler:fresh-label "then"))
+                (after-label (trivial-compiler:fresh-label "after_if")))
+         (fio:write-to f "  ;; if-in: begin\n")
+         (e1:dolist (v values)
+           (e1:if (fixnum:zero? v)
+             ;; We can be slightly more efficient in this (common) case.
+             (fio:write-to f "  +jump_when_zero_stack_16bit "
+                           (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                           ", " (st then-label) "\n")
+             (e1:begin ;; nonzero v
+               (fio:write-to f "  +literal_to_stack_16bit ")
+               (compiler:c64-emit-value f procedure v)
+               (fio:write-to f ", "
+                             (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                             " ;; candidate discriminator [FIXME: use a designed scratch slot or, better, write a jump_when_equal_stack_immediate_16bit macro]\n")
+               (fio:write-to f "  +equal_stack_16bit "
+                             (i (compiler:c64-scratch->stack-index procedure scratch-index))
+                             ", "
+                             (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                             ", "
+                             (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                             " ;; compare\n")
+               (fio:write-to f "  +jump_unless_zero_stack_8bit "
+                             (i (compiler:c64-scratch->stack-index procedure (fixnum:1+ scratch-index)))
+                             ", " (st then-label) "\n"))))
+         (fio:write-to f ";; else branch\n")
+         (compiler:c64-compile-instructions f procedure else-instructions)
+         (fio:write-to f "  jmp " (st after-label) "\n")
+         (fio:write-to f (st then-label) ":\n")
+         (compiler:c64-compile-instructions f procedure then-instructions)
+         (fio:write-to f (st after-label) ":\n")
+         (fio:write-to f "  ;; if-in: end\n")))
+      (_
+       (e1:error "impossible")))))
+
+(e1:define (compiler:c64-emit-nullary-1-result-primitive f name procedure scratch-index)
+  (fio:write-to f "  +" (st name) " "
+                (i (compiler:c64-scratch->stack-index procedure scratch-index))))
 
 (e1:define (compiler:c64-emit-unary-primitive f name procedure scratch-index)
   (fio:write-to f "  +" (st name) " "
@@ -1716,7 +1912,78 @@ global_data_end:
                 ", "
                 (i (compiler:c64-scratch->stack-index procedure (fixnum:+ scratch-index 2)))))
 
-;;; FIXME: insert compiler:c64-compile-primitive, from scratch.e
+(e1:define (compiler:c64-compile-primitive f p name scratch-index)
+  (e1:case name
+    ((debug:fail)
+     (fio:write-to f "  +debug_fail"))
+
+    ((fixnum:+)
+     (compiler:c64-emit-binary-primitive f "sum_stack_16bit" p scratch-index))
+    ((fixnum:-)
+     (compiler:c64-emit-binary-primitive f "subtract_stack_16bit" p scratch-index))
+    ((fixnum:bitwise-and)
+     (compiler:c64-emit-binary-primitive f "bitwise_and_stack_16bit" p scratch-index))
+    ((fixnum:bitwise-or)
+     (compiler:c64-emit-binary-primitive f "bitwise_or_stack_16bit" p scratch-index))
+    ((fixnum:bitwise-xor)
+     (compiler:c64-emit-binary-primitive f "bitwise_xor_stack_16bit" p scratch-index))
+
+    ((whatever:zero?)
+     (fio:write-to f
+                   "  +literal_to_stack_16bit 0, "
+                   (i (compiler:c64-scratch->stack-index p (fixnum:1+ scratch-index)))
+                   ";; [FIXME: use a designed scratch slot]\n")
+     (compiler:c64-emit-binary-primitive f "equal_stack_16bit" p scratch-index))
+    ((fixnum:1+)
+     (compiler:c64-emit-unary-primitive f "increment_stack_16bit" p scratch-index))
+    ((fixnum:1-)
+     (compiler:c64-emit-unary-primitive f "decrement_stack_16bit" p scratch-index))
+    ((fixnum:left-shift-1-bit)
+     (compiler:c64-emit-unary-primitive f "left_shift_1_stack_16bit" p scratch-index))
+    ((fixnum:arithmetic-right-shift-1-bit)
+     (compiler:c64-emit-unary-primitive f "arithmetic_right_shift_1_stack_16bit" p scratch-index))
+    ((fixnum:logic-right-shift-1-bit)
+     (compiler:c64-emit-unary-primitive f "logic_right_shift_1_stack_16bit" p scratch-index))
+
+    ((whatever:eq?)
+     (compiler:c64-emit-binary-primitive f "equal_stack_16bit" p scratch-index))
+    ((fixnum:<)
+     (compiler:c64-emit-binary-primitive f "less_than_stack_16bit" p scratch-index))
+    ((fixnum:<=)
+     (compiler:c64-emit-binary-primitive f "less_than_or_equal_to_stack_16bit" p scratch-index))
+
+    ((fixnum:negate)
+     (compiler:c64-emit-unary-primitive f "negate_stack_16bit" p scratch-index))
+    ((fixnum:bitwise-not)
+     (compiler:c64-emit-unary-primitive f "bitwise_not_stack_16bit" p scratch-index))
+
+    ((buffer:make)
+     (compiler:c64-emit-unary-primitive f "buffer_make_stack_16bit" p scratch-index))
+    ((buffer:get)
+     (compiler:c64-emit-binary-primitive f "buffer_get_stack_16bit" p scratch-index))
+    ((buffer:set! buffer:initialize!)
+     ;; a ternary primitive with no results.  FIXME: generalize?
+     (compiler:c64-emit-ternary-no-result-primitive f "buffer_set_stack_16bit" p scratch-index))
+
+    ((io:load-byte)
+     (compiler:c64-emit-unary-primitive f "io_load_byte_8bit" p scratch-index))
+    ((io:store-byte!)
+     (compiler:c64-emit-binary-no-result-primitive f "io_store_byte_8bit" p scratch-index))
+
+    ((io:standard-output)
+     (fio:write-to f "  ;; Return an undefined value for io:standard-output\n"))
+    ((io:write-character) ;; FIXME: no file support yet: ignore the first parameter
+     (fio:write-to f "  +stack_to_a_8bit "
+                   (i (compiler:c64-scratch->stack-index p (fixnum:1+ scratch-index)))
+                   "\n")
+     (fio:write-to f "  jsr io_write_ASCII_character"))
+
+    ((c64:read-timer)
+     (compiler:c64-emit-nullary-1-result-primitive f "read_timer_stack_16bit" p scratch-index))
+    (else
+     (fio:write "About the primitive " (sy name) ":\n")
+     (e1:error "unsupported primitive")))
+  (fio:write-to f " ;; primitive " (sy name) "\n"))
 
 
 ;;;;; Scratch convenience macros
@@ -1753,3 +2020,529 @@ global_data_end:
 
 (e1:define-macro (c . forms)
   `(can "/tmp/q.a" ,@forms))
+
+
+;;;;; Commodore 64 sprites
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Return a bundle of:
+;;; * result, as a byte;
+;;; * index of the next character to be read in the string.
+;;; There should be no #\cr characters.
+(e1:define (c64:parse-bitmap-byte string multi-color index)
+  (c64:parse-bitmap-byte-helper string multi-color index 0 0))
+(e1:define (c64:parse-bitmap-byte-helper string multi-color index char-index acc)
+  (e1:let ((chars-per-byte (e1:if multi-color 4 8))
+           (bits-per-pixel (e1:if multi-color 2 1)))
+    (e1:cond ((fixnum:= char-index chars-per-byte)
+              (e1:bundle acc
+                         (fixnum:+ index char-index)))
+             ((e1:or (fixnum:>= (fixnum:+ index char-index) (string:length string))
+                     (fixnum:= (string:get string (fixnum:+ index char-index)) #\newline))
+              (e1:bundle (fixnum:left-shift acc
+                                            (fixnum:- 8 (fixnum:* bits-per-pixel
+                                                                  char-index)))
+                         (fixnum:+ index char-index)))
+             (bind (c (string:get string (fixnum:+ index char-index))))
+             (multi-color
+              (e1:let ((2bits (e1:case c
+                                ((#\0 #\. #\space) 0)
+                                ((#\1 #\A #\a)     1)
+                                ((#\2 #\B #\b)     2)
+                                ((#\3 #\C #\c)     3)
+                                (else              3)))) ;; FIXME: 3?
+                (c64:parse-bitmap-byte-helper string
+                                              multi-color
+                                              index
+                                              (fixnum:1+ char-index)
+                                              (fixnum:bitwise-or (fixnum:left-shift acc 2)
+                                                                 2bits))))
+             (else
+              (e1:let ((bit (e1:if (e1:or (fixnum:= c #\.)
+                                          (fixnum:= c #\space))
+                              0
+                              1)))
+                (c64:parse-bitmap-byte-helper string
+                                              multi-color
+                                              index
+                                              (fixnum:1+ char-index)
+                                              (fixnum:bitwise-or (fixnum:left-shift-1-bit acc)
+                                                                 bit)))))))
+
+;;; Return a bundle of:
+;;; * result, as a byte;
+;;; * index of the next character to be read in the string;
+(e1:define (c64:parse-bitmap-row string multi-color index byte-no)
+  (c64:parse-bitmap-row-acc string multi-color index byte-no list:nil))
+(e1:define (c64:parse-bitmap-row-acc string multi-color index byte-no acc)
+  (e1:cond (bind (length (string:length string)))
+           ((fixnum:>= index length)
+            (e1:bundle (list:append (list:reverse acc)
+                                    (list:n-times byte-no 0))
+                       index)) ;; No trailing newline.
+           ((fixnum:zero? byte-no)
+            (e1:if (fixnum:< index length)
+              (e1:begin
+                (e1:unless (fixnum:= (string:get string index) #\newline)
+                  (e1:error "row too wide"))
+                (e1:bundle (list:reverse acc)
+                           (fixnum:1+ index))) ;; Eat #\newline.
+              (e1:bundle (list:reverse acc)
+                         index)))
+           (bind (c (string:get string index)))
+           ((fixnum:= c #\newline)
+            (e1:bundle (list:append (list:reverse acc)
+                                    (list:n-times byte-no 0))
+                       (fixnum:1+ index))) ;; Skip (this) newline character.
+           (else
+            (e0:let (byte index) (c64:parse-bitmap-byte string multi-color index)
+              (c64:parse-bitmap-row-acc string
+                                        multi-color
+                                        index
+                                        (fixnum:1- byte-no)
+                                        (list:cons byte acc))))))
+
+(e1:define (c64:parse-bitmap string multi-color byte-no-per-row row-no)
+  (list:list->buffer (c64:parse-bitmap-acc (string:trim string)
+                                           multi-color
+                                           0
+                                           byte-no-per-row
+                                           row-no
+                                           list:nil)))
+(e1:define (c64:parse-bitmap-acc string multi-color index byte-no-per-row row-no acc)
+  (e1:cond ((fixnum:zero? row-no)
+            (e1:when (fixnum:< index (fixnum:1- (string:length string)))
+              (e1:error "too many rows\n"))
+            (list:flatten (list:reverse acc)))
+           ((fixnum:>= index (string:length string))
+            (list:append (list:flatten (list:reverse acc))
+                         (list:n-times (fixnum:* byte-no-per-row row-no) 0)))
+           (else
+            (e0:let (row index) (c64:parse-bitmap-row string multi-color index byte-no-per-row)
+              (c64:parse-bitmap-acc string
+                                    multi-color
+                                    index
+                                    byte-no-per-row
+                                    (fixnum:1- row-no)
+                                    (list:cons row acc))))))
+
+(e1:define-macro (c64:sprite . forms)
+  `(state:with-property (e1:value c64:sprite) #t ,@forms))
+
+(e1:define (c64:parse-sprite multi-color s)
+  (c64:sprite (c64:parse-bitmap s multi-color 3 21)))
+
+(e1:define-macro (e1:define-c64-sprite name multi-color string)
+  `(e1:begin
+     (e1:define ,name (c64:parse-sprite ,multi-color ,string))
+     ;;; This would be a nice idea, but it doesn't play well with unexec.
+     ;; ,(e1:let* ((name-as-symbol (sexpression:eject-symbol name))
+     ;;            (name-as-string (symbol:symbol->string name-as-symbol))
+     ;;            (name-block-as-string (string:append name-as-string "-block"))
+     ;;            (name-block-as-symbol (symbol:string->symbol name-block-as-string))
+     ;;            (name-block-as-ssymbol (sexpression:inject-symbol name-block-as-symbol)))
+     ;;    `(e1:define ,name-block-as-ssymbol (fixnum:64/ ,name)))
+     ))
+
+(e1:define-macro (e1:define-c64-single-color-sprite name string)
+  `(e1:define-c64-sprite ,name #f ,string))
+
+(e1:define-macro (e1:define-c64-multi-color-sprite name string)
+  `(e1:define-c64-sprite ,name #t ,string))
+
+
+;;;;; What follows is tentative code: Commodore 64 tests
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (list:sum xs)
+  (list:sum-acc xs 0))
+(e1:define (list:sum-acc xs a)
+  (e1:if (list:null? xs)
+    a
+    (list:sum-acc (list:tail xs)
+                  (fixnum:+ (list:head xs) a))))
+
+(e1:define (compose f g)
+  (e1:lambda (x)
+    (e1:call-closure f (e1:call-closure g x))))
+
+(e1:define (iterate f n)
+  (e1:if (fixnum:zero? n)
+    (e1:lambda (x) x)
+    (compose f (iterate f (fixnum:1- n)))))
+
+;; (e1:define (fixnum:absolute-value n)
+;;   (e1:if (fixnum:< n 0)
+;;     (fixnum:negate n)
+;;     n))
+
+;; (e1:define fixnum:random-seed
+;;   (box:make 1234))
+;; (e1:define (fixnum:random)
+;;   (e1:let* ((old-seed (box:get fixnum:random-seed))
+;;             (old-seed old-seed)
+;;             (new-seed (e0:if-in old-seed (0)
+;;                         1
+;;                         (fixnum:non-primitive-% (fixnum:+ old-seed
+;;                                                           (fixnum:non-primitive-* old-seed
+;;                                                                                   213))
+;;                                                 32323)))
+;;             (new-seed (fixnum:absolute-value new-seed)))
+;;     (box:set! fixnum:random-seed new-seed)
+;;     new-seed))
+
+;;;;; Commodore 64 color names
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define c64:color-black       0)
+(e1:define c64:color-white       1)
+(e1:define c64:color-red         2)
+(e1:define c64:color-cyan        3)
+(e1:define c64:color-purple      4)
+(e1:define c64:color-green       5)
+(e1:define c64:color-blue        6)
+(e1:define c64:color-yellow      7)
+(e1:define c64:color-orange      8)
+(e1:define c64:color-brown       9)
+(e1:define c64:color-light-red   10)
+(e1:define c64:color-dark-grey   12)
+(e1:define c64:color-medium-grey 13)
+(e1:define c64:color-light-green 13)
+(e1:define c64:color-light-blue  14)
+(e1:define c64:color-light-grey  15)
+
+;;; Aliases.
+(e1:define c64:color-pink        c64:color-light-red)
+(e1:define c64:color-medium-gray c64:color-medium-grey)
+(e1:define c64:color-light-gray  c64:color-light-grey)
+
+
+;;;;; 6502 optimized arithmetic special cases
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (fixnum:2* n)
+  (e1:primitive fixnum:left-shift-1-bit n))
+(e1:define (fixnum:4* n)
+  (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit n)))
+(e1:define (fixnum:8* n)
+  (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit n))))
+(e1:define (fixnum:16* n)
+  (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit n)))))
+(e1:define (fixnum:32* n)
+  (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit n))))))
+(e1:define (fixnum:64* n)
+  (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit n)))))))
+(e1:define (fixnum:128* n)
+  (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit n))))))))
+(e1:define (fixnum:256* n) ;; FIXME: this could be made much faster with a primitive
+  (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit (e1:primitive fixnum:left-shift-1-bit n)))))))))
+
+;; n * 320 = n * 256 + n * 64 = n * 64 + n * 64 * 4
+(e1:define (fixnum:320* n)
+  (e1:let* ((64n (fixnum:64* n))
+            (256n (fixnum:4* 64n)))
+    (fixnum:+ 64n 256n)))
+
+;; n * 40 = n * 32 + n * 8 = n * 8 + n * 8 * 4
+(e1:define (fixnum:40* n)
+  (e1:let* ((8n (fixnum:8* n))
+            (32n (fixnum:4* 8n)))
+    (fixnum:+ 32n 8n)))
+
+(e1:define (fixnum:2/ n)
+  (e1:primitive fixnum:arithmetic-right-shift-1-bit n))
+(e1:define (fixnum:4/ n)
+  (e1:primitive fixnum:arithmetic-right-shift-1-bit (e1:primitive fixnum:arithmetic-right-shift-1-bit n)))
+(e1:define (fixnum:8/ n)
+  (e1:primitive fixnum:arithmetic-right-shift-1-bit (e1:primitive fixnum:arithmetic-right-shift-1-bit (e1:primitive fixnum:arithmetic-right-shift-1-bit n))))
+(e1:define (fixnum:16/ n)
+  (e1:primitive fixnum:arithmetic-right-shift-1-bit (e1:primitive fixnum:arithmetic-right-shift-1-bit (e1:primitive fixnum:arithmetic-right-shift-1-bit (e1:primitive fixnum:arithmetic-right-shift-1-bit n)))))
+(e1:define (fixnum:32/ n)
+  (e1:primitive fixnum:arithmetic-right-shift-1-bit (e1:primitive fixnum:arithmetic-right-shift-1-bit (e1:primitive fixnum:arithmetic-right-shift-1-bit (e1:primitive fixnum:arithmetic-right-shift-1-bit (e1:primitive fixnum:arithmetic-right-shift-1-bit n))))))
+(e1:define (fixnum:64/ n)
+  (e1:primitive fixnum:arithmetic-right-shift-1-bit (e1:primitive fixnum:arithmetic-right-shift-1-bit (e1:primitive fixnum:arithmetic-right-shift-1-bit (e1:primitive fixnum:arithmetic-right-shift-1-bit (e1:primitive fixnum:arithmetic-right-shift-1-bit (e1:primitive fixnum:arithmetic-right-shift-1-bit n)))))))
+
+;; An efficient way of left-shifting 1.
+(e1:define fixnum:left-shifts
+  (tuple:make 1 2 4 8 16 32 64 128))
+(e1:define (fixnum:left-shift-1 n)
+  (e1:primitive buffer:get fixnum:left-shifts n))
+
+(e1:define (io:or! address byte)
+  (io:store-byte! address
+                  (fixnum:bitwise-or (io:load-byte address) byte)))
+(e1:define (io:and! address byte)
+  (io:store-byte! address
+                  (fixnum:bitwise-and (io:load-byte address) byte)))
+
+
+;;;;; Commodore 64 high-level I/O
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define v 53248)
+
+(e1:define (show-sprite! n)
+  (set-sprite-visibility! n #t))
+(e1:define (hide-sprite! n)
+  (set-sprite-visibility! n #f))
+
+(e1:define (sprite->block address)
+  (fixnum:64/ address))
+(e1:define (set-sprite-block! n block)
+  (io:store-byte! (fixnum:+ 2040 n)
+                  block))
+
+;;; This is slow and shouldn't be used in production if possible.
+(e1:define (set-sprite-configuration! n address)
+  (set-sprite-block! n (sprite->block address)))
+(e1:define (set-sprite-visibility! n visibility)
+  (e1:let* ((enable-address (fixnum:+ v 21))
+            (old-byte (io:load-byte enable-address))
+            (new-byte
+             (e1:if visibility
+               (fixnum:bitwise-or old-byte (fixnum:non-primitive-left-shift 1 n))
+               (fixnum:bitwise-and old-byte (fixnum:bitwise-not (fixnum:non-primitive-left-shift 1 n))))))
+    (io:store-byte! enable-address new-byte)))
+
+;; An 8 fixnum array storing (1 << i) at index i.  Useful for setting
+;; sprite coordinate high bits.
+(e1:define sprite-bit-array
+  fixnum:left-shifts)
+;; A way to avoid negating the previous array elements at run time.
+(e1:define sprite-not-bit-array
+  (tuple:make (fixnum:bitwise-not 1) (fixnum:bitwise-not 2)
+              (fixnum:bitwise-not 4) (fixnum:bitwise-not 8)
+              (fixnum:bitwise-not 16) (fixnum:bitwise-not 32)
+              (fixnum:bitwise-not 64) (fixnum:bitwise-not 128)))
+
+(e1:define (move-sprite-fast! n x y)
+  (e1:let* ((x-address (fixnum:+ v (fixnum:2* n)))
+            (y-address (fixnum:1+ x-address)))
+    (io:store-byte! x-address x)
+    (io:store-byte! y-address y)))
+
+(e1:define (move-sprite! n x y)
+  (e1:let* ((x-address (fixnum:+ v (fixnum:2* n)))
+            (x-255 (fixnum:- x 255))
+            (y-address (fixnum:1+ x-address))
+            (old-high-x-bits (io:load-byte 53264)))
+    (e1:if (fixnum:< x-255 0)
+      (e1:begin
+        (io:store-byte! 53264
+                        (fixnum:bitwise-and old-high-x-bits
+                                            (buffer:get sprite-not-bit-array n)))
+        (io:store-byte! x-address x))
+      (e1:begin
+        (io:store-byte! 53264
+                        (fixnum:bitwise-or old-high-x-bits
+                                           (buffer:get sprite-bit-array n)))
+        (io:store-byte! x-address x-255)))
+    (io:store-byte! y-address y)))
+
+(e1:define (joystick-address j)
+  (fixnum:+ 56320 j))
+
+(e1:define (joystick-state j)
+  (io:load-byte (joystick-address j)))
+
+(e1:define (joystick-up? state)
+  (e1:not (fixnum:bitwise-and state 1)))
+(e1:define (joystick-down? state)
+  (e1:not (fixnum:bitwise-and state 2)))
+(e1:define (joystick-left? state)
+  (e1:not (fixnum:bitwise-and state 4)))
+(e1:define (joystick-right? state)
+  (e1:not (fixnum:bitwise-and state 8)))
+(e1:define (joystick-fire? state)
+  (e1:not (fixnum:bitwise-and state 16)))
+
+(e1:define (set-sprite-expandedness-at! n location expandedness)
+  (e1:let ((mask (fixnum:left-shift 1 n))
+           (old-value (io:load-byte location)))
+    (e1:if expandedness
+      (io:store-byte! location (fixnum:bitwise-or old-value mask))
+      (io:store-byte! location (fixnum:bitwise-and old-value (fixnum:bitwise-not mask))))))
+
+(e1:define (set-sprite-x-expandedness! n expandedness)
+  (set-sprite-expandedness-at! n 53277 expandedness))
+(e1:define (set-sprite-y-expandedness! n expandedness)
+  (set-sprite-expandedness-at! n 53271 expandedness))
+(e1:define (set-sprite-xy-expandedness! n x-expandedness y-expandedness)
+  (set-sprite-x-expandedness! n x-expandedness)
+  (set-sprite-y-expandedness! n y-expandedness))
+
+(e1:define (set-sprite-color! n color)
+  (io:store-byte! (fixnum:+ 53287 n) color))
+
+(e1:define (set-sprite-multi-color! n multi-color)
+  (e1:if multi-color
+    (io:or! 53276 (fixnum:left-shift 1 n))
+    (io:and! 53276 (fixnum:bitwise-not (fixnum:left-shift 1 n)))))
+
+(e1:define (set-sprite-multi-color-color-0! color)
+  (io:store-byte! 53285 color))
+(e1:define (set-sprite-multi-color-color-1! color)
+  (io:store-byte! 53286 color))
+
+(e1:define base
+  (fixnum:double 4096))
+
+(e1:define (disable-high-resolution-mode)
+  (io:store-byte! 53265 27)
+  (io:store-byte! 53272 21)
+  (io:store-byte! 56576 199))
+(e1:define (enable-high-resolution-mode)
+  (io:store-byte! 53265 59)
+  (io:store-byte! 53272 29)
+  (io:store-byte! 56576 198)
+  ;; ;; ;; Put the bit map at base.
+  ;; ;; (io:store-byte! 53272 (fixnum:bitwise-or (io:load-byte 53272) 8))
+  ;; ;; Enter bit map mode.
+  ;; (io:store-byte! 53265 (fixnum:bitwise-or (io:load-byte 53265) 32))
+  ;; ;; Clear the bit map.
+  ;; (io:fill-from-to! 24576 32575);base 7999)
+  ;; ;; Set color to cyan and black.
+  ;; (io:fill-from-to! 1024 (fixnum:- 2023 1024 -1) 3)
+  )
+(e1:define (io:fill-from-to! from how-many byte)
+  (e1:when how-many
+    (io:store-byte! from byte)
+    (io:fill-from-to! (fixnum:1+ from) (fixnum:1- how-many) byte)))
+
+(e1:define (plot x y c)
+  (e1:let* ((row (fixnum:8/ y))
+            (column (fixnum:8/ x))
+            (line (fixnum:bitwise-and y 7))
+            (bit (fixnum:- 7 (fixnum:bitwise-and x 7)))
+            (byte (fixnum:+ 24576
+                            (fixnum:320* row 320)
+                            (fixnum:8* column 8)
+                            line))
+            (cbyte (fixnum:+ 17408
+                             (fixnum:40* row 40)
+                             col)))
+    ;; (io:store-byte! byte
+    ;;                 (fixnum:bitwise-or (io:load-byte byte)
+    ;;                                    (fixnum:non-primitive-left-shift 1 bit)))
+    (io:store-byte! cbyte c)
+    ))
+
+(e1:define vic2:color-memory 55296)
+(e1:define (vic2:set-screen-memory address)
+  ;; FIXME: shall I add the bank address to 648?
+  ;;; FIXME: I should also poke 53272 to choose where screen memory is:
+  ;; POKE53272,(PEEK(53272)AND15)OR A
+  ;; POKE 53272,(PEEK(53272)AND240)OR A   REM for character memory
+  ;; The following is only for the kernal's screen editor
+  (io:store-byte! 648 (fixnum:non-primitive-/ address 64)))
+
+(e1:define (vic2:set-bit-map)
+  (io:or! 53265 32))
+(e1:define (vic2:unset-bit-map)
+  (io:and! 53265 223))
+
+;; Lookup the value for a given pixel within a byte, indexed from the left.
+(e1:define fixnum:lookup-bit-value-values
+  (tuple:make 128 64 32 16 8 4 2 1))
+(e1:define (fixnum:lookup-bit-value n)
+  (e1:primitive buffer:get fixnum:lookup-bit-value-values n))
+
+(e1:define (vic2:plot-pixel x y)
+  ;; 70 CH=INT(X/8)
+  ;; 80 RO=INT(Y/8)
+  ;; 85 LN=YAND7
+  ;; 90 BY=BASE+RO*320+8*CH+LN
+  ;; 100 BI=7-(XAND7)
+  ;; 110 POKEBY,PEEK(BY)OR(2^BI)
+  (e1:let* ((by (fixnum:+ base
+                          (fixnum:320* (fixnum:8/ y))
+                          (fixnum:8* (fixnum:8/ x))
+                          (fixnum:bitwise-and y 7)))
+            (bi (fixnum:bitwise-and x 7)))
+    (io:or! by (fixnum:lookup-bit-value bi))))
+
+(e1:define (plot-line x y)
+  (e1:when (e1:and (fixnum:< x 320)
+                   (fixnum:< y 200))
+    (vic2:plot-pixel x y)
+    (plot-line (fixnum:+ x 1) (fixnum:+ y 1))))
+
+;; (e1:define (plot-random x)
+;;   (e1:when (e1:and (fixnum:< x 320))
+;;     (vic2:plot-pixel x (fixnum:non-primitive-% (fixnum:random) 200))
+;;     (plot-random (fixnum:+ x 1))))
+
+(e1:define (plot-everything x)
+  (e1:when (fixnum:< x 320)
+    (plot-column x 0)
+    (plot-everything (fixnum:+ x 1))))
+(e1:define (plot-column x y)
+  (e1:when (fixnum:- y 200)
+    (vic2:plot-pixel x y)
+    (plot-column x (fixnum:1+ y))))
+(e1:define (go)
+  ;;(make-sprites)
+  ;; (enable-high-resolution-mode)
+  ;; (io:fill-from-to! 17408 1000 94)
+  ;; (io:fill-from-to! 24576 8000 0)
+  ;; ;; "lighthouse"
+  ;; (io:store-byte! 18090 0)
+  ;; (io:store-byte! 18130 17)
+  ;; (io:store-byte! 18170 17)
+  ;; (io:store-byte! 18210 17)
+  ;;(plot 10 20 10)
+  ;(plot 10 21 10)
+  ;; (plot 11 30 5)
+  ;; (plot 12 40 4)
+  ;; (plot 13 50 3)
+  ;; (plot 14 70 2)
+
+  ;;(disable-high-resolution-mode)
+  ;;POKE 53270,PEEK(53270)OR 16
+  ;;(io:or! 53270 16)
+  ;;POKE53272,PEEK(53272)OR8:REM PUT BIT MAP AT 8192
+  (io:or! 53272 8) ;; put the bit map at 8192
+  (vic2:set-bit-map)
+  ;;(io:fill-from-to! color-memory 500 1)
+  (io:fill-from-to! base 8000 0)
+  ;;(vic2:unset-bit-map)
+  (io:fill-from-to! 1024 1024 3)
+  ;;(vic2:set-bit-map)
+  (vic2:plot-pixel 100 100)
+  (vic2:plot-pixel 100 110)
+  (vic2:plot-pixel 100 120)
+  (vic2:plot-pixel 100 130)
+  (vic2:plot-pixel 100 150)
+  ;;(plot-line 0 0)
+  (plot-everything 0)
+  ;;(vic2:unset-bit-map)
+  ;;(loop)
+  )
+
+(e1:define (loop) (loop))
+
+(e1:define-macro (g)
+  '(c (go)))
+(e1:toplevel
+(e1:when #f
+  (c (stripes))
+  (c (test-sprites))
+  ))
+(e1:toplevel (e1:when #t ;#f
+  ;;(e1:define configuration:bits-per-word 16)
+  (e1:define (fixnum:* a b) (fixnum:non-primitive-* a b))
+  (e1:define (fixnum:/% a b) (fixnum:non-primitive-/% a b))
+  (e1:define (fixnum:/ a b) (fixnum:non-primitive-/ a b))
+  (e1:define (fixnum:% aq bq) (fixnum:non-primitive-% aq bq))
+  (e1:define (fixnum:left-shift a b) (fixnum:non-primitive-left-shift a b))
+  (e1:define (fixnum:arithmetic-right-shift a b) (fixnum:non-primitive-arithmetic-right-shift a b))
+  (e1:define (fixnum:logic-right-shift a b) (fixnum:non-primitive-logic-right-shift a b))
+  ))
+
+(e1:define-macro (c1 . stuff)
+  `(e1:begin ,@stuff))
+
+;; (c (e1:dolist (s (list:list "foo" "bar")) (fio:write s "\n")))
+;; (e1:toplevel (g))
+
+;; (c (list:fold (e1:lambda (a b) (fixnum:+ a b)) 0 (list:iota 5)))

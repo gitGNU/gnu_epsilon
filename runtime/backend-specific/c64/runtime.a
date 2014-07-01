@@ -31,6 +31,8 @@
 BASIC_START = $0801 ;; 2049
 * = BASIC_START
 
+!warn "The BASIC driver starts at ", *, "."
+
 BASIC_LINE_10:
 ;;; 10 SYSML_START
 ;;; FIXME: I've followed the documentation but there's something I don't
@@ -49,6 +51,8 @@ BASIC_LINE_10:
 BASIC_TERMINATOR:
 !byte 0, 0 ;; end-of-BASIC-program marker
 AFTER_BASIC_TERMINATOR:
+
+!warn "The BASIC driver ends at ", * - 1, " and is ", * - BASIC_START, " bytes long."
 
 
 ;;;;; Machine-language end
@@ -88,11 +92,48 @@ ML_END:
 ;; ;; Experimental BASIC area: END
 
 
-;; ;;;;; Tentative: Reserve space for graphics (bank 0)
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; !zone grapics
+;;;;; Reserve space for graphics in bank 0
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone graphics
 
-;; !fill 18000, 0 ;; obviously too much
+!if (* >= 16383) {
+  !error "No space for graphics in bank 0: the inital runtime part ends at ", * - 1, "."
+}
+
+graphics_area:
+
+!align 63, 0
+sprite_area:
+
+;;; This is updated after adding each sprite configuration.
+!set next_sprite = *
+
+;;; Call this before defining a sprite, including its label, in order
+;;; to insert the sprite definition here.  May not be nested.
+!macro begin_sprite {
+  !set previous_here = *
+  * = next_sprite
+}
+
+;;; Call this *after* defining a sprite, in order to return to the
+;;; previously saved *.  This automatically updates the pointer to the
+;;; next sprite, keeping it
+;;; aligned.
+!macro end_sprite {
+  !set next_sprite = next_sprite + 64
+  * = previous_here
+  !warn "We still have space for ", ((after_bank_0_end - next_sprite) / 64) ," sprites."
+}
+
+!warn (16383 - *), " bytes free for graphics in bank 0, from ", *, "."
+
+;;; Don't emit anything else in the first bank; the space from * to 16383 is
+;;; left to the user for graphics.
+!align 16383, 0
+after_bank_0_end:
+
+!warn "The usable part starts at ", *, "."
+
 
 ;;;;; Special global definitions.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -151,6 +192,7 @@ character_equals = $3d
 
 chrout = $ffd2
 getin = $ffe4
+rdtim = $ffde
 stop = $ffe1
 
 
@@ -1063,18 +1105,18 @@ less_than_16bit:
         bmi negative_unknown
         lda zeropage_arg2 + 1
         bmi nonnegative_negative
-;; same sign: in two's complement I can just compare unsigned representations.
+        ;; same sign: in two's complement I can just compare unsigned representations.
 same_sign:
         ;; When I arrive here, from either path, I have the second MSB in A.
         cmp zeropage_arg1 + 1 ; set C if second MSB >= first MSB, Z if equal
         beq first_bytes_equal
-        bcc nonnegative_negative ; second MSB < first MSB: return #0
+        bcc nonnegative_negative ; branch if second MSB < first MSB: return #0
         ;; If we arrived here then second MSB > first MSB: return #1
         jmp negative_nonnegative
 first_bytes_equal:
         lda zeropage_arg1
         cmp zeropage_arg2 ; set C if first LSB >= second LSB
-        bcc negative_nonnegative ; first LSB < second LSB: return #1
+        bcc negative_nonnegative ; branch if first LSB < second LSB: return #1
         lda #0 ; trade space for speed: don't jump to nonnegative_negative
         rts
 negative_unknown:
@@ -1087,7 +1129,7 @@ nonnegative_negative:
         lda #0
         rts
 
-;;; The MSB is always zero and not represented.
+;;; I have to store the MSB in the general case, even if it's always 0.
 !macro less_than_stack_16bit .fromslot1, .fromslot2, .toslot {
         ;; Call the procedure doing the actual work.
         +stack_to_absolute_16bit .fromslot1, zeropage_arg1
@@ -1095,11 +1137,11 @@ nonnegative_negative:
         jsr less_than_16bit
         ;; Store the LSB.
         +a_to_stack_8bit .toslot
-        ;; ;; Store the MSB.  I rely on a_to_stack_8bit leaving Y to
-        ;; ;; #(.toslot * 2).
-        ;; iny
-        ;; lda #0
-        ;; sta (frame_pointer), y
+        ;; Store the MSB.  I rely on a_to_stack_8bit leaving Y to
+        ;; #(.toslot * 2).
+        iny
+        lda #0
+        sta (frame_pointer), y
 }
 
 !macro greater_than_stack_16bit .fromslot1, .fromslot2, .toslot {
@@ -1166,6 +1208,20 @@ add_words_to_heap_allocation_pointer_16bit:
         +stack_to_absolute_16bit .fromslot2, zeropage_arg2
         +stack_to_absolute_16bit .fromslot3, zeropage_arg3
         jsr buffer_set_16bit
+}
+
+;;; Clobbers zeropage_arg1.
+!macro read_timer_stack_16bit .toslot {
+        jsr rdtim
+        ;; RDTIM returns three bytes in A, X and Y, starting from the
+        ;; *least* significant (the Commodore 64 programming reference
+        ;; guide is wrong on this).  FIXME: "report".
+        ;; I ignore the third byte (the most significant one) in Y.
+        ldy #(.toslot * 2)
+        sta (frame_pointer), y
+        txa
+        ldy #(.toslot * 2 + 1)
+        sta (frame_pointer), y
 }
 
 ;;; Single parameter and result in zeropage_arg1.

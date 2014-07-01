@@ -377,6 +377,9 @@ static void epsilon_primitive_io_load_byte(epsilon_value *stack){
 static void epsilon_primitive_io_store_byte(epsilon_value *stack){
   epsilon_runtime_appropriate_fail("io:store-byte! [unimplemented]");
 }
+static void epsilon_primitive_c64_read_timer(epsilon_value *stack){
+  epsilon_runtime_appropriate_fail("c64:read-timer [unimplemented]");
+}
 static void epsilon_primitive_io_standard_input(epsilon_value *stack){
   stack[0] = epsilon_foreign_pointer_to_epsilon_value(stdin);
 }
@@ -628,4 +631,6 @@ void epsilon_c_primitives_initialize(void){
   epsilon_initialize_c_primitive("unix:unlink", epsilon_primitive_unix_unlink, 1, 1);
 
   epsilon_initialize_c_primitive("io:write-value", epsilon_primitive_io_write_value, 2, 0); // FIXME: remove after bootstrapping from Guile
+
+  epsilon_initialize_c_primitive("c64:read-timer", epsilon_primitive_c64_read_timer, 0, 1);
 }

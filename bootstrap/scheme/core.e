@@ -1998,6 +1998,8 @@
 
 (state:primitive-set! (e0:value io:write-value)     (e0:value 2) (e0:value 0) (e0:value #t) (e0:value #f)) ;; FIXME: remove after bootstrapping from Guile
 
+(state:primitive-set! (e0:value c64:read-timer) (e0:value 0) (e0:value 1) (e0:value #t) (e0:value #f))
+
 ;;; Generate the (proof-of-concept: a more efficent version,
 ;;; e0:primitive is availabel, itself mostly implemented as a
 ;;; primitive) procedure state:eval-primitive for evaluating

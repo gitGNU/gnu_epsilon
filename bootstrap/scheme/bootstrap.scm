@@ -61,7 +61,7 @@
 (format #t "...done\n")
 
 
-;;;;; Unexec a native REPL
+;;;;; Unexec a non-Guile REPL
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (load "unexec-repl.e")

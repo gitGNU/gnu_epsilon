@@ -123,6 +123,9 @@ sprite_area:
   !set next_sprite = next_sprite + 64
   * = previous_here
   !warn "We still have space for ", ((after_bank_0_end - next_sprite) / 64) ," sprites."
+  !if next_sprite > after_bank_0_end {
+    !error "Sprites overflow past bank 0"
+  }
 }
 
 !warn (16383 - *), " bytes free for graphics in bank 0, from ", *, "."
@@ -215,26 +218,6 @@ reenable_BASIC:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 !zone character_set_border_and_background_color_support
 
-border = 53280
-background = 53281
-
-border_previous_color:
-!byte 0
-
-save_border:
-        lda border
-        sta border_previous_color
-        rts
-restore_border:
-        lda border_previous_color
-        sta border
-        rts
-
-;;; Parameter in A.
-set_border:
-        sta border
-        rts
-
 toggle_shifted_character_set:
         lda 53272
         eor #3
@@ -257,18 +240,6 @@ disable_shifted_character_set:
 ;;;;; Runtime data structures
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 !zone runtime_data_structures
-
-
-;; ;;; Scratch area. [FIXME: remove]
-;; scratch:
-;; !fill 16, $ff ;; Reserve a little more space than we need.
-;; scratch1 = scratch + 1
-;; scratch2 = scratch + 2
-;; scratch3 = scratch + 3
-;; scratch4 = scratch + 4
-;; scratch5 = scratch + 5
-;; return1 = scratch + 6
-;; return2 = scratch + 7
 
 ;;; User-defined stack.
 ;; Align to page [FIXME: why did I do that?  Is it important?], and
@@ -299,18 +270,7 @@ return_address:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 !zone arithmetic_routines
 
-;;; Operand in A, quotient in X, remainder in A.
-divide_by_10_8bit:
-        ldx #0
-divide_by_10_8bit_loop:
-        cmp #10
-        bcc divide_by_10_8bit_out:
-        sec
-        sbc #10
-        inx
-        jmp divide_by_10_8bit_loop
-divide_by_10_8bit_out:
-        rts
+;;; FIXME: move things here.
 
 
 ;;;;; I/O
@@ -321,58 +281,6 @@ divide_by_10_8bit_out:
 print_newline:
         lda #character_return
         jsr chrout
-        rts
-
-;;; Operand in [0, 10) in A.
-;;; Clobbers X, Y.
-print_decimal_digit:
-        ora #$30 ;; Set high bits.
-        jsr chrout
-        rts
-
-;;; Operand in A.  Clobbers X and Y.
-print_decimal_8bit:
-        ldy #0 ;; Hold the digit stack height in y.
-        cmp #0
-        bne print_decimal_8bit_fill_stack_loop
-        ;; Special case: the number to print is zero.
-        jmp print_decimal_digit ;; Tail call.
-print_decimal_8bit_fill_stack_loop:
-        cmp #1
-        bcc print_decimal_8bit_print
-        jsr divide_by_10_8bit
-        pha ;; Push remainder digit.
-        iny ;; Increment digit counter.
-        txa ;; Continue to examine the quotient.
-        jmp print_decimal_8bit_fill_stack_loop
-print_decimal_8bit_print:
-        sty print_decimal_8bit_digit_no
-print_decimal_8bit_print_loop:
-        lda print_decimal_8bit_digit_no
-        cmp #0
-        beq print_decimal_8bit_out
-        dec print_decimal_8bit_digit_no
-        pla
-        jsr print_decimal_digit
-        jmp print_decimal_8bit_print_loop
-print_decimal_8bit_out:
-        rts
-print_decimal_8bit_digit_no:
-        !byte 0
-
-;;; Temporary version, printing MSB then LSB, both in decimal.
-;;; Operand in A(LSB) and X(MSB).  Clobbers Y.
-print_decimal_16bit:
-        pha
-        txa
-        jsr print_decimal_8bit
-        ;; jsr print_newline
-        lda #character_plus
-        jsr chrout
-        ;; jsr print_newline
-        pla
-        jsr print_decimal_8bit
-        jsr print_newline
         rts
 
 ;;; Parameter (in ASCII!) in A.  Clobbers X, Y.
@@ -405,69 +313,6 @@ io_write_ASCII_character_greater_than_ASCII_Z: ; A not in ['A', 'Z'] (ASCII).
 io_write_ASCII_character_default:
         jmp chrout
 
-;;; FIXME: move.  However this is a good "visual" benchmark.
-assembly_stripes:
-        sec
-outer:
-        lda #15
-inner:
-        sta 53280
-        sta 53281
-        beq outer
-        sbc #1
-        jmp inner
-
-;;; A manually unrolled version of assembly_stripes_.
-assembly_stripes_unrolled:
-        lda #15
-        sta 53280
-        sta 53281
-        lda #14
-        sta 53280
-        sta 53281
-        lda #13
-        sta 53280
-        sta 53281
-        lda #12
-        sta 53280
-        sta 53281
-        lda #11
-        sta 53280
-        sta 53281
-        lda #10
-        sta 53280
-        sta 53281
-        lda #9
-        sta 53280
-        sta 53281
-        lda #8
-        sta 53280
-        sta 53281
-        lda #7
-        sta 53280
-        sta 53281
-        lda #6
-        sta 53280
-        sta 53281
-        lda #5
-        sta 53280
-        sta 53281
-        lda #4
-        sta 53280
-        sta 53281
-        lda #3
-        sta 53280
-        sta 53281
-        lda #2
-        sta 53280
-        sta 53281
-        lda #1
-        sta 53280
-        sta 53281
-        lda #0
-        sta 53280
-        sta 53281
-        jmp assembly_stripes
 
 ;;;;; Convenience macros, possibly to be used even in the compiler output
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -913,11 +758,6 @@ debug_fail_string:
         jsr print_newline
 }
 
-!macro print_stack .slot {
-        +stack_to_a_and_x_16bit .slot
-        jsr print_decimal_16bit
-}
-
 !macro swap_memory_8bit .address1, .address2 {
         lda .address1
         ldx .address2
@@ -1196,6 +1036,7 @@ add_words_to_heap_allocation_pointer_16bit:
         jsr add_words_to_heap_allocation_pointer_16bit
 }
 
+;;; FIXME: this works, but self-modifying code would probably be faster.
 !macro buffer_get_stack_16bit .fromslot1, .fromslot2, .toslot {
         +stack_to_absolute_16bit .fromslot1, zeropage_arg1
         +stack_to_absolute_16bit .fromslot2, zeropage_arg2
@@ -1203,6 +1044,7 @@ add_words_to_heap_allocation_pointer_16bit:
         +absolute_to_stack_16bit zeropage_arg1, .toslot
 }
 
+;;; FIXME: this works, but self-modifying code would probably be faster.
 !macro buffer_set_stack_16bit .fromslot1, .fromslot2, .fromslot3 {
         +stack_to_absolute_16bit .fromslot1, zeropage_arg1
         +stack_to_absolute_16bit .fromslot2, zeropage_arg2
@@ -1298,13 +1140,6 @@ buffer_set_16bit:
         sta (zeropage_arg2), y
         rts
 
-;; FIXME: 16-bit copies should probably be done like this:
-;; 	lda .source
-;;      ldx .source + 1
-;; 	sta .target
-;; 	stx .target + 1
-
-
 ;;; FIXME: move to the runtime block
 initialize_runtime:
         ;; Store the initial frame pointer in our zeropage pointer.
@@ -1312,38 +1147,6 @@ initialize_runtime:
         sta frame_pointer
         lda #>stack
         sta frame_pointer + 1
-        rts
-
-
-test_stack:
-        ;; BEGIN ------------------------------
-        ;; +literal_to_stack_16bit 32 + 256 * 3, 2
-        ;; +literal_to_stack_16bit 10 + 256 * 2, 3
-        ;; +literal_to_stack_16bit 12345, 2;; 13 * 256 + 37, 2
-        ;; +literal_to_stack_16bit 1000, 3;; 13 * 256 + 37, 3
-        +literal_to_stack_16bit -2, 2;; 13 * 256 + 37, 2
-        +literal_to_stack_16bit -2, 3;; 13 * 256 + 37, 3
-        +print_stack 2
-        +print_stack 3
-        jsr print_newline
-        ;; +sum_stack_16bit 2, 3, 4
-        ;; +subtract_stack_16bit 2, 3, 4
-        ;; ;; +multiply_stack_8_bit 2, 3, 4
-        ;; +left_shift_1_stack_16bit 2, 4
-        ;; +not_equal_stack_16bit 2, 3, 4
-        +less_than_or_equal_to_stack_16bit 2, 3, 4
-        ;; +negate_stack_16bit 2, 4
-        ;; ;; +divide_stack_16bit 2, 3, 4
-        ;; +logic_right_shift_1_stack_16bit 2, 4
-        ;; +sum_stack_16bit 2, 3, 4
-        +print_stack 2
-        +print_stack 3
-        +print_stack 4
-
-        rts
-after:
-        lda #11
-        jsr set_border
         rts
 
 

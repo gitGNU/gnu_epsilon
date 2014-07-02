@@ -1564,13 +1564,13 @@ procedures_beginning:
     (e1:dolist (procedure-name (data-graph:graph-get-procedures data-graph))
       (compiler:c64-compile-procedure f procedure-name data-graph))
     (fio:write-to f "procedures_end:
-!warn \"Compiled data are in \", global_data_beginning, \"...\", global_data_end ,\".\"
-!warn \"Compiled procedures are in \", procedures_beginning, \"...\", procedures_end ,\".\"
+!warn \"Compiled data is \", global_data_end - global_data_beginning, \" bytes (\", global_data_beginning, \"..\", global_data_end ,\".\"
+!warn \"Compiled procedures are \", procedures_end - procedures_beginning, \" bytes (\", procedures_beginning, \"..\", procedures_end ,\".\"
 !warn \"Compiled data and procedures take \", * - global_data_beginning, \" bytes (up to \", *, \").\"
 !warn \"* is \", *, \".\"
 !warn 53247 - *, \" usable bytes unused.\"
 !if * >= 53248 {
-  !error \"Generated data/code overflow into the I/O area\"
+  !error \"Generated data/code overflows into the I/O area\"
 }
 !sl \"/tmp/labels.a ;;; Save a debugging dump of global labels\"\n")
     (io:close-file f)))
@@ -1667,13 +1667,13 @@ global_data_end:
                   (i (trivial-compiler:procedure-get-scratch-no procedure))
                   "\n")
     (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (fio:write-to f "_in:\n  !pet \"" (sy procedure-name) ": begin\", 0\n")
+    (fio:write-to f "_in:\n  ;; !pet \"" (sy procedure-name) ": begin\", 0\n")
     (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (fio:write-to f "_calling:\n  !pet \"  c " (sy procedure-name) "\", 0\n")
+    (fio:write-to f "_calling:\n  ;; !pet \"  c " (sy procedure-name) "\", 0\n")
     (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (fio:write-to f "_tail_calling:\n  !pet \"  t-c " (sy procedure-name) "\", 0\n")
+    (fio:write-to f "_tail_calling:\n  ;; !pet \"  t-c " (sy procedure-name) "\", 0\n")
     (trivial-compiler:emit-symbol-identifier f procedure-name)
-    (fio:write-to f "_out:\n  !pet \"" (sy procedure-name) ": return\", 0\n")
+    (fio:write-to f "_out:\n  ;; !pet \"" (sy procedure-name) ": return\", 0\n")
     (trivial-compiler:emit-symbol-identifier f procedure-name)
     (fio:write-to f ":\n")
     (fio:write-to f ";;;;;;;;;;;;;;;; BEGIN\n")
@@ -1686,6 +1686,9 @@ global_data_end:
                   " ;; save return address on the stack\n")
     (compiler:c64-compile-instructions f procedure (trivial-compiler:procedure-get-instructions procedure))
     (fio:write-to f ";;;;;;;;;;;;;;;; END
+!warn \"The procedure " (sy procedure-name) " takes \", * - ")
+    (trivial-compiler:emit-symbol-identifier f procedure-name)
+    (fio:write-to f ", \" bytes\"
   ;;rts ; FIXME: is this needed?\n\n")))
 
 (e1:define (compiler:c64-io->stack-index procedure io)

@@ -18,6 +18,8 @@
 ;;;;; You should have received a copy of the GNU General Public License
 ;;;;; along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
+(e1:define-macro (fio:write . stuff)
+  '(e1:bundle))
 
 (e1:define-c64-multi-color-sprite sprite-stand "
 . aaa
@@ -211,21 +213,24 @@ bbbbb
  ccc
 ")
 
-(e1:define current-configuration
+;;; !!!! EXPERIMENTAL !!!!
+;(e1:define-macro (set-sprite-block! n b) `(set-sprite-configuration! ,n ,b))
+
+(e1:define current-block
   (box:make 0))
 
-(e1:define (update-configuration)
-  (e1:let* ((old (box:get current-configuration))
+(e1:define (update-block)
+  (e1:let* ((old (box:get current-block))
             (old+1 (fixnum:1+ old))
-            (new (e1:if (fixnum:= old+1 (vector:length all-sprite-configurations))
+            (new (e1:if (fixnum:= old+1 (vector:length (box:get all-sprite-blocks)))
                    0
                    old+1)))
-    (box:set! current-configuration new)
+    (box:set! current-block new)
     new))
 
-(e1:define (update-sprite-0-configuration)
-  (set-sprite-configuration! 0 (vector:get all-sprite-configurations
-                                           (update-configuration))))
+(e1:define (update-sprite-0-block)
+  (set-sprite-block! 0 (vector:get (box:get all-sprite-blocks)
+                                   (update-block))))
 
 ;;; FIXME: this is useful. move to epsilon1.scm.
 (e1:define-macro (vector:vector . elements)
@@ -245,60 +250,97 @@ bbbbb
 (e1:define state
   (box:make (state-stand)))
 
-(e1:define sprite-configurations
-  (tuple:make ;; 0: stand.
-              (vector:vector sprite-stand)
-              ;; 1: walk.
-              (vector:vector sprite-walk-1 sprite-walk-2 sprite-walk-3 sprite-stand)
-              ;; 2: punch.
-              (vector:vector sprite-punch-1 sprite-punch-2 sprite-punch-1 sprite-stand)
-              ;; 3: kick.
-              (vector:vector sprite-kick-1 sprite-kick-2 sprite-kick-1 sprite-stand)))
-
-(e1:define all-sprite-configurations
-  (vector:append (buffer:get sprite-configurations (state-punch))
-                 (buffer:get sprite-configurations (state-punch))
-                 (buffer:get sprite-configurations (state-kick))
-                 (buffer:get sprite-configurations (state-walk))
-                 (buffer:get sprite-configurations (state-walk))
-                 (buffer:get sprite-configurations (state-walk))
-                 (buffer:get sprite-configurations (state-walk))
-                 (buffer:get sprite-configurations (state-walk))
+;;; I actually initialize sprite-blocks with sprite configurations, and then
+;;; convert configurations to blocks at initialization time.  This is to avoid
+;;; an unexec problem: I can't reliably conserve the invariant according to which
+;;; a given number is equal to a given *address* divided by 64 thru unexec.
+(e1:define sprite-blocks
+  (vector:vector ;; 0: stand.
+                 (vector:vector sprite-stand)
+                 ;; 1: walk.
+                 (vector:vector sprite-walk-1 sprite-walk-2 sprite-walk-3 sprite-stand)
+                 ;; 2: punch.
+                 (vector:vector sprite-punch-1 sprite-punch-2 sprite-punch-1 sprite-stand)
+                 ;; 3: kick.
+                 (vector:vector sprite-kick-1 sprite-kick-2 sprite-kick-1 sprite-stand)
                  ))
 
+(e1:define (convert-sprite-configurations-to-sprite-blocks!)
+  (convert-sprite-configurations-to-sprite-blocks!-helper
+      (fixnum:1- (vector:length sprite-blocks)))
+  #;(e1:dotimes (i (vector:length sprite-blocks))
+    (e1:let* ((sprites (vector:get sprite-blocks i)))
+      (e1:dotimes (j (vector:length sprites))
+        #;(fio:write "i: " (i i) ", j: " (i j) "\n")
+        #;(vector:set! sprites j (sprite->block (vector:get sprites j)))
+        ))))
+(e1:define (convert-sprite-configurations-to-sprite-blocks!-helper i)
+  (e1:unless (fixnum:< i 0)
+    (fio:write "i: " (i i)
+               ", sprites: " (i (vector:get sprite-blocks i))
+               ", length:" (i (vector:length (vector:get sprite-blocks i)))
+               "\n")
+    (convert-sprite-configuration-vector-to-sprite-blocks!-helper
+        (vector:get sprite-blocks i)
+        (fixnum:1- (vector:length (vector:get sprite-blocks i))))
+    (convert-sprite-configurations-to-sprite-blocks!-helper (fixnum:1- i))))
+(e1:define (convert-sprite-configuration-vector-to-sprite-blocks!-helper sprites j)
+  (e1:unless (fixnum:< j 0)
+    (fio:write "sprites: " (i sprites) ", j: " (i j) ", sprite: " (i (vector:get sprites j)) "\n")
+    (fio:write "Updating element #" (i j) " of " (i sprites) ":\n")
+    (fio:write "* was:    " (i (vector:get sprites j)) "\n")
+    (vector:set! sprites j (sprite->block (vector:get sprites j)))
+    (fio:write "* is now: " (i (vector:get sprites j)) "\n")
+    (convert-sprite-configuration-vector-to-sprite-blocks!-helper sprites (fixnum:1- j))))
+
+(e1:define all-sprite-blocks
+  (box:make 0))
+
 (e1:define (test-sprites-interactively)
+  (convert-sprite-configurations-to-sprite-blocks!)
+  (box:set! all-sprite-blocks
+            (vector:append (vector:get sprite-blocks (state-stand))
+                           (vector:get sprite-blocks (state-punch))
+                           (vector:get sprite-blocks (state-punch))
+                           (vector:get sprite-blocks (state-kick))
+                           (vector:get sprite-blocks (state-walk))
+                           (vector:get sprite-blocks (state-walk))
+                           (vector:get sprite-blocks (state-walk))
+                           (vector:get sprite-blocks (state-walk))
+                           (vector:get sprite-blocks (state-walk))
+                           ))
   ;; (set-sprite-xy-expandedness! 0 #f #f)
   (set-sprite-multi-color! 0 #t)
-  (set-sprite-configuration! 0 sprite-stand)
+  (set-sprite-block! 0 (vector:get (box:get all-sprite-blocks) 0))
   (set-sprite-xy-expandedness! 0 #f #f)
   (show-sprite! 0)
   (set-sprite-multi-color! 1 #t)
-  (set-sprite-configuration! 1 sprite-stand)
+  (set-sprite-block! 1 (vector:get (box:get all-sprite-blocks) 0))
   (set-sprite-xy-expandedness! 1 #f #t)
   (show-sprite! 1)
   (set-sprite-multi-color! 2 #t)
-  (set-sprite-configuration! 2 sprite-stand)
+  (set-sprite-block! 2 (vector:get (box:get all-sprite-blocks) 0))
   (set-sprite-xy-expandedness! 2 #t #f)
   (show-sprite! 2)
   (set-sprite-multi-color! 3 #t)
-  (set-sprite-configuration! 3 sprite-stand)
+  (set-sprite-block! 3 (vector:get (box:get all-sprite-blocks) 0))
   (set-sprite-xy-expandedness! 3 #t #t)
   (show-sprite! 3)
 
   (set-sprite-multi-color! 4 #t)
-  (set-sprite-configuration! 4 sprite-stand)
+  (set-sprite-block! 4 (vector:get (box:get all-sprite-blocks) 0))
   (set-sprite-xy-expandedness! 4 #f #f)
   (show-sprite! 4)
   (set-sprite-multi-color! 5 #t)
-  (set-sprite-configuration! 5 sprite-stand)
+  (set-sprite-block! 5 (vector:get (box:get all-sprite-blocks) 0))
   (set-sprite-xy-expandedness! 5 #f #t)
   (show-sprite! 5)
   (set-sprite-multi-color! 6 #t)
-  (set-sprite-configuration! 6 sprite-stand)
+  (set-sprite-block! 6 (vector:get (box:get all-sprite-blocks) 0))
   (set-sprite-xy-expandedness! 6 #t #f)
   (show-sprite! 6)
   (set-sprite-multi-color! 7 #t)
-  (set-sprite-configuration! 7 sprite-stand)
+  (set-sprite-block! 7 (vector:get (box:get all-sprite-blocks) 0))
   (set-sprite-xy-expandedness! 7 #t #t)
   (show-sprite! 7)
 
@@ -311,19 +353,21 @@ bbbbb
   (show-sprite! 6)
   (show-sprite! 7)
 
+  (move-sprite! 0 50 150)
+
   (test-sprites-interactively-loop 50 200))
 
 (e1:define joystick 1)
 (e1:define (test-sprites-interactively-loop x y)
-  ;;(update-sprite-0-configuration)
+  ;;(update-sprite-0-block)
   (move-sprite! 0 x y)
-  (move-sprite! 1 (fixnum:+ x 30) (fixnum:- y 21))
-  (move-sprite! 2 (fixnum:+ x 60) y)
-  (move-sprite! 3 (fixnum:+ x 110) (fixnum:- y 21))
-  (move-sprite! 4 x (fixnum:- y 100))
-  (move-sprite! 5 (fixnum:+ x 30) (fixnum:- y 121))
-  (move-sprite! 6 (fixnum:+ x 60) (fixnum:- y 100))
-  (move-sprite! 7 (fixnum:+ x 110) (fixnum:- y 121))
+  ;; (move-sprite! 1 (fixnum:+ x 30) (fixnum:- y 21))
+  ;; (move-sprite! 2 (fixnum:+ x 60) y)
+  ;; (move-sprite! 3 (fixnum:+ x 110) (fixnum:- y 21))
+  ;; (move-sprite! 4 x (fixnum:- y 100))
+  ;; (move-sprite! 5 (fixnum:+ x 30) (fixnum:- y 121))
+  ;; (move-sprite! 6 (fixnum:+ x 60) (fixnum:- y 100))
+  ;; (move-sprite! 7 (fixnum:+ x 110) (fixnum:- y 121))
   (e1:let* ((joystick-state (joystick-state joystick))
             (dx (e1:cond ((joystick-left? joystick-state)  -1)
                          ((joystick-right? joystick-state) 1)
@@ -334,16 +378,17 @@ bbbbb
     (e1:if (joystick-fire? joystick-state)
       (e1:begin
         (delay)
-        (update-sprite-0-configuration)
-        (e1:let ((c (vector:get all-sprite-configurations (box:get current-configuration))))
-          (set-sprite-configuration! 1 c)
-          (set-sprite-configuration! 2 c)
-          (set-sprite-configuration! 3 c)
+        (update-sprite-0-block)
+        (e1:let ((b (vector:get (box:get all-sprite-blocks) (box:get current-block))))
+          #;(fio:write "b is now " (i b) "\n")
+          ;; (set-sprite-block! 1 b)
+          ;; (set-sprite-block! 2 b)
+          ;; (set-sprite-block! 3 b)
 
-          (set-sprite-configuration! 4 c)
-          (set-sprite-configuration! 5 c)
-          (set-sprite-configuration! 6 c)
-          (set-sprite-configuration! 7 c)
+          ;; (set-sprite-block! 4 b)
+          ;; (set-sprite-block! 5 b)
+          ;; (set-sprite-block! 6 b)
+          ;; (set-sprite-block! 7 b)
           )
         (test-sprites-interactively-loop (fixnum:+ x dx #;4) (fixnum:+ y dy)))
       (test-sprites-interactively-loop (fixnum:+ x dx) (fixnum:+ y dy)))))
@@ -391,3 +436,18 @@ bbbbb
 ;;; Local Variables:
 ;;; show-trailing-whitespace: t
 ;;; End:
+
+(e1:define (go)
+    (convert-sprite-configurations-to-sprite-blocks!)
+    (box:set! all-sprite-blocks
+              (vector:append (vector:get sprite-blocks (state-stand))
+                             ;; (vector:get sprite-blocks (state-punch))
+                             (vector:get sprite-blocks (state-punch))
+                             ;; (vector:get sprite-blocks (state-kick))
+                             (vector:get sprite-blocks (state-walk))
+                             ;; (vector:get sprite-blocks (state-walk))
+                             ;; (vector:get sprite-blocks (state-walk))
+                             ;; (vector:get sprite-blocks (state-walk))
+                             ;; (vector:get sprite-blocks (state-walk))
+                             ))
+)

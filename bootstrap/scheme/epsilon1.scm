@@ -788,6 +788,8 @@
   ;; ;; overwrite the old definition of sexpression:append: this generates faster code with >0 parameters
   ;; (variadic:define-right-deep sexpression:append sexpression:append2 sexpression:nil) ;; right-deep for performance
 
+  ;; FIXME: with O(n^2) space consumption, this is *really* inefficient, and
+  ;; can use up all memory on runtimes with no garbage collector.
   (variadic:define-right-deep vector:append vector:append2 vector:empty)
   (variadic:define-right-deep string:append string:append2 string:empty))
 

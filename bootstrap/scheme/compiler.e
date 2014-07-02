@@ -1570,10 +1570,19 @@ string_slot1:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 !zone compiled_procedures
 
+procedures_beginning:
 ")
     (e1:dolist (procedure-name (data-graph:graph-get-procedures data-graph))
       (compiler:c64-compile-procedure f procedure-name data-graph))
-    (fio:write-to f "!warn \"Compiled data and procedures take \", * - epsilon_main_entry_point, \" bytes (up to \", *, \").\"
+    (fio:write-to f "procedures_end:
+!warn \"Compiled data are in \", global_data_beginning, \"...\", global_data_end ,\".\"
+!warn \"Compiled procedures are in \", procedures_beginning, \"...\", procedures_end ,\".\"
+!warn \"Compiled data and procedures take \", * - global_data_beginning, \" bytes (up to \", *, \").\"
+!warn \"* is \", *, \".\"
+!warn 53247 - *, \" usable bytes unused.\"
+!if * >= 53248 {
+  !error \"Generated data/code overflow into the I/O area\"
+}
 !sl \"/tmp/labels.a ;;; Save a debugging dump of global labels\"\n")
     (io:close-file f)))
 
@@ -1588,10 +1597,10 @@ string_slot1:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 !zone compiled_globals
 
-;;; By convention we render a pointer to data whose content is not compiled
-;;; as a pointer to this datum:
-p0:
-  !16 $ff
+;; ;;; By convention we render a pointer to data whose content is not compiled
+;; ;;; as a pointer to this datum:
+;; p0:
+;;   !16 $ff
 
 ;;; Globals.
 global_data_beginning:

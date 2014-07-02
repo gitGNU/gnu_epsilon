@@ -1552,18 +1552,7 @@ epsilon_main_entry_point:
     (trivial-compiler:emit-symbol-identifier f main)
 (fio:write-to f " ;; call main procedure
 epsilon_end:
-  ;; FIXME: this is test code
-  +print_string string_slot0
-  +print_stack 0
-  jsr print_newline
-  +print_string string_slot1
-  +print_stack 1
-  jsr print_newline
   rts
-string_slot0:
-  !pet \"first:  \", 0
-string_slot1:
-  !pet \"second: \", 0
 
 
 ;;;;; Procedures

@@ -62,9 +62,9 @@ bbbbbb
  bbbbaa
   bbaba
  bbbab
- bb bbb
- bb bbb
- c  bbb
+ bb bb
+ bb bb
+ c  bb
  c  c
     ccc
 ")
@@ -109,10 +109,10 @@ bbbbbb
  aaaaa
  bbbbaa
  bbbaba
-  bbab
-  bbbb
-  bb c
-  bb c
+  bbabb
+  bb bb
+  bb  c
+  bb  c
   c
   ccc
 ")
@@ -300,47 +300,47 @@ bbbbb
   (convert-sprite-configurations-to-sprite-blocks!)
   (box:set! all-sprite-blocks
             (vector:append (vector:get sprite-blocks (state-stand))
-                           (vector:get sprite-blocks (state-punch))
-                           (vector:get sprite-blocks (state-punch))
-                           (vector:get sprite-blocks (state-kick))
+                           ;; (vector:get sprite-blocks (state-punch))
+                           ;; (vector:get sprite-blocks (state-punch))
+                           ;; (vector:get sprite-blocks (state-kick))
                            (vector:get sprite-blocks (state-walk))
-                           (vector:get sprite-blocks (state-walk))
-                           (vector:get sprite-blocks (state-walk))
-                           (vector:get sprite-blocks (state-walk))
-                           (vector:get sprite-blocks (state-walk))
+                           ;; (vector:get sprite-blocks (state-walk))
+                           ;; (vector:get sprite-blocks (state-walk))
+                           ;; (vector:get sprite-blocks (state-walk))
+                           ;; (vector:get sprite-blocks (state-walk))
                            ))
   ;; (set-sprite-xy-expandedness! 0 #f #f)
   (set-sprite-multi-color! 0 #t)
-  (set-sprite-block! 0 (vector:get (box:get all-sprite-blocks) 0))
+  (set-sprite-block! 0 (vector:get (vector:get sprite-blocks (state-stand)) 0))
   (set-sprite-xy-expandedness! 0 #f #f)
   (show-sprite! 0)
   (set-sprite-multi-color! 1 #t)
-  (set-sprite-block! 1 (vector:get (box:get all-sprite-blocks) 0))
+  (set-sprite-block! 1 (vector:get (box:get (vector:get sprite-blocks (state-stand))) 0))
   (set-sprite-xy-expandedness! 1 #f #t)
   (show-sprite! 1)
   (set-sprite-multi-color! 2 #t)
-  (set-sprite-block! 2 (vector:get (box:get all-sprite-blocks) 0))
+  (set-sprite-block! 2 (vector:get (box:get (vector:get sprite-blocks (state-stand))) 0))
   (set-sprite-xy-expandedness! 2 #t #f)
   (show-sprite! 2)
   (set-sprite-multi-color! 3 #t)
-  (set-sprite-block! 3 (vector:get (box:get all-sprite-blocks) 0))
+  (set-sprite-block! 3 (vector:get (box:get (vector:get sprite-blocks (state-stand))) 0))
   (set-sprite-xy-expandedness! 3 #t #t)
   (show-sprite! 3)
 
   (set-sprite-multi-color! 4 #t)
-  (set-sprite-block! 4 (vector:get (box:get all-sprite-blocks) 0))
+  (set-sprite-block! 4 (vector:get (box:get (vector:get sprite-blocks (state-stand))) 0))
   (set-sprite-xy-expandedness! 4 #f #f)
   (show-sprite! 4)
   (set-sprite-multi-color! 5 #t)
-  (set-sprite-block! 5 (vector:get (box:get all-sprite-blocks) 0))
+  (set-sprite-block! 5 (vector:get (box:get (vector:get sprite-blocks (state-stand))) 0))
   (set-sprite-xy-expandedness! 5 #f #t)
   (show-sprite! 5)
   (set-sprite-multi-color! 6 #t)
-  (set-sprite-block! 6 (vector:get (box:get all-sprite-blocks) 0))
+  (set-sprite-block! 6 (vector:get (box:get (vector:get sprite-blocks (state-stand))) 0))
   (set-sprite-xy-expandedness! 6 #t #f)
   (show-sprite! 6)
   (set-sprite-multi-color! 7 #t)
-  (set-sprite-block! 7 (vector:get (box:get all-sprite-blocks) 0))
+  (set-sprite-block! 7 (vector:get (box:get (vector:get sprite-blocks (state-stand))) 0))
   (set-sprite-xy-expandedness! 7 #t #t)
   (show-sprite! 7)
 
@@ -353,9 +353,9 @@ bbbbb
   (show-sprite! 6)
   (show-sprite! 7)
 
-  (move-sprite! 0 50 150)
+  (move-sprite! 0 200 100)
 
-  (test-sprites-interactively-loop 50 200))
+  (test-sprites-interactively-loop 200 100))
 
 (e1:define joystick 1)
 (e1:define (test-sprites-interactively-loop x y)
@@ -436,18 +436,3 @@ bbbbb
 ;;; Local Variables:
 ;;; show-trailing-whitespace: t
 ;;; End:
-
-(e1:define (go)
-    (convert-sprite-configurations-to-sprite-blocks!)
-    (box:set! all-sprite-blocks
-              (vector:append (vector:get sprite-blocks (state-stand))
-                             ;; (vector:get sprite-blocks (state-punch))
-                             (vector:get sprite-blocks (state-punch))
-                             ;; (vector:get sprite-blocks (state-kick))
-                             (vector:get sprite-blocks (state-walk))
-                             ;; (vector:get sprite-blocks (state-walk))
-                             ;; (vector:get sprite-blocks (state-walk))
-                             ;; (vector:get sprite-blocks (state-walk))
-                             ;; (vector:get sprite-blocks (state-walk))
-                             ))
-)

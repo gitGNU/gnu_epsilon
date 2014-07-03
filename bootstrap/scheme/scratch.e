@@ -21,17 +21,41 @@
 (e1:define-macro (fio:write . stuff)
   '(e1:bundle))
 
+;; (e1:define-c64-multi-color-sprite sprite-stand "
+;; . aaa
+;;  aacc
+;;  aacac
+;;  aaccc
+;;  accc
+;;  ccc
+;;  bccb
+;; bbbcb
+;; bbbbbc
+;;  bbbb
+;;  bbbbbbc
+;;  bbbbbb
+;;  aaaaa
+;;  bbbbaa
+;;  bbbabba
+;;  bb abb
+;;  bb  bb
+;;  bb  bb
+;;  bb  bb
+;;  c   c
+;;  ccc ccc
+;; ")
+
 (e1:define-c64-multi-color-sprite sprite-stand "
 . aaa
- aacc
- aacac
- aaccc
- accc
+ bbbb
+baacac
+baaccc
+baccc
  ccc
  bccb
 bbbcb
 bbbbbc
- bbbb
+bbbbb
  bbbbbbc
  bbbbbb
  aaaaa
@@ -47,10 +71,10 @@ bbbbbc
 
 (e1:define-c64-multi-color-sprite sprite-walk-1 "
 . aaa
- aacc
- aacac
- aaccc
- accc
+ bbbb
+baacac
+baaccc
+baccc
  ccc
  bccb
  bbcb
@@ -71,10 +95,10 @@ bbbbbb
 
 (e1:define-c64-multi-color-sprite sprite-walk-2 "
 . aaa
- aacc
- aacac
- aaccc
- accc
+ bbbb
+baacac
+baaccc
+baccc
  ccc
  bccb
 bbbcb
@@ -95,10 +119,10 @@ bbbbbc
 
 (e1:define-c64-multi-color-sprite sprite-walk-3 "
 . aaa
- aacc
- aacac
- aaccc
- accc
+ bbbb
+baacac
+baaccc
+baccc
  ccc
  bccb
  bbcb
@@ -119,10 +143,10 @@ bbbbbb
 
 (e1:define-c64-multi-color-sprite sprite-punch-1 "
 . aaa
- aacc
- aacac
- aaccc
- accc
+ bbbb
+baacac
+baaccc
+baccc
  ccc
  bccb
 bbbcb
@@ -141,17 +165,167 @@ bbbbcbbb
  ccc ccc
 ")
 
-(e1:define-c64-multi-color-sprite sprite-punch-2 "
+(e1:define sprite-low-punch-1 sprite-punch-1)
+
+;; (e1:define-c64-multi-color-sprite sprite-low-punch-2 "
+;; .  aaa
+;;   bbbb
+;;  baacac
+;; b aaccc
+;; b accc
+;;   ccc
+;;   bccb
+;;   bbcbb
+;;  bbbbbbbbbc
+;;  bbbbbbbbb
+;;  bbbcbbb
+;;   bbbb
+;;   aaaaa
+;;   bbbbaa
+;;   bbbabb
+;;   bbbabbb
+;;    bb  bb
+;;    bb bbb
+;;   bbb bb
+;;   c   c
+;;   ccc ccc
+;; ")
+
+;; (e1:define-c64-multi-color-sprite sprite-low-punch-2 "
+;; .  aaa
+;;   bbbb
+;;  baacac
+;; b aaccc
+;; b accc
+;;   ccc
+;;   bccb
+;;   bbcbb
+;;  bbbbbbb
+;;  bbbbbbbbbc
+;;  bbbcbbbbb
+;;   bbbbb
+;;   aaaaa
+;;   bbbbaa
+;;   bbbabb
+;;   bbbabbb
+;;    bb  bb
+;;    bb bbb
+;;   bbb bb
+;;   c   c
+;;   ccc ccc
+;; ")
+
+;; (e1:define-c64-multi-color-sprite sprite-low-punch-2 "
+;; .  aaa
+;;   bbbb
+;;  baacac
+;; b aaccc
+;; b accc
+;;   ccc
+;;   bccb
+;;   bbcb
+;;  bbbbbb
+;;  bbbbbbb
+;;  bbbcbbbbbc
+;;   bbbbbbbb
+;;   aaaaa
+;;   bbbbaa
+;;   bbbabb
+;;   bbbabbb
+;;    bb  bb
+;;    bb bbb
+;;   bbb bb
+;;   c   c
+;;   ccc ccc
+;; ")
+
+(e1:define-c64-multi-color-sprite sprite-low-punch-2 "
 .  aaa
-  aacc
-  aacac
-  aaccc
-  accc
+  bbbb
+ baacac
+b aaccc
+b accc
+  ccc
+  bccb
+  bbcb
+ bbbbb
+ bbbbbb
+ bbbcbbb
+  bbbbbbbbc
+  aaaaabbb
+  bbbba
+  bbbabb
+  bbbabbb
+   bb  bb
+   bb bbb
+  bbb bb
+  c   c
+  ccc ccc
+")
+
+(e1:define sprite-medium-punch-1 sprite-punch-1)
+
+(e1:define-c64-multi-color-sprite sprite-medium-punch-2 "
+.  aaa
+  bbbb
+ baacac
+b aaccc
+b accc
   ccc
   bccbbbbbc
   bbcbbbbb
  bbbbbbb
- bbbbb
+ bbbbbb
+ bbbcb
+  bbbb
+  aaaaa
+  bbbbaa
+  bbbabb
+  bbbabbb
+   bb  bb
+   bb bbb
+  bbb bb
+  c   c
+  ccc ccc
+")
+
+;; (e1:define-c64-multi-color-sprite sprite-low-punch-2 "
+;; .  aaa
+;;   bbbb
+;;  baacac
+;; b aaccc
+;; b accc
+;;   ccc
+;;   bccb
+;;   bbcbbbbbc
+;;  bbbbbbbbb
+;;  bbbbbbb
+;;  bbbcb
+;;   bbbb
+;;   aaaaa
+;;   bbbbaa
+;;   bbbabb
+;;   bbbabbb
+;;    bb  bb
+;;    bb bbb
+;;   bbb bb
+;;   c   c
+;;   ccc ccc
+;; ")
+
+(e1:define sprite-high-punch-1 sprite-punch-1)
+
+(e1:define-c64-multi-color-sprite sprite-high-punch-2 "
+.  aaa
+  bbbb
+ baacac
+b aaccc
+b accc  bbc
+  ccc  bbb
+  bcc bbb
+  bbcbbb
+ bbbbbb
+ bbbbbb
  bbbcb
   bbbb
   aaaaa
@@ -168,15 +342,15 @@ bbbbcbbb
 (e1:define-c64-multi-color-sprite sprite-kick-1 "
 .
   aaa
- aacc
- aacac
- aaccc
- accc
+ bbbb
+baacac
+baaccc
+baccc
  ccc
  bccb
 bbbcb
 bbbbbc
- bbbbb
+bbbbbb
  bbbbbc
  aaaaa
  bbbbaa
@@ -192,10 +366,10 @@ bbbbbc
 (e1:define-c64-multi-color-sprite sprite-kick-2 "
 .
   aaa
- aacc
- aacac
- aaccc
- accc
+ bbbb
+baacac
+baaccc
+baccc
  ccc
  bccb
 bbbcb
@@ -239,13 +413,17 @@ bbbbb
 (e1:define-sum state
   (stand)
   (walk)
-  (punch)
+  (low-punch)
+  (medium-punch)
+  (high-punch)
   (kick))
 
-;; (e1:define state-stand 0)
-;; (e1:define state-walk  1)
-;; (e1:define state-punch 2)
-;; (e1:define state-kick  3)
+;; (e1:define state-stand        0)
+;; (e1:define state-walk         1)
+;; (e1:define state-low-punch    2)
+;; (e1:define state-medium-punch 3)
+;; (e1:define state-high-punch   4)
+;; (e1:define state-kick         5)
 
 (e1:define state
   (box:make (state-stand)))
@@ -259,9 +437,13 @@ bbbbb
                  (vector:vector sprite-stand)
                  ;; 1: walk.
                  (vector:vector sprite-walk-1 sprite-walk-2 sprite-walk-3 sprite-stand)
-                 ;; 2: punch.
-                 (vector:vector sprite-punch-1 sprite-punch-2 sprite-punch-1 sprite-stand)
-                 ;; 3: kick.
+                 ;; 2: low-punch.
+                 (vector:vector sprite-low-punch-1 sprite-low-punch-2 sprite-low-punch-1 sprite-stand)
+                 ;; 2: medium-punch.
+                 (vector:vector sprite-medium-punch-1 sprite-medium-punch-2 sprite-medium-punch-1 sprite-stand)
+                 ;; 3: high-punch.
+                 (vector:vector sprite-high-punch-1 sprite-high-punch-2 sprite-high-punch-1 sprite-stand)
+                 ;; 4: kick.
                  (vector:vector sprite-kick-1 sprite-kick-2 sprite-kick-1 sprite-stand)
                  ))
 
@@ -300,19 +482,20 @@ bbbbb
   (convert-sprite-configurations-to-sprite-blocks!)
   (box:set! all-sprite-blocks
             (vector:append (vector:get sprite-blocks (state-stand))
-                           ;; (vector:get sprite-blocks (state-punch))
-                           ;; (vector:get sprite-blocks (state-punch))
-                           ;; (vector:get sprite-blocks (state-kick))
-                           (vector:get sprite-blocks (state-walk))
+                           (vector:get sprite-blocks (state-low-punch))
+                           (vector:get sprite-blocks (state-medium-punch))
+                           (vector:get sprite-blocks (state-high-punch))
+                           (vector:get sprite-blocks (state-kick))
+                           ;; (vector:get sprite-blocks (state-walk))
                            ;; (vector:get sprite-blocks (state-walk))
                            ;; (vector:get sprite-blocks (state-walk))
                            ;; (vector:get sprite-blocks (state-walk))
                            ;; (vector:get sprite-blocks (state-walk))
                            ))
-  ;; (set-sprite-xy-expandedness! 0 #f #f)
   (set-sprite-multi-color! 0 #t)
   (set-sprite-block! 0 (vector:get (vector:get sprite-blocks (state-stand)) 0))
   (set-sprite-xy-expandedness! 0 #f #f)
+  ;;(set-sprite-xy-expandedness! 0 #t #t)
   (show-sprite! 0)
   (set-sprite-multi-color! 1 #t)
   (set-sprite-block! 1 (vector:get (box:get (vector:get sprite-blocks (state-stand))) 0))
@@ -346,28 +529,25 @@ bbbbb
 
   (set-sprite-multi-color-color-0! c64:color-black)
   (set-sprite-multi-color-color-1! c64:color-pink)
+  #;(set-sprite-color! 0             c64:color-light-grey)
   (set-sprite-color! 0             c64:color-light-grey)
 
-  (show-sprite! 4)
-  (show-sprite! 5)
-  (show-sprite! 6)
-  (show-sprite! 7)
+  (io:store-byte! 53281 c64:color-dark-grey)
 
-  (move-sprite! 0 200 100)
-
-  (test-sprites-interactively-loop 200 100))
+  ;;(move-sprite! 0 50 160)
+  (test-sprites-interactively-loop 50 160))
 
 (e1:define joystick 1)
 (e1:define (test-sprites-interactively-loop x y)
   ;;(update-sprite-0-block)
   (move-sprite! 0 x y)
-  ;; (move-sprite! 1 (fixnum:+ x 30) (fixnum:- y 21))
-  ;; (move-sprite! 2 (fixnum:+ x 60) y)
-  ;; (move-sprite! 3 (fixnum:+ x 110) (fixnum:- y 21))
-  ;; (move-sprite! 4 x (fixnum:- y 100))
-  ;; (move-sprite! 5 (fixnum:+ x 30) (fixnum:- y 121))
-  ;; (move-sprite! 6 (fixnum:+ x 60) (fixnum:- y 100))
-  ;; (move-sprite! 7 (fixnum:+ x 110) (fixnum:- y 121))
+  (move-sprite! 1 (fixnum:+ x 30)  (fixnum:- y 21))
+  (move-sprite! 2 (fixnum:+ x 60)  y)
+  (move-sprite! 3 (fixnum:+ x 110) (fixnum:- y 21))
+  (move-sprite! 4 x                (fixnum:- y 49))
+  (move-sprite! 5 (fixnum:+ x 30)  (fixnum:- y 70))
+  (move-sprite! 6 (fixnum:+ x 60)  (fixnum:- y 49))
+  (move-sprite! 7 (fixnum:+ x 110) (fixnum:- y 70))
   (e1:let* ((joystick-state (joystick-state joystick))
             (dx (e1:cond ((joystick-left? joystick-state)  -1)
                          ((joystick-right? joystick-state) 1)
@@ -381,14 +561,14 @@ bbbbb
         (update-sprite-0-block)
         (e1:let ((b (vector:get (box:get all-sprite-blocks) (box:get current-block))))
           #;(fio:write "b is now " (i b) "\n")
-          ;; (set-sprite-block! 1 b)
-          ;; (set-sprite-block! 2 b)
-          ;; (set-sprite-block! 3 b)
+          (set-sprite-block! 1 b)
+          (set-sprite-block! 2 b)
+          (set-sprite-block! 3 b)
 
-          ;; (set-sprite-block! 4 b)
-          ;; (set-sprite-block! 5 b)
-          ;; (set-sprite-block! 6 b)
-          ;; (set-sprite-block! 7 b)
+          (set-sprite-block! 4 b)
+          (set-sprite-block! 5 b)
+          (set-sprite-block! 6 b)
+          (set-sprite-block! 7 b)
           )
         (test-sprites-interactively-loop (fixnum:+ x dx #;4) (fixnum:+ y dy)))
       (test-sprites-interactively-loop (fixnum:+ x dx) (fixnum:+ y dy)))))

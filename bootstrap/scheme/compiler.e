@@ -1560,19 +1560,14 @@ epsilon_end:
 !zone compiled_procedures
 
 procedures_beginning:
+
 ")
     (e1:dolist (procedure-name (data-graph:graph-get-procedures data-graph))
       (compiler:c64-compile-procedure f procedure-name data-graph))
     (fio:write-to f "procedures_end:
-!warn \"Compiled data is \", global_data_end - global_data_beginning, \" bytes (\", global_data_beginning, \"..\", global_data_end ,\".\"
-!warn \"Compiled procedures are \", procedures_end - procedures_beginning, \" bytes (\", procedures_beginning, \"..\", procedures_end ,\".\"
-!warn \"Compiled data and procedures take \", * - global_data_beginning, \" bytes (up to \", *, \").\"
-!warn \"* is \", *, \".\"
-!warn 53247 - *, \" usable bytes unused.\"
-!if * >= 53248 {
-  !error \"Generated data/code overflows into the I/O area\"
-}
-!sl \"/tmp/labels.a ;;; Save a debugging dump of global labels\"\n")
+
+  +print_trailing_messages
+  !sl \"/tmp/labels.a ;;; Save a debugging dump of global labels\"\n")
     (io:close-file f)))
 
 ;;; FIXME: factor, sharing code with trivial-compiler:c64-compile-data.

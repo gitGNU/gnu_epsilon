@@ -3167,7 +3167,7 @@
 
 (e1:define (e0:expression-small? e)
   (fixnum:<= (e0:expression-size e)
-             e0:expression-small-threshold))
+             e0:expression-small-size-threshold))
 
 (e1:define (state:procedure-small? name)
   (e0:expression-small? (state:procedure-get-body name)))
@@ -3224,13 +3224,13 @@
               (e0:expressions-weight (list:tail es)))))
 
 ;;; Small expression threshold
-(e1:define e0:expression-lightweight-threshold
+(e1:define e0:expression-small-weight-threshold
   (fixnum:* 2
             (e0:expression-weight (state:procedure-get-body (e1:value cons:make)))))
 
 (e1:define (e0:expression-lightweight? e)
   (fixnum:<= (e0:expression-weight e)
-             e0:expression-small-threshold))
+             e0:expression-small-weight-threshold))
 
 (e1:define (state:procedure-lightweight? name)
   (e0:expression-lightweight? (state:procedure-get-body name)))

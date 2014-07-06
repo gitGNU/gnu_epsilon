@@ -3141,6 +3141,7 @@
 ;;; The result is a set-as-list of procedure names and 0, which stands
 ;;; for indirect calls.
 
+;;; FIXME: replace with an efficient version
 (e1:define (e0:expression-callees e)
   (e1:match e
     ((or (e0:expression-variable _ _)

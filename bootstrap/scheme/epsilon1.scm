@@ -3074,6 +3074,55 @@
     (fio:write (sy s))))
 
 
+;;;;; epsilon0 call graph analysis
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Return a set-as-list with (possibly indirect) callees, including 0
+;;; for any dynamic one.
+(e1:define (call-graph:procedure-callees call-graph procedure)
+  (call-graph:procedure-callees-helper call-graph
+                                       (list:list procedure)
+                                       set-as-list:empty
+                                       set-as-list:empty))
+(e1:define (call-graph:procedure-callees-helper call-graph worklist touched acc)
+  (e1:if (list:null? worklist)
+    acc
+    (e1:let ((first (list:head worklist))
+             (rest (list:tail worklist)))
+      (e1:if (e1:or (fixnum:zero? first)
+                    (set-as-list:has? touched first))
+        (call-graph:procedure-callees-helper call-graph rest touched acc)
+        (e1:let ((first-direct-callees (unboxed-hash:get call-graph first)))
+          (call-graph:procedure-callees-helper call-graph
+                                               (list:append first-direct-callees rest)
+                                               (set-as-list:with touched first)
+                                               (set-as-list:union first-direct-callees acc)))))))
+
+;;; Return #f is the procedure is non-recursive, or #t if it's either
+;;; definitely (syntactically) recursive or there is any dynamic
+;;; callee.  In either case we consider recursion in a possibly
+;;; indirect way.
+(e1:define (call-graph:procedure-recursive? call-graph procedure)
+  (e1:let ((callees (call-graph:procedure-callees call-graph procedure)))
+    (e1:if (set-as-list:has? callees 0)
+      #t ;; Conservative approximation.
+      (call-graph:procedure-recursive?-helper call-graph callees))))
+(e1:define (call-graph:procedure-recursive?-helper call-graph callees)
+  (e1:cond ((list:null? callees)
+            #f)
+           (bind (first (list:head callees))
+                 (rest (list:tail callees)))
+           ((set-as-list:has? (call-graph:procedure-callees call-graph first)
+                              first)
+            #t)
+           (else
+            (call-graph:procedure-recursive?-helper call-graph rest))))
+
+;;; FIXME: reimplement side-effect analysis using the call graph.  It
+;;; can be made more efficient, and also more precise then one of my
+;;; current two (!) implementations.
+
+
 ;;;;; epsilon0 expression size as syntactic complexity
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

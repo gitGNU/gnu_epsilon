@@ -3155,6 +3155,7 @@
      (set-as-list:union (e0:expression-callees bound-expression)
                         (e0:expression-callees body)))
     ((or (e0:expression-call _ procedure-name actuals)
+         ;; FIXME: should I consider a fork expression to have no callees?
          (e0:expression-fork _ procedure-name actuals))
      (set-as-list:with (e0:expressions-callees actuals)
                        procedure-name))

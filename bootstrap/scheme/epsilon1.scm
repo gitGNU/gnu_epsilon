@@ -2931,6 +2931,149 @@
             #f)))
 
 
+;;;;; Hash multiple bindings
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; These procedures allow to use a hash as a binding to a set-as-list, updating
+;;; set-as-list elements.
+
+(e1:define (unboxed-hash:ensure-non-empty! uh key)
+  (e1:let ((old-set-as-list (e1:if (unboxed-hash:has? uh key)
+                              (unboxed-hash:get uh key)
+                              set-as-list:empty)))
+    (unboxed-hash:set! uh key old-set-as-list)))
+
+(e1:define (unboxed-hash:add-to-set-as-list! uh key value)
+  (e1:let ((old-set-as-list (e1:if (unboxed-hash:has? uh key)
+                              (unboxed-hash:get uh key)
+                              set-as-list:empty)))
+    (unboxed-hash:set! uh key (set-as-list:with old-set-as-list value))))
+
+;;; FIXME: add other procedure when needed.
+
+
+;;;;; epsilon0 call graph
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; A call graph is a hash mapping a procedure names (or 0 for the
+;;; main expression) to a set-as-list of procedure names (including 0
+;;; for any number of indirect calls).  The call graph is closed over
+;;; the "calls" relation, disregarding indirect calls [FIXME: dig
+;;; global data for symbols, and include the ones bound to procedures
+;;; as well; I do that in the trivial compiler].
+
+;;; FIXME: update e1:define to automatically update a global call graph,
+;;; to be always kept consistent.
+
+;;; Build and return a new call graph, with the given expression as
+;;; the main expression and its callees.
+(e1:define (call-graph:build-from-main-expression expression)
+  (e1:let ((cg (unboxed-hash:make)))
+    (call-graph:build-helper cg
+                             (call-graph:add-main-expression!-internal cg expression))))
+
+;;; Build and return a new call graph with no main expression,
+;;; containing the given procedure and its callees.
+(e1:define (call-graph:build-from-procedure procedure-name)
+  (e1:let ((cg (unboxed-hash:make)))
+    (call-graph:add-procedure! cg procedure-name)))
+
+;;; Update the given call graph by adding the given procedure, and its
+;;; callees.
+(e1:define (call-graph:add-procedure! call-graph procedure-name)
+  (call-graph:build-helper call-graph (list:list procedure-name)))
+
+(e1:define (call-graph:build-helper call-graph worklist)
+  (e1:if (list:null? worklist)
+    call-graph
+    (e1:let ((first (list:head worklist))
+             (rest (list:tail worklist)))
+      (e1:if (e1:or (fixnum:zero? first)
+                    (unboxed-hash:has? call-graph first))
+        (call-graph:build-helper call-graph rest)
+        (e1:let ((worklist (list:append (call-graph:add-procedure!-internal call-graph first)
+                                        rest)))
+          (unboxed-hash:ensure-non-empty! call-graph first)
+          (call-graph:build-helper call-graph worklist))))))
+
+;;; Return the set-as-list of direct callees.
+(e1:define (call-graph:add-main-expression!-internal call-graph expression)
+  (call-graph:add-expression-direct-callees!-internal call-graph 0 expression))
+
+;;; Return the set-as-list of direct callees.
+(e1:define (call-graph:add-procedure!-internal call-graph procedure-name)
+  (call-graph:add-expression-direct-callees!-internal call-graph
+                                                      procedure-name
+                                                      (state:procedure-get-body procedure-name)))
+
+;;; Return the set-as-list of direct callees.
+(e1:define (call-graph:add-expression-direct-callees!-internal call-graph procedure-name expression)
+  (e1:match expression
+    ((or (e0:expression-variable _ _)
+         (e0:expression-value _ _))
+     set-as-list:empty)
+    ((e0:expression-bundle _ items)
+     (call-graph:add-expressions-direct-callees!-internal call-graph procedure-name items))
+    ((e0:expression-primitive _ _ actuals)
+     (call-graph:add-expressions-direct-callees!-internal call-graph procedure-name actuals))
+    ((e0:expression-let _ bound-variables bound-expression body)
+     (set-as-list:union
+      (call-graph:add-expression-direct-callees!-internal call-graph procedure-name bound-expression)
+         (call-graph:add-expression-direct-callees!-internal call-graph procedure-name body)))
+    ((e0:expression-call _ callee-name actuals)
+     (unboxed-hash:add-to-set-as-list! call-graph procedure-name callee-name)
+     (set-as-list:with
+      (call-graph:add-expressions-direct-callees!-internal call-graph procedure-name actuals)
+      callee-name))
+    ((e0:expression-fork _ _ actuals) ;; FIXME: the fork case may be debatable.
+     (call-graph:add-expressions-direct-callees!-internal call-graph procedure-name actuals))
+    ((e0:expression-call-indirect _ procedure-expression actuals)
+     (unboxed-hash:add-to-set-as-list! call-graph procedure-name 0)
+     (set-as-list:with
+      (set-as-list:union
+       (call-graph:add-expression-direct-callees!-internal call-graph procedure-name procedure-expression)
+       (call-graph:add-expressions-direct-callees!-internal call-graph procedure-name actuals))
+      0))
+    ((e0:expression-if-in _ discriminand values then-branch else-branch)
+     (set-as-list:union
+      (call-graph:add-expression-direct-callees!-internal call-graph procedure-name discriminand)
+      (call-graph:add-expression-direct-callees!-internal call-graph procedure-name then-branch)
+      (call-graph:add-expression-direct-callees!-internal call-graph procedure-name else-branch)))
+    ((e0:expression-join _ future)
+     (call-graph:add-expression-direct-callees!-internal call-graph procedure-name future))))
+
+(e1:define (call-graph:add-expressions-direct-callees!-internal call-graph procedure-name expressions)
+  (e1:if (list:null? expressions)
+    set-as-list:empty
+    (set-as-list:union
+     (call-graph:add-expression-direct-callees!-internal call-graph procedure-name (list:head expressions))
+     (call-graph:add-expressions-direct-callees!-internal call-graph procedure-name (list:tail expressions)))))
+
+
+;;; Call graph debug.
+
+(e1:define (debug:print-call-graph cg)
+  (e1:let ((alist (unboxed-hash:unboxed-hash->alist cg)))
+    (e1:dolist (pair alist)
+      (fio:write "* ")
+      (debug:print-symbol-or-0-internal (cons:car pair) "<main-expression>")
+      (fio:write " -> ")
+      (e1:dolist (callee (cons:cdr pair))
+        (debug:print-symbol-or-0-internal callee "<indirect>")
+        (fio:write " "))
+      (fio:write "\n"))))
+
+(e1:define-macro (debug:print-call-graph-from sexpression)
+  `(e1:let* ((e (repl:macroexpand-and-transform ',sexpression))
+             (g (call-graph:build-from-main-expression e)))
+     (debug:print-call-graph g)))
+
+(e1:define (debug:print-symbol-or-0-internal s string)
+  (e1:if (fixnum:zero? s)
+    (fio:write (s string))
+    (fio:write (sy s))))
+
+
 ;;;;; epsilon0 expression size as syntactic complexity
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -3135,13 +3278,14 @@
                 es))
 
 
-;;;;; epsilon0 expression calless
+;;;;; epsilon0 expression callees
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; The result is a set-as-list of procedure names and 0, which stands
-;;; for indirect calls.
+;;; for indirect calls.  FIXME: shall I remove this, now that I have
+;;; call graph support?  This is faster for one-shot calls, but I'm
+;;; not sure that case is useful.
 
-;;; FIXME: replace with an efficient version
 (e1:define (e0:expression-callees e)
   (e1:match e
     ((or (e0:expression-variable _ _)
@@ -3174,8 +3318,6 @@
     set-as-list:empty
     (set-as-list:union (e0:expression-callees (list:head es))
                        (e0:expressions-callees (list:tail es)))))
-
-;; FIXME: implement call graph utilities.
 
 
 ;;;;; epsilon0 side-effect analysis

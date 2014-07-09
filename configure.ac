@@ -34,7 +34,7 @@ m4_include([guile.m4])
 # m4_esyscmd([build-aux/git-version-gen .tarball-version]),
 AC_INIT([GNU epsilon],
         m4_esyscmd([build-aux/get-version-from-git]),
-        [epsilon-devel@gnu.org],
+        [bug-epsilon@gnu.org],
         [epsilon],
         [http://www.gnu.org/software/epsilon])
 AC_PREREQ(2.65)
@@ -236,7 +236,7 @@ AC_LANG(C) # We're looking for C libraries:
 
 AC_CHECK_LIB([m], [ceil], , AC_SUBST([DONTHAVEIT], [yes]))
 if test "$DONTHAVEIT" == "yes"; then
-  AC_MSG_WARN([This should never happen. Please report to epsilon-devel@gnu.org])
+  AC_MSG_WARN([This should never happen. Please report to bug-epsilon@gnu.org])
   AC_MSG_ERROR([could not find the m library (for math)])
 fi
 

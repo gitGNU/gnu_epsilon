@@ -281,6 +281,9 @@ Of course you're welcome to write to the project mailing list (see
 @url{http://lists.gnu.org/mailman/listinfo/epsilon-devel}), or to
 me personally if you have questions.
 
+You can also report bugs to @email{bug-epsilon@@gnu.org}, currently an
+@code{epsilon-devel} alias.
+
 Thanks.
 @flushright
 --- Luca Saiu

@@ -2978,6 +2978,34 @@
   (e1:let ((cg (unboxed-hash:make)))
     (call-graph:add-procedure! cg procedure-name)))
 
+;; In case the given procedure is unknown to the call graph, first add
+;; it, along with its callees.
+(e1:define (call-graph:procedure-add-when-unknown! call-graph procedure-name)
+  (e1:let ((known (unboxed-hash:has? call-graph procedure-name)))
+    (e1:unless known
+      (call-graph:add-procedure! call-graph procedure-name)
+      (unboxed-hash:get call-graph procedure-name))))
+
+;;; Return a set-as-list with the given procedure callee names.  If
+;;; the given procedure is not known in the call graph yet then first
+;;; add it, along with its callees.
+(e1:define (call-graph:procedure-direct-callees call-graph procedure-name)
+  (call-graph:procedure-add-when-unknown! call-graph procedure-name)
+  (unboxed-hash:get call-graph procedure-name))
+
+;;; Return #t iff the given procedure is directly recursive.  If it's
+;;; not known in the call graph yet then first add it, along with its
+;;; callees.
+(e1:define (call-graph:procedure-directly-recursive? call-graph procedure-name)
+  (set-as-list:has? (call-graph:procedure-direct-callees call-graph procedure-name)
+                    procedure-name))
+
+;;; Return #t iff the given procedure has no callees.  If it's not
+;;; known in the call graph yet then first add it, along with its
+;;; callees.
+(e1:define (call-graph:procedure-leaf? call-graph procedure-name)
+  (set-as-list:empty? (call-graph:procedure-direct-callees call-graph procedure-name)))
+
 ;;; Update the given call graph by adding the given procedure, and its
 ;;; callees.
 (e1:define (call-graph:add-procedure! call-graph procedure-name)
@@ -2990,6 +3018,8 @@
              (rest (list:tail worklist)))
       (e1:if (e1:or (fixnum:zero? first)
                     (unboxed-hash:has? call-graph first))
+        (e1:unless (unboxed-hash:has? call-graph first)
+          (call-graph:add-procedure! cg first)) ;; Make sure the procedure is known.
         (call-graph:build-helper call-graph rest)
         (e1:let ((worklist (list:append (call-graph:add-procedure!-internal call-graph first)
                                         rest)))
@@ -3078,7 +3108,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; Return a set-as-list with (possibly indirect) callees, including 0
-;;; for any dynamic one.
+;;; for any dynamic one.  If the procedure is not known in the call graph
+;;; then add it first, along with its callees.
 (e1:define (call-graph:procedure-callees call-graph procedure)
   (call-graph:procedure-callees-helper call-graph
                                        (list:list procedure)
@@ -3092,7 +3123,8 @@
       (e1:if (e1:or (fixnum:zero? first)
                     (set-as-list:has? touched first))
         (call-graph:procedure-callees-helper call-graph rest touched acc)
-        (e1:let ((first-direct-callees (unboxed-hash:get call-graph first)))
+        (e1:let ((first-direct-callees (call-graph:procedure-direct-callees call-graph
+                                                                            first)))
           (call-graph:procedure-callees-helper call-graph
                                                (list:append first-direct-callees rest)
                                                (set-as-list:with touched first)
@@ -3101,7 +3133,8 @@
 ;;; Return #f is the procedure is non-recursive, or #t if it's either
 ;;; definitely (syntactically) recursive or there is any dynamic
 ;;; callee.  In either case we consider recursion in a possibly
-;;; indirect way.
+;;; indirect way.  If the procedure is not known yet, first add it
+;;; along with its callees.
 (e1:define (call-graph:procedure-recursive? call-graph procedure)
   (e1:let ((callees (call-graph:procedure-callees call-graph procedure)))
     (e1:if (set-as-list:has? callees 0)

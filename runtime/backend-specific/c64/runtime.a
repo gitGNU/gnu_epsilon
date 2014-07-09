@@ -19,6 +19,14 @@
 ;;; along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
+;;;;; Global settings
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!zone global_settings
+
+!to "/tmp/q", cbm ;; FIXME: find a nicer solution
+!initmem $ff      ;; Just for testing
+
+
 ;;;;; BASIC driver
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 !zone BASIC_driver
@@ -706,33 +714,33 @@ jump_to_stack_location:
         sta (frame_pointer), y
 }
 
-sum_16_bit_a:
-sum_16_bit_result:
-!byte 0, 0
-sum_16_bit_b:
-!byte 0, 0
-;;; Arguments in memory.  Overwrite the first.  Clobber A.
-sum_16_bit:
-        ;; Load the first operand low byte.
-        lda sum_16_bit_a
-        clc
-        adc sum_16_bit_b
-        sta sum_16_bit_result
-        lda sum_16_bit_a + 1
-        adc sum_16_bit_b + 1
-        sta sum_16_bit_result + 1
-        rts
+;; sum_16_bit_a:
+;; sum_16_bit_result:
+;; !byte 0, 0
+;; sum_16_bit_b:
+;; !byte 0, 0
+;; ;;; Arguments in memory.  Overwrite the first.  Clobber A.
+;; sum_16_bit:
+;;         ;; Load the first operand low byte.
+;;         lda sum_16_bit_a
+;;         clc
+;;         adc sum_16_bit_b
+;;         sta sum_16_bit_result
+;;         lda sum_16_bit_a + 1
+;;         adc sum_16_bit_b + 1
+;;         sta sum_16_bit_result + 1
+;;         rts
 
-left_shift_1_16bit_a:
-left_shift_1_16bit_result:
-!byte 0, 0
-;;; Argument in memory.  Overwrite it.  Clobber A.
-left_shift_1_16bit:
-        ;; Load the first operand low byte.
-        clc
-        rol left_shift_1_16bit_a
-        rol left_shift_1_16bit_a + 1
-        rts
+;; left_shift_1_16bit_a:
+;; left_shift_1_16bit_result:
+;; !byte 0, 0
+;; ;;; Argument in memory.  Overwrite it.  Clobber A.
+;; left_shift_1_16bit:
+;;         ;; Load the first operand low byte.
+;;         clc
+;;         rol left_shift_1_16bit_a
+;;         rol left_shift_1_16bit_a + 1
+;;         rts
 
 debug_fail_string:
   !pet "Failure", 0

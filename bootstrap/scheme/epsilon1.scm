@@ -2990,7 +2990,8 @@
 ;;; containing the given procedure and its callees.
 (e1:define (call-graph:build-from-procedure procedure-name)
   (e1:let ((cg (unboxed-hash:make)))
-    (call-graph:add-procedure! cg procedure-name)))
+    (call-graph:add-procedure! cg procedure-name)
+    cg))
 
 ;; In case the given procedure is unknown to the call graph, first add
 ;; it, along with its callees.

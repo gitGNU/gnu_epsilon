@@ -2930,6 +2930,20 @@
            (else
             #f)))
 
+(e1:define (list:filter p xs)
+  (list:reverse (list:filter-reversed p xs)))
+(e1:define (list:filter-reversed p xs)
+  (list:filter-reversed-acc p xs list:nil))
+(e1:define (list:filter-reversed-acc p xs acc)
+  (e1:cond ((list:null? xs)
+            acc)
+           (bind (head (list:head xs))
+                 (tail (list:tail xs)))
+           ((e1:call-closure p head)
+            (list:filter-reversed-acc p tail (list:cons head acc)))
+           (else
+            (list:filter-reversed-acc p tail acc))))
+
 
 ;;;;; Hash multiple bindings
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -3451,10 +3465,11 @@
 ;;; removal should be performed *before* trivial-let removal, since
 ;;; useless-let removal may make some subexpressions trivial.
 
-;; FIXME: implement useless-let removal
-
 ;; Testcase: (u (e1:let ((a (e1:primitive fixnum:+ 4 2))) 1 2))
 
+;;; FIXME: actually implement useless-let removal.
+(e1:define (e0:expression-without-useless-lets e)
+  e)
 
 ;;;;; epsilon0 let bundle simplification
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -3612,14 +3627,14 @@
 (e1:define (e0:inlined-call procedure-name actuals)
   (e0:let (formals body) (e0:alpha-convert-procedure procedure-name)
 ;; (e0:expression-without-unneeded-lets ;; This may be expensive.
-     (e0:inlined-call-make-let formals actuals body)))
+     (e0:inlined-call-helper formals actuals body)))
 ;; )
 
 ;;; This assumes formals to be fresh variables, which is true when
-;;; called from e0:inline-call.
+;;; called from e0:inlined-call.
 ;;; FIXME: don't introduce an e0:let at all, when passing a trivial
 ;;; expression.
-(e1:define (e0:inlined-call-make-let formals actuals body)
+(e1:define (e0:inlined-call-helper formals actuals body)
   (e1:cond ((list:null? formals)
             (e1:if (list:null? actuals)
               body
@@ -3629,9 +3644,9 @@
            (else
             (e0:let* (list:list (list:head formals))
                      (list:head actuals)
-                     (e0:inlined-call-make-let (list:tail formals)
-                                               (list:tail actuals)
-                                               body)))))
+                     (e0:inlined-call-helper (list:tail formals)
+                                             (list:tail actuals)
+                                             body)))))
 
 
 ;;;;; Simple generic input ports

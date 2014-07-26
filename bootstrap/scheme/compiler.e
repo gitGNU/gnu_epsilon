@@ -2410,10 +2410,10 @@ global_data_end:
             (column (fixnum:8/ x))
             (line (fixnum:bitwise-and y 7))
             (bit (fixnum:- 7 (fixnum:bitwise-and x 7)))
-            (byte (fixnum:+ 24576
-                            (fixnum:320* row 320)
-                            (fixnum:8* column 8)
-                            line))
+            ;; (byte (fixnum:+ 24576
+            ;;                 (fixnum:320* row 320)
+            ;;                 (fixnum:8* column 8)
+            ;;                 line))
             (cbyte (fixnum:+ 17408
                              (fixnum:40* row 40)
                              col)))
@@ -2430,7 +2430,7 @@ global_data_end:
   ;; POKE53272,(PEEK(53272)AND15)OR A
   ;; POKE 53272,(PEEK(53272)AND240)OR A   REM for character memory
   ;; The following is only for the kernal's screen editor
-  (io:store-byte! 648 (fixnum:non-primitive-/ address 64)))
+  (io:store-byte! 648 (fixnum:64/ address)))
 
 (e1:define (vic2:set-bit-map)
   (io:or! 53265 32))
@@ -2533,6 +2533,18 @@ global_data_end:
   (e1:define (fixnum:left-shift a b) (fixnum:non-primitive-left-shift a b))
   (e1:define (fixnum:arithmetic-right-shift a b) (fixnum:non-primitive-arithmetic-right-shift a b))
   (e1:define (fixnum:logic-right-shift a b) (fixnum:non-primitive-logic-right-shift a b))
+  (e1:define fixedpoint:fractional-bit-no 8)
+  (e1:define fixedpoint:fractional-bitmask
+    (fixnum:1- (fixnum:left-shift (e0:value 1) fixedpoint:fractional-bit-no)))
+  (e1:define fixedpoint:1
+    (fixedpoint:fixnum->fixedpoint 1))
+  (e1:define fixedpoint:10
+    (fixedpoint:fixnum->fixedpoint 10))
+  (e1:define fixedpoint:1/10
+    (fixedpoint:/ fixedpoint:1
+                  fixedpoint:10))
+  (e1:define (fixedpoint:10/ x)
+    (fixedpoint:* x fixedpoint:1/10))
   ))
 
 (e1:define-macro (c1 . stuff)

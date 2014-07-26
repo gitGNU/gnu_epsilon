@@ -5044,6 +5044,8 @@
        (fixnum:1+ i)
        (fixedpoint:10/ weight)
        (fixedpoint:+ acc weighted-digit)))))
+(e1:define fixedpoint:1
+  (fixedpoint:fixnum->fixedpoint 1))
 (e1:define fixedpoint:10
   (fixedpoint:fixnum->fixedpoint 10))
 (e1:define fixedpoint:1/10

@@ -1516,28 +1516,6 @@
 (e1:define fixedpoint:fractional-bitmask
   (fixnum:1- (fixnum:left-shift (e0:value 1) fixedpoint:fractional-bit-no)))
 
-;;; FIXME: remove this crap
-;;; Useful for building small constants.  All fixnums must be zero or
-;;; positive; the others must be in [0, 10). For example, supplying
-;;; the fixnums 1, 192, 0, 3 and 2 we get the fixed-point result
-;;; -192.032 .
-(e1:define (fixedpoint:make negative
-                            integer-part
-                            fractional-decimal-digit-1
-                            fractional-decimal-digit-2
-                            fractional-decimal-digit-3)
-  (e0:let (fractional-part)
-          (fixnum:+ (fixnum:* fractional-decimal-digit-1 (e0:value 100))
-                    (fixnum:+ (fixnum:* fractional-decimal-digit-2 (e0:value 10))
-                              fractional-decimal-digit-3))
-    (e0:let (absolute-value)
-            (fixnum:bitwise-or (fixnum:left-shift integer-part fixedpoint:fractional-bit-no)
-                               (fixnum:/ (fixnum:left-shift fractional-part fixedpoint:fractional-bit-no)
-                                         (e0:value 1000)))
-      (e0:if-in negative (0)
-        absolute-value
-        (fixnum:negate absolute-value)))))
-
 (e1:define (fixedpoint:fixnum->fixedpoint fixnum)
   (fixnum:left-shift fixnum fixedpoint:fractional-bit-no))
 
@@ -1577,7 +1555,6 @@
 (e1:define (fixedpoint:mod a)
   (fixnum:mod a))
 
-;;; Particularly useful for printing: [FIXME: get rid of this crap]
 (e1:define (fixedpoint:get-integer-part fixed)
   (fixnum:arithmetic-right-shift fixed fixedpoint:fractional-bit-no))
 (e1:define (fixedpoint:get-fractional-part fixed digit-no)
@@ -1586,25 +1563,6 @@
                                                    (fixnum:** (e0:value 10) digit-no))
                                          fixedpoint:fractional-bit-no)
     (fixnum:mod possibly-negative-result)))
-
-;;; Some useful constants:
-(e1:define fixedpoint:0
-           (e0:value 0))
-(e1:define fixedpoint:1   ;; + 1. 0 0 0
-           (fixedpoint:make (e0:value #f) (e0:value 1) (e0:value 0) (e0:value 0) (e0:value 0)))
-(e1:define fixedpoint:-1  ;; - 1. 0 0 0
-           (fixedpoint:make (e0:value #t) (e0:value 1) (e0:value 0) (e0:value 0) (e0:value 0)))
-(e1:define fixedpoint:2   ;; + 2. 0 0 0
-           (fixedpoint:make (e0:value #f) (e0:value 2) (e0:value 0) (e0:value 0) (e0:value 0)))
-(e1:define fixedpoint:3   ;; + 3. 0 0 0
-           (fixedpoint:make (e0:value #f) (e0:value 2) (e0:value 0) (e0:value 0) (e0:value 0)))
-(e1:define fixedpoint:1:2 ;; + 0. 5 0 0
-           (fixedpoint:make (e0:value #f) (e0:value 0) (e0:value 5) (e0:value 0) (e0:value 0)))
-(e1:define fixedpoint:1:4 ;; + 0. 2 5 0
-           (fixedpoint:make (e0:value #f) (e0:value 0) (e0:value 2) (e0:value 5) (e0:value 0)))
-
-(e1:define fixedpoint:10  ;; + 10. 0 0 0
-           (fixedpoint:make (e0:value #f) (e0:value 10) (e0:value 0) (e0:value 0) (e0:value 0)))
 
 
 ;;;;; Expressions
@@ -1722,9 +1680,13 @@
 (e1:define (state:procedure-get name)
   (e0:bundle (state:procedure-get-formals name)
              (state:procedure-get-body name)))
+(e1:define (state:procedure-set-formals! name formals)
+  (buffer:set! name (e0:value 3) formals))
+(e1:define (state:procedure-set-body! name body)
+  (buffer:set! name (e0:value 4) body))
 (e1:define (state:procedure-set! name formals body)
-  (e0:let () (buffer:set! name (e0:value 3) formals)
-    (buffer:set! name (e0:value 4) body)))
+  (e0:let () (state:procedure-set-formals! name formals)
+    (state:procedure-set-body! name body)))
 (e1:define (state:procedure-unset! name)
   (e0:let () (buffer:set! name (e0:value 3) list:nil)
     ;; invalid body

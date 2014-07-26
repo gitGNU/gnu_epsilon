@@ -779,7 +779,8 @@
   (variadic:define-associative fixnum:bitwise-or fixnum:bitwise-or 0)
   (variadic:define-associative fixnum:bitwise-xor fixnum:bitwise-xor 0)
   (variadic:define-left-deep fixnum:left-shift fixnum:left-shift 0)
-  (variadic:define-left-deep fixnum:right-shift fixnum:right-shift 0)
+  (variadic:define-left-deep fixnum:arithmetic-right-shift fixnum:arithmetic-right-shift 0)
+  (variadic:define-left-deep fixnum:logic-right-shift fixnum:logic-right-shift 0)
 
   (variadic:define-right-deep list:append list:append2 list:nil) ;; right-deep for performance
 
@@ -5067,7 +5068,7 @@
                (fixnum:bitwise-and (fixnum:bitwise-not fixedpoint:fractional-bitmask)
                                    (fixnum:* fractional-part-only 10)))
               (digit-as-fixnum
-               (fixnum:right-shift decimal-digit fixedpoint:fractional-bit-no)))
+               (fixnum:logic-right-shift decimal-digit fixedpoint:fractional-bit-no)))
       (io:write-character port (fixnum:+ #\0 digit-as-fixnum))
       (printer:write-fixed-point-fractional-part port (fixnum:bitwise-and fixedpoint:fractional-bitmask (fixnum:* fractional-part-only 10))))))
 

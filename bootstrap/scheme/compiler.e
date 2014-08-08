@@ -2147,6 +2147,77 @@ global_data_end:
   `(e1:define-c64-sprite ,name #t ,string))
 
 
+;;;;; Sprite flipping
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Return the given Commodore 64 sprite horizontally flipped.
+(e1:define (c64:flip-sprite sprite multi-color)
+  (e1:let ((res (state:with-property (e1:value c64:sprite) #t
+                  (buffer:make 63))))
+    (c64:flip-sprite-helper! res sprite 0 multi-color)
+    res))
+
+;;; Return the given Commodore 64 sprite flopped, which is to say
+;;; vertically flipped.  This supports single-color and multi-color
+;;; sprites with the same code.
+(e1:define (c64:flop-sprite sprite)
+  (e1:let ((res (state:with-property (e1:value c64:sprite) #t
+                  (buffer:make 63))))
+    (c64:flop-sprite-helper! res sprite 0)
+    res))
+
+;;; Invert the order of each byte in a row, and flip bits within each
+;;; byte the appropriate way as well.  Do not reorder rows.
+(e1:define (c64:flip-sprite-helper! res sprite i multi-color)
+  (e1:when (fixnum:< i 64)
+    (e1:let ((new-byte (e1:if multi-color
+                         (c64:flip-multi-color-byte (buffer:get sprite i))
+                         (c64:flip-single-color-byte (buffer:get sprite i)))))
+      (buffer:set! res
+                   (fixnum:+ (fixnum:* (fixnum:/ i 3) 3)
+                             (fixnum:- 2 (fixnum:% i 3)))
+                   new-byte))
+    (c64:flip-sprite-helper! res sprite (fixnum:1+ i) multi-color)))
+
+;;; Reorder each three-byte row bottom-to-top, keeping the original
+;;; byte order within each row.
+(e1:define (c64:flop-sprite-helper! res sprite i)
+  (e1:when (fixnum:< i 64)
+    (buffer:set! res
+                 (fixnum:+ (fixnum:* (fixnum:/ i 3) 3)
+                           (fixnum:- 2 (fixnum:% i 3)))
+                 (buffer:get sprite (fixnum:- 62 i)))
+    (c64:flop-sprite-helper! res sprite (fixnum:1+ i))))
+
+;; 76543210    76543210
+;; ABCDEFGH -> HGFEDCBA
+(e1:define (c64:flip-single-color-byte byte)
+  (fixnum:bitwise-or (fixnum:left-shift (fixnum:byte-get-bit byte 0) 7)
+                     (fixnum:left-shift (fixnum:byte-get-bit byte 1) 6)
+                     (fixnum:left-shift (fixnum:byte-get-bit byte 2) 5)
+                     (fixnum:left-shift (fixnum:byte-get-bit byte 3) 4)
+                     (fixnum:left-shift (fixnum:byte-get-bit byte 4) 3)
+                     (fixnum:left-shift (fixnum:byte-get-bit byte 5) 2)
+                     (fixnum:left-shift (fixnum:byte-get-bit byte 6) 1)
+                     (fixnum:left-shift (fixnum:byte-get-bit byte 7) 0)))
+
+(e1:define (fixnum:byte-get-bit byte bit-index)
+  (fixnum:logic-right-shift (fixnum:bitwise-and byte (fixnum:left-shift 1 bit-index))
+                            bit-index))
+
+;; 76543210    76543210
+;; AABBCCDD -> DDCCBBAA
+(e1:define (c64:flip-multi-color-byte byte)
+  (fixnum:bitwise-or (fixnum:left-shift (fixnum:byte-get-bit byte 0) 6)
+                     (fixnum:left-shift (fixnum:byte-get-bit byte 1) 7)
+                     (fixnum:left-shift (fixnum:byte-get-bit byte 2) 4)
+                     (fixnum:left-shift (fixnum:byte-get-bit byte 3) 5)
+                     (fixnum:left-shift (fixnum:byte-get-bit byte 4) 2)
+                     (fixnum:left-shift (fixnum:byte-get-bit byte 5) 3)
+                     (fixnum:left-shift (fixnum:byte-get-bit byte 6) 0)
+                     (fixnum:left-shift (fixnum:byte-get-bit byte 7) 1)))
+
+
 ;;;;; What follows is tentative code: Commodore 64 tests
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -2453,8 +2524,8 @@ global_data_end:
   (e1:let* ((by (fixnum:+ base
                           (fixnum:320* (fixnum:8/ y))
                           (fixnum:8* (fixnum:8/ x))
-                          (fixnum:bitwise-and y 7)))
-            (bi (fixnum:bitwise-and x 7)))
+                          (fixnum:bitwise-and y 7))) ;; Row offset in character.
+            (bi (fixnum:bitwise-and x 7))) ;; Column index in character row.
     (io:or! by (fixnum:lookup-bit-value bi))))
 
 (e1:define (plot-line x y)

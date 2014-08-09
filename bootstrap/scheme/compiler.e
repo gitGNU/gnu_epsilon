@@ -2150,12 +2150,20 @@ global_data_end:
 ;;;;; Sprite flipping
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;; This machinery is inefficient, but it's conceived to be used to
+;;; be used before cross-compilation.
+
 ;;; Return the given Commodore 64 sprite horizontally flipped.
 (e1:define (c64:flip-sprite sprite multi-color)
   (e1:let ((res (state:with-property (e1:value c64:sprite) #t
                   (buffer:make 63))))
     (c64:flip-sprite-helper! res sprite 0 multi-color)
     res))
+
+(e1:define (c64:flip-multi-color-sprite sprite)
+  (c64:flip-sprite sprite #t))
+(e1:define (c64:flip-single-color-sprite sprite)
+  (c64:flip-sprite sprite #f))
 
 ;;; Return the given Commodore 64 sprite flopped, which is to say
 ;;; vertically flipped.  This supports single-color and multi-color

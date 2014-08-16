@@ -49,7 +49,8 @@
 
 (load "repl.e") ;; We need to load this late because it depends on source paths.
 (load "compiler.e")
-(load "brainfuck.e")
+;(load "brainfuck.e")
+;(load "scratch-c64-demo.e")
 
 
 ;;;;; Save the current state, to make quick-start.scm work:

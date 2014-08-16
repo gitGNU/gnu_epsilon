@@ -131,6 +131,7 @@ sprite_area:
   !set next_sprite = next_sprite + 64
   * = previous_here
   !warn "We still have space for ", ((after_bank_0_end - next_sprite) / 64) ," sprites."
+  !warn "If we use characters as well we still have space for ", ((character_images - next_sprite) / 64) ," sprites."
   !if next_sprite > after_bank_0_end {
     !error "Sprites overflow past bank 0"
   }
@@ -142,6 +143,7 @@ sprite_area:
 ;;; left to the user for graphics.
 !align 16383, 0
 after_bank_0_end:
+character_images = 4096
 
 !warn "The usable part starts at ", *, "."
 
@@ -171,11 +173,12 @@ zeropage_arg2 = $fb
 zeropage_arg3 = $fd
 
 ML_START:
+        ;; jmp test                ; FIXME: remove
+
         jsr disable_BASIC
         ;; jsr toggle_shifted_character_set
         jsr enable_shifted_character_set
         jsr initialize_runtime
-        ;; jsr test_stack
         jsr epsilon_main_entry_point
         jsr reenable_BASIC
         rts
@@ -605,10 +608,6 @@ jump_to_stack_location:
         adc (frame_pointer), y
         ldy #(.toslot * 2)
         sta (frame_pointer), y
-}
-
-!macro sum_16bit .fromaddress1, .fromaddress2, .toaddress {
-        ????
 }
 
 !macro sum_stack_16bit .fromslot1, .fromslot2, .toslot {
@@ -1166,8 +1165,32 @@ initialize_runtime:
   !warn "Compiled procedures are ", procedures_end - procedures_beginning, " bytes (", procedures_beginning, "..", procedures_end ,"."
   !warn "Compiled data and procedures take ", * - global_data_beginning, " bytes (up to ", *, ")."
   !warn "* is ", *, "."
+  !warn "graphics_area is ", graphics_area
+  !warn "next_sprite in bank 0 is ", next_sprite, " (of 16383)."
+  !warn "ML_START is ", ML_START
+  !warn "epsilon_main_entry_point is ", epsilon_main_entry_point
   !warn 53247 - *, " usable bytes unused."
   !if * >= 53248 {
     !error "Generated data/code overflows into the I/O area"
   }
 }
+
+
+;;;;; Scratch
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+test:
+        ;; line 10
+        lda 53265
+        ora #32
+        sta 53265
+        
+        ;; line 20
+        lda #150
+        sta 56576
+        lda #92
+        sta 648
+        lda #121
+        sta 53272
+        
+        rts

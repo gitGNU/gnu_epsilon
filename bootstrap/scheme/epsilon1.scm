@@ -2945,6 +2945,24 @@
            (else
             (list:filter-reversed-acc p tail acc))))
 
+;;;;; The same, for s-expressions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (sexpression:reversed-map-closure-into closure s-list acc)
+  (e1:if (sexpression:null? s-list)
+    acc
+    (sexpression:reversed-map-closure-into closure
+                                           (sexpression:cdr s-list)
+                                           (sexpression:cons (e1:call-closure
+                                                                 closure
+                                                                 (sexpression:car s-list))
+                                                             acc))))
+
+(e1:define (sexpression:map closure s-list)
+  (sexpression:reverse (sexpression:reversed-map-closure-into closure
+                                                              s-list
+                                                              sexpression:nil)))
+
 
 ;;;;; Hash multiple bindings
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

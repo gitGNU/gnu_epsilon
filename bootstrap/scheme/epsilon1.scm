@@ -1132,9 +1132,11 @@
   (e1:and (sexpression:symbol? q)
           (e1:let* ((symbol (sexpression:eject-symbol q))
                     (string (symbol:symbol->string symbol)))
-            (e1:and (fixnum:>= (string:length string) 2)
-                    (whatever:eq? (string:get string 0) #\#)
-                    (whatever:eq? (string:get string 1) #\:)))))
+            (e1:or (e1:and (fixnum:>= (string:length string) 1)
+                           (whatever:eq? (string:get string 0) #\:))
+                   (e1:and (fixnum:>= (string:length string) 2)
+                           (whatever:eq? (string:get string 0) #\#)
+                           (whatever:eq? (string:get string 1) #\:))))))
 
 (e1:define (keyword:is-in-table? symbol table)
   (e1:cond ((sexpression:null? table)
@@ -1151,9 +1153,16 @@
               (keyword:is-in-table? symbol (sexpression:cdr table))))))
 
 ;;; Keywords are symbols in epsilon1
-(e1:define (keyword:keyword->symbol s)
-  ;; FIXME: make this more efficient.  I need substring and subvector operators
+;; FIXME: make this more efficient.  I need substring and subvector operators
+(e1:define (keyword:more-clumsy-keyword->symbol s)
   (symbol:string->symbol (vector:list->vector (list:tail (list:tail (vector:vector->list (symbol:symbol->string s)))))))
+(e1:define (keyword:less-clumsy-keyword->symbol s)
+  (symbol:string->symbol (vector:list->vector (list:tail (vector:vector->list (symbol:symbol->string s))))))
+(e1:define (keyword:keyword->symbol s)
+  (e1:case (string:get (symbol:symbol->string s) 0)
+    ((#\#) (keyword:more-clumsy-keyword->symbol s))
+    ((#\:) (keyword:less-clumsy-keyword->symbol s))
+    (else (e1:error "not a keyword"))))
 
 (e1:define (keyword:make-argument-alist-acc table actuals acc)
   (e1:cond ((sexpression:null? actuals)

@@ -73,7 +73,7 @@
  (e1:define-record oo:class
    name         ;; a symbol
    superclasses ;; a list of oo:class records
-   slots)       ;; a list of symbols
+   slot-names)  ;; a list of symbols
  (e1:define-record oo:instance class parents slots))
 
 (e1:define (oo:subclass-of? candidate-subclass candidate-superclass)
@@ -88,14 +88,14 @@
            (else
             (oo:any-subclass-of? (list:tail candidate-subclasses) candidate-superclass))))
 
-(e1:define (oo:classes->slots cs)
+(e1:define (oo:classes->all-slots cs)
   (e1:if (list:null? cs)
     list:nil
-    (set-as-list:union (oo:class->slots (list:head cs))
-                       (oo:classes->slots (list:tail cs)))))
-(e1:define (oo:class->slots c)
-  (set-as-list:union (oo:class-get-slots c)
-                     (oo:classes->slots (oo:class-get-superclasses c))))
+    (set-as-list:union (oo:class->all-slots (list:head cs))
+                       (oo:classes->all-slots (list:tail cs)))))
+(e1:define (oo:class->all-slots c)
+  (set-as-list:union (oo:class-get-slot-names c)
+                     (oo:classes->all-slots (oo:class-get-superclasses c))))
 
 (e1:define (ssexpression:append-ssymbol-string ssymbol string)
   (e1:let* ((ssymbol-as-string (symbol:symbol->string (sexpression:eject-symbol ssymbol)))
@@ -107,7 +107,7 @@
   (e1:let* ((superclass-object-name (symbol:append (sexpression:eject-symbol superclass)
                                                    (e1:value -class)))
             (slots (e1:if (state:global? superclass-object-name)
-                     (oo:class->slots (state:global-get superclass-object-name))
+                     (oo:class->all-slots (state:global-get superclass-object-name))
                      list:nil)))
     `(e1:begin
        ,@(sexpression:map

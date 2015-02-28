@@ -2,6 +2,7 @@
 ## This file is part of GNU epsilon.
 
 ## Copyright (C) 2012 Université Paris 13
+## Copyright (C) 2015 Luca Saiu
 ## Written by Luca Saiu
 
 ## GNU epsilon is free software: you can redistribute it and/or modify
@@ -18,16 +19,26 @@
 ## along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
-set -e
+set -ex
 
-#gcc -fverbose-asm -O2 -g -save-temps -Wall movinggc.c && ./a.out
-#OPTIMIZATIONFLAGS="-O2"
-OPTIMIZATIONFLAGS="-O3"
-OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -fomit-frame-pointer"
-#DEBUGFLAGS="-g"
+#OPTIMIZATIONFLAGS="-O3"
+#OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -fomit-frame-pointer"
+OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -Ofast"
+#OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -finline-functions"
+
+# # For reading assembly
+#OPTIMIZATIONFLAGS="-O2 -Os -fno-inline-functions -fno-unroll-loops"
+
+# FIXME: LTO doesn't play well with global regiter variables, or
+# (more likely) I don't know how to use them together.  FIXME: ask.
+# OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -flto"
+
+DEBUGFLAGS="-fverbose-asm"
+DEBUGFLAGS="$DEBUGFLAGS -Wall"
+DEBUGFLAGS="$DEBUGFLAGS -g"
 
 #DEBUGFLAGS="$DEBUGFLAGS -fno-inline" # This makes performance worse
-#PROFILEFLAGS="-p -pg"
+#PROFILEFLAGS="-g -p -pg"
 
 #OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -Os"
 CFLAGS="$OPTIMIZATIONFLAGS $DEBUGFLAGS $PROFILEFLAGS"
@@ -37,7 +48,9 @@ CFLAGS="$CFLAGS -DMOVINGGC_ARCHITECTURE_"`uname --machine | sed s/-/_/g`" "
 CFLAGS="$CFLAGS -save-temps"
 
 echo COMPILING...
-gcc -fverbose-asm $CFLAGS -Wall movinggc.c driver.c
+gcc $CFLAGS -c movinggc.c
+gcc $CFLAGS -c driver.c
+gcc $CFLAGS movinggc.o driver.o
 echo FLUSHING...
 sync
 echo RUNNING...

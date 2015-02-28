@@ -2,6 +2,7 @@
 ## This file is part of GNU epsilon.
 
 ## Copyright (C) 2012 Université Paris 13
+## Updated in 2015 by Luca Saiu
 ## Written by Luca Saiu
 
 ## GNU epsilon is free software: you can redistribute it and/or modify
@@ -20,4 +21,4 @@
 
 set -e
 
-rm -f *.out *.i *.o *.s
+rm -f *.out *.i *.o *.s *.res core *.gcda PROFILE

@@ -1,4 +1,5 @@
 Copyright (C) 2012 Université Paris 13
+Copyright (C) 2015 Luca Saiu
 Written by Luca Saiu
 
 This file is part of GNU epsilon.
@@ -17,7 +18,8 @@ You should have received a copy of the GNU General Public License
 along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
-A simple semispace garbage collector, not yet integrated with the rest
-of the system.  My idea is adapting this into the young generation
-part of a generational parallel GC, using what is now called epsilongc
-as the old generation.
+A relatively simple but fast semispace garbage collector with exact
+pointer finding, not yet integrated with the rest of the system.  My
+idea is adapting this into the young generation part of a generational
+parallel GC, (possibly) using what is now called epsilongc as the old
+generation.

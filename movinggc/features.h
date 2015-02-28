@@ -1,6 +1,7 @@
 /* This file is part of GNU epsilon.
 
    Copyright (C) 2012 Université Paris 13
+   Updated in 2015 by Luca Saiu
    Written by Luca Saiu
 
    GNU epsilon is free software: you can redistribute it and/or modify
@@ -20,18 +21,25 @@
 #ifndef MOVINGGC_FEATURES_H_
 #define MOVINGGC_FEATURES_H_
 
+#if 0
+// Horrible kludges to make gprof output more useful:
+#define __attribute__(...)  /* nothing */
+#define static  /* nothing */
+#define inline  /* nothing */
+#endif // #if 0
+
 //#define MOVINGGC_DEBUG
 //#define MOVINGGC_VERBOSE
 //#define MOVINGGC_VERY_VERBOSE
 
-#define MOVINGGC_USE_STACK
 #define MOVINGGC_USE_MEMCPY
 
 #define MOVINGGC_USE_GLOBAL_POINTERS
 #define MOVINGGC_USE_REGISTER_POINTERS
 
 #ifdef MOVINGGC_USE_REGISTER_POINTERS
-#if defined(MOVINGGC_ARCHITECTURE_i686) || defined(MOVINGGC_ARCHITECTURE_i686_AT386 /* for the Hurd */)
+#if defined(MOVINGGC_ARCHITECTURE_i686) \
+    || defined(MOVINGGC_ARCHITECTURE_i686_AT386 /* for the Hurd */)
 // x86: We can use %esi, %ebx and %edi
 #define MOVINGGC_REGISTER_1 "esi"
 #define MOVINGGC_REGISTER_2 "ebx"
@@ -49,12 +57,14 @@
 #else
 #error Unknown architecture: can not use register pointers
 #endif // ... architecture-specific code
-register void **movinggc_fromspace_next_unallocated_object asm (MOVINGGC_REGISTER_1);
-register void **movinggc_fromspace_after_payload_end asm (MOVINGGC_REGISTER_2);
+register void **movinggc_fromspace_next_unallocated_word
+asm (MOVINGGC_REGISTER_1);
+register void **movinggc_fromspace_after_payload_end
+asm (MOVINGGC_REGISTER_2);
 #endif
 
 #if defined(MOVINGGC_USE_REGISTER_POINTERS) && !defined(MOVINGGC_USE_GLOBAL_POINTERS)
-  #error Register pointers can only be enabled with global pointers
+#error Register pointers can only be enabled with global pointers
 #endif
 
 #endif // #ifndef MOVINGGC_FEATURES_H_

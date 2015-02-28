@@ -1,0 +1,48 @@
+This file is part of GNU epsilon.
+
+Copyright (C) 2015 Luca Saiu
+
+GNU epsilon is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+GNU epsilon is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
+
+
+Allocation statistics are likely inaccurate.  I should only count the
+memory actually allocated by the mutator, including headers but
+excluding what I do internally to resize semispaces.
+
+Design a sensible strategy for growing and shrinking semispaces.
+
+Provide a way of saving and restoring global register variables,
+for interoperation with other C code.
+
+Use movinggc_fromspace_next_unallocated_object_payload instead of
+movinggc_fromspace_next_unallocated_object.  "Pre-allocating the
+header" will save or simplify a few instructions in the allocation
+fast path.
+
+Dynamic roots: add underflow checking when debugging.
+
+Don't crash when semispaces aren't big enough to accommodate roots.
+Root size is not considered when assuming that semispace allocation
+can't fail -- it should be. [Is that the problem?  I don't think so.
+Anyway the thing crashes when the heap starts very small]
+
+Why such a variance in runtime?
+
+Shrink semispaces as well (optionally only up to a minimal size): it's
+worth to keep semispaces always fitting in L2, if not in L1.  It's
+debatable whether it pays to have them as small as possible, trading
+better locality for increased collection frequency.
+
+Minimize resizings, even at the price of keeping the two semispace
+sizes different (but tospace can't be smaller than fromspace).

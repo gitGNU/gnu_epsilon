@@ -16,19 +16,38 @@ You should have received a copy of the GNU General Public License
 along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
+A pre-GC hook should directly call a function on each root, scavenging
+it.  Do away with the post-GC hook as well.  Dynamic roots are still
+useful for C primitives.
+
+The code generated for the fast path of movinggc_allocate_chars is
+obviously subotimal, and I've not been able to convince GCC to assume
+word-aligned pointers using __builtin_assume_aligned.  This may or may
+not be a big deal: I mean to write an assembly version of that for the
+architectures I support.  However the idea of using char* pointers and
+allocation sizes in bytes introduces some complexity.  I still think I
+can gain something from that; if not the code should be simplified.
+
+Use movinggc_fromspace_next_unallocated_object_field instead of
+movinggc_fromspace_next_unallocated_word.  "Pre-allocating the
+header" will save or simplify a few instructions in the allocation
+fast path.
+
 Allocation statistics are likely inaccurate.  I should only count the
 memory actually allocated by the mutator, including headers but
 excluding what I do internally to resize semispaces.
 
 Design a sensible strategy for growing and shrinking semispaces.
 
+Do away with "administrative" collections for resizing semispaces.
+When growing I should resize only the new tospace after a GC; at the
+next collection the fromspace will be replaced as well.  When
+shrinking I should make the "nominal" size of the new fromspace go
+down, and immediately resize the new tospace; at the next collection
+I'll adjust the other semispace to match.
+
 Provide a way of saving and restoring global register variables,
 for interoperation with other C code.
-
-Use movinggc_fromspace_next_unallocated_object_payload instead of
-movinggc_fromspace_next_unallocated_object.  "Pre-allocating the
-header" will save or simplify a few instructions in the allocation
-fast path.
 
 Dynamic roots: add underflow checking when debugging.
 

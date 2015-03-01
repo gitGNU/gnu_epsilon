@@ -47,7 +47,11 @@ void movinggc_pop_dynamic_roots (size_t how_many);
    pre-GC hook should push temporary roots, and the post-GC hook
    should pop them.  The number of active temporary roots must be the
    same at pre-GC entry and at post-GC exit time.  Hooks may not
-   allocate from the GC'd heap. */
+   allocate from the GC'd heap.
+
+   Hook-setting functions can be given a NULL parameter to remove the
+   previous hook.  It's not possible to chain hooks: at most one per
+   type can be active at each time. */
 typedef void (*movinggc_hook_t) (void *argument);
 void movinggc_set_pre_hook (movinggc_hook_t hook);
 void movinggc_set_post_hook (movinggc_hook_t hook);
@@ -78,4 +82,6 @@ float movinggc_fill_ratio (void);
 const char *movinggc_semispace_name_of (const void *untagged_pointer);
 long movinggc_gc_no (void); // how many times did we GC?
 double movinggc_allocated_bytes (void); // how many times bytes did we allocate since the beginning?
+void movinggc_dump_semispaces (void);
+void movinggc_dump_semispace_contents (void);
 #endif // #ifndef MOVINGGC_H_

@@ -22,13 +22,13 @@
 #define MOVINGGC_FEATURES_H_
 
 #if 0
-// Horrible kludges to make gprof output more useful:
+// Horrible kludges to make the gprof output more useful:
 #define __attribute__(...)  /* nothing */
 #define static  /* nothing */
 #define inline  /* nothing */
 #endif // #if 0
 
-//#define MOVINGGC_DEBUG
+#define MOVINGGC_DEBUG
 //#define MOVINGGC_VERBOSE
 //#define MOVINGGC_VERY_VERBOSE
 
@@ -45,7 +45,7 @@
 #define MOVINGGC_REGISTER_2 "ebx"
 #define MOVINGGC_REGISTER_3 "edi"
 #elif defined(MOVINGGC_ARCHITECTURE_x86_64)
-// x86_64: We can use %r13, %r14 and %r15
+// x86_64: We can use %rbp, %rbx, %r12, %r13, %r14, %r15.
 #define MOVINGGC_REGISTER_1 "%r13"
 #define MOVINGGC_REGISTER_2 "%r14"
 #define MOVINGGC_REGISTER_3 "%r15"
@@ -57,9 +57,9 @@
 #else
 #error Unknown architecture: can not use register pointers
 #endif // ... architecture-specific code
-register void **movinggc_fromspace_next_unallocated_word
+register void ** movinggc_fromspace_next_unallocated_word
 asm (MOVINGGC_REGISTER_1);
-register void **movinggc_fromspace_after_payload_end
+register void ** movinggc_fromspace_after_payload_end
 asm (MOVINGGC_REGISTER_2);
 #endif
 

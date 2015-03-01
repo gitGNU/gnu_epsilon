@@ -22,18 +22,23 @@
 set -ex
 
 #OPTIMIZATIONFLAGS="-O3"
+OPTIMIZATIONFLAGS="-Ofast"
 #OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -fomit-frame-pointer"
-OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -Ofast"
-#OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -finline-functions"
+OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -finline-functions -funroll-all-loops"
 
-# # For reading assembly
-#OPTIMIZATIONFLAGS="-O2 -Os -fno-inline-functions -fno-unroll-loops"
+#OPTIMIZATIONFLAGS="-O2 -fno-inline-functions -D inline= -g"
+
+
+# # For gprof (of course, not terribly accurate since I drop some optimizations)
+#OPTIMIZATIONFLAGS="-O2 -fno-inline-functions"
+
+# For reading assembly
+#OPTIMIZATIONFLAGS="-O2 -Os -fno-inline-functions -fno-unroll-loops -fverbose-asm"
 
 # FIXME: LTO doesn't play well with global regiter variables, or
 # (more likely) I don't know how to use them together.  FIXME: ask.
 # OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -flto"
 
-DEBUGFLAGS="-fverbose-asm"
 DEBUGFLAGS="$DEBUGFLAGS -Wall"
 DEBUGFLAGS="$DEBUGFLAGS -g"
 

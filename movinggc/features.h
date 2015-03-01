@@ -49,11 +49,19 @@
 #define MOVINGGC_REGISTER_1 "%r13"
 #define MOVINGGC_REGISTER_2 "%r14"
 #define MOVINGGC_REGISTER_3 "%r15"
+#define MOVINGGC_REGISTER_4 "%r12"
 #elif defined(MOVINGGC_ARCHITECTURE_ppc)
 // ppc: We can use ...?
 #define MOVINGGC_REGISTER_1 "??"
 #define MOVINGGC_REGISTER_2 "??"
 #define MOVINGGC_REGISTER_3 "??"
+// MIPS: $16-$23, $30
+#elif defined(MOVINGGC_ARCHITECTURE_mips) || defined(MOVINGGC_ARCHITECTURE_mips64)
+#define MOVINGGC_REGISTER_1 "%20"
+#define MOVINGGC_REGISTER_2 "%21"
+#define MOVINGGC_REGISTER_3 "%22"
+#define MOVINGGC_REGISTER_4 "%23"
+#define MOVINGGC_REGISTER_5 "%30"
 #else
 #error Unknown architecture: can not use register pointers
 #endif // ... architecture-specific code

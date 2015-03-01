@@ -366,7 +366,7 @@ movinggc_gc_then_resize_semispaces_if_needed (size_t size_in_chars)
 /* Using char* instead of void** saves a few instructions.  Here it's
    important. */
 void *
-movinggc_allocate_chars (const size_t size_in_chars)
+movinggc_allocate_chars (size_t size_in_chars)
 {
   //const size_t size_in_chars = 8;
 #ifdef MOVINGGC_DEBUG
@@ -866,7 +866,7 @@ movinggc_gc (void)
 }
 
 void *
-movinggc_allocate_words (const size_t size_in_words)
+movinggc_allocate_words (size_t size_in_words)
 {
   return movinggc_allocate_chars (size_in_words * sizeof (void *));
 }

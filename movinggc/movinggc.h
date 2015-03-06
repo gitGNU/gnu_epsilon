@@ -59,6 +59,8 @@ void movinggc_set_post_hook (movinggc_hook_t hook);
 void movinggc_set_hook_argument (void *argument);
 
 /* Allocate a new heap object and return an UNtagged pointer to it.
+   The user has to initialize the returned object in *every* field
+   before the next allocation; behavior is undefined if she doesn't.
 
    Before allocation a collection may be triggered.  In that case
    the allocation function executes, in this order:

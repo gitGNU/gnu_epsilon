@@ -404,11 +404,23 @@ movinggc_allocate_from_semispace (movinggc_semispace_t semispace,
   /* Ok, there is space available; fill the header word, bump the pointer
      and return the next unallocated object: */
   (*next_unallocated_word) = MOVINGGC_NONFORWARDING_HEADER (size_in_chars, 0);
+
 #ifdef MOVINGGC_VERBOSE
   /* fprintf (stderr, "size: %li  generation: %li\n", */
   /*          (long)MOVINGGC_NONFORWARDING_HEADER_TO_SIZE(*next_unallocated_word), */
   /*          (long)MOVINGGC_NONFORWARDING_HEADER_TO_GENERATION(*next_unallocated_word)); */
 #endif // #ifdef MOVINGGC_VERBOSE
+
+#ifdef MOVINGGC_DEBUG
+  /* Initialize the object with invalid words, to make the program
+     fail in case a collection is triggered before every field is
+     initialized.  This should alert the user. */
+  const size_t size_in_words = size_in_chars / sizeof (void*);
+  int i;
+  for (i = 0; i < size_in_words; i ++)
+    next_unallocated_word[i + 1] = MOVINGGC_TAG_POINTER ((void*)0xbad);
+#endif // #ifdef MOVINGGC_DEBUG
+
   semispace->next_unallocated_word =
     next_unallocated_word_after_the_new_objext;
   return ((char *) next_unallocated_word) + sizeof (void *);
@@ -842,7 +854,7 @@ movinggc_allocate_chars (size_t size_in_chars)
   movinggc_verbose_log ("Attempting an allocation from %s...\n",
                         movinggc_fromspace->name);
 
-  /* Do we have enough space available in fromspace? */
+  /* Collect if we don't have enough space available in fromspace. */
   if_unlikely (((char *) movinggc_fromspace->next_unallocated_word)
                + size_in_chars + sizeof (void *)
                > (char *) movinggc_fromspace->after_payload_end)
@@ -854,6 +866,7 @@ movinggc_allocate_chars (size_t size_in_chars)
                    < size_in_chars + sizeof (void*))
         movinggc_fatal ("not enough space after GC: semispaces are currently not resizable");
     }
+
   /* Ok, now we can allocate. */
   void *res = movinggc_allocate_from_semispace (movinggc_fromspace, size_in_chars);
 

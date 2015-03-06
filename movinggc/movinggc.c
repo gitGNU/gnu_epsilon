@@ -249,20 +249,6 @@ void the_gc (movinggc_generation_t g) {}
 
 static void
 movinggc_dump_semispace_content (movinggc_semispace_t semispace)
-  __attribute__ ((unused));
-void
-movinggc_dump_semispace_contents (void)
-  __attribute__ ((unused));
-
-void
-movinggc_dump_semispace_contents (void)
-{
-  movinggc_dump_semispace_content (movinggc_fromspace);
-  movinggc_dump_semispace_content (movinggc_tospace);
-}
-
-static void
-movinggc_dump_semispace_content (movinggc_semispace_t semispace)
 {
   movinggc_dump_semispace (semispace);
   void **p;
@@ -275,17 +261,20 @@ movinggc_dump_semispace_content (movinggc_semispace_t semispace)
   fprintf (stderr, "\n");
 }
 
+typedef void (*movinggc_semispace_function_t) (movinggc_semispace_t s);
+
 static void
-movinggc_dump_generation (movinggc_generation_t g)
+movinggc_call_on_generation (movinggc_generation_t g,
+                             movinggc_semispace_function_t f)
 {
   while (g != NULL)
     {
       fprintf (stderr, "Generation %i:\n", (int)g->generation_index);
       fprintf (stderr, "Fromspace: ");
-      movinggc_dump_semispace (g->fromspace);
+      f (g->fromspace);
       fprintf (stderr, "Tospace:   ");
       if (g->tospace)
-        movinggc_dump_semispace (g->tospace);
+        f (g->tospace);
       else
         fprintf (stderr, "(none)");
       fprintf (stderr, "\n");
@@ -296,30 +285,40 @@ movinggc_dump_generation (movinggc_generation_t g)
 void
 movinggc_dump_generations (void)
 {
-  movinggc_dump_generation (& movinggc_generation_0);
+  movinggc_call_on_generation (& movinggc_generation_0,
+                               movinggc_dump_semispace);
+}
+
+void
+movinggc_dump_generation_contents (void)
+{
+  movinggc_call_on_generation (& movinggc_generation_0,
+                               movinggc_dump_semispace_content);
+}
+
+static bool
+movinggc_is_in_semispace (const void * const untagged_pointer_as_void_star,
+                          const movinggc_semispace_t const semispace)
+{
+  void **untagged_pointer = (void **) untagged_pointer_as_void_star;
+  return untagged_pointer >= semispace->payload_beginning
+         && untagged_pointer < semispace->after_payload_end;
 }
 
 static movinggc_semispace_t
-movinggc_semispace_of (const void *untagged_pointer_as_void_star)
+movinggc_semispace_of (const void *untagged_pointer)
 {
-  void **untagged_pointer = (void **) untagged_pointer_as_void_star;
-  if (untagged_pointer >= movinggc_semispace_n0.payload_beginning &&
-      untagged_pointer < movinggc_semispace_n0.after_payload_end)
-    return &movinggc_semispace_n0;
-  if (untagged_pointer >= movinggc_semispace_a0.payload_beginning &&
-      untagged_pointer < movinggc_semispace_a0.after_payload_end)
-    return &movinggc_semispace_a0;
-  if (untagged_pointer >= movinggc_semispace_b0.payload_beginning &&
-      untagged_pointer < movinggc_semispace_b0.after_payload_end)
-    return &movinggc_semispace_b0;
-  else if (untagged_pointer >= movinggc_semispace_a1.payload_beginning
-           && untagged_pointer < movinggc_semispace_a1.after_payload_end)
-    return &movinggc_semispace_a1;
-  else if (untagged_pointer >= movinggc_semispace_b1.payload_beginning
-           && untagged_pointer < movinggc_semispace_b1.after_payload_end)
-    return &movinggc_semispace_b1;
-  else
-    return NULL;
+  movinggc_generation_t g = & movinggc_generation_0;
+  while (g != NULL)
+    {
+      if (movinggc_is_in_semispace (untagged_pointer, g->fromspace))
+        return g->fromspace;
+      else if (g->tospace != NULL
+               && movinggc_is_in_semispace (untagged_pointer, g->tospace))
+        return g->tospace;
+      g = g->older_generation;
+    } // while
+  return NULL;
 }
 
 const char *
@@ -348,7 +347,7 @@ movinggc_initialize_semispace (movinggc_semispace_t semispace,
   void **semispace_payload;
   semispace_payload = (void **) malloc (payload_size_in_words * sizeof(void*));
   if_unlikely (semispace_payload == NULL)
-    movinggc_fatal ("movinggc_initialize_semispace(): couldn't allocate");
+    movinggc_fatal ("movinggc_initialize_semispace: couldn't allocate");
 
   /* Set fields: */
   semispace->name = name;
@@ -371,20 +370,21 @@ movinggc_destructively_grow_semispace (movinggc_semispace_t semispace,
   movinggc_initialize_semispace (semispace, name, new_payload_size_in_words);
 }
 
+/* This is supposed to never fail.  The function should only be called
+   when there is sufficient room in the given semispace. */
 static inline void *
 movinggc_allocate_from_semispace (movinggc_semispace_t semispace,
-                        size_t size_in_chars)
+                                  size_t size_in_chars)
   __attribute__ ((always_inline, flatten));
 static inline void *
 movinggc_allocate_from_semispace (movinggc_semispace_t semispace,
-                        size_t size_in_chars)
+                                  size_t size_in_chars)
 {
 #ifdef MOVINGGC_DEBUG
   if_unlikely (size_in_chars <= 0)
-    movinggc_fatal ("movinggc_allocate_from(): object size not positive");
+    movinggc_fatal ("object size not positive");
   if_unlikely (size_in_chars % sizeof (void *) != 0)
-    movinggc_fatal
-    ("movinggc_allocate_from(): object size not a wordsize multiple");
+    movinggc_fatal ("object size not a wordsize multiple");
 #endif // #ifdef MOVINGGC_DEBUG
   void **const next_unallocated_word = semispace->next_unallocated_word;
   void **const next_unallocated_word_after_the_new_objext = (void **)
@@ -394,9 +394,9 @@ movinggc_allocate_from_semispace (movinggc_semispace_t semispace,
                semispace->after_payload_end)
     {
       movinggc_verbose_log
-        ("movinggc_allocate_from(): we were trying to allocate from %s\n",
+        ("we were trying to allocate from %s\n",
          semispace->name);
-      movinggc_fatal ("movinggc_allocate_from(): not enough space allocating %li chars from %s",
+      movinggc_fatal ("not enough space allocating %li chars from %s",
                       (long)size_in_chars, semispace->name);
     }                           // if_unlikely
 #endif // #ifdef MOVINGGC_DEBUG
@@ -441,10 +441,10 @@ movinggc_allocate_chars (size_t size_in_chars)
   //const size_t size_in_chars = 8;
 #ifdef MOVINGGC_DEBUG
   if_unlikely (size_in_chars <= 0)
-    movinggc_fatal ("movinggc_allocate_chars(): object size not positive");
+    movinggc_fatal ("movinggc_allocate_chars: object size not positive");
   if_unlikely (size_in_chars % sizeof (void *) != 0)
     movinggc_fatal
-    ("movinggc_allocate_chars(): object size not a wordsize multiple");
+    ("movinggc_allocate_chars: object size not a wordsize multiple");
 #endif // #ifdef MOVINGGC_DEBUG
 
   movinggc_verbose_log ("Attempting an allocation from %s...\n",
@@ -489,8 +489,8 @@ movinggc_initialize (void)
                                  MOVINGGC_GENERATION_1_SEMISPACE_WORD_NO);
   movinggc_initialize_semispace (&movinggc_semispace_b1, movinggc_b1_name,
                                  MOVINGGC_GENERATION_1_SEMISPACE_WORD_NO);
-  movinggc_fromspace = &movinggc_semispace_a1;
-  movinggc_tospace = &movinggc_semispace_b1;
+  movinggc_fromspace = &movinggc_semispace_a0;
+  movinggc_tospace = &movinggc_semispace_b0;
 
   movinggc_gc_index = 0;
   movinggc_allocated_byte_no = 0.0;
@@ -530,7 +530,7 @@ register_roots (void **pointer_to_roots, size_t size_in_words)
                  sizeof (struct movinggc_root) * movinggc_roots_allocated_size);
       if_unlikely (movinggc_roots ==
                    NULL)
-        movinggc_fatal ("register_roots(): couldn't enlerge the array");
+        movinggc_fatal ("register_roots: couldn't enlerge the array");
     } // if
 
   /* Add the new root: */

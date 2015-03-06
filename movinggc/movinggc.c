@@ -54,21 +54,13 @@ static void **movinggc_fromspace_after_payload_end = NULL;;
 #define movinggc_verbose_log(...)       /* do nothing */
 #endif // #ifdef MOVINGGC_VERBOSE
 
-#define MOVINGGC_SEMISPACE_WORD_NO \
-  ((sizeof(void*) == 8) ? \
-   ((1 << 16) / sizeof(void*)) /* 64Kib */ \
-   : \
-   ((1 << 15) / sizeof(void*)) /* 32Kib */)
-
 #define MOVINGGC_INITIAL_ROOTS_ALLOCATED_SIZE 64
 
-#undef MOVINGGC_SEMISPACE_WORD_NO
-#define MOVINGGC_SEMISPACE_WORD_NO \
-  (32 * 1024 * 1024L / sizeof (void*)) //1000000
+#define MOVINGGC_GENERATION_0_SEMISPACE_WORD_NO \
+  (32 * 1024 * 1024L / sizeof (void*))
 
-/* Grow semispaces if the new fromspace is fuller than this ratio
-   after a collection: */
-#define MOVINGGC_GROW_THRESHOLD 0.1//0.33//0.01 //0.05
+#define MOVINGGC_GENERATION_1_SEMISPACE_WORD_NO \
+  (32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_SWAP(A, B) \
   { const __typeof(A) t_e_m_porary__ = A; \
@@ -98,10 +90,12 @@ static void *movinggc_hook_argument;
 static long movinggc_gc_index;
 static double movinggc_allocated_byte_no;
 
-const char *movinggc_n0_name = "N0";
-const char *movinggc_a1_name = "A1";
-const char *movinggc_b1_name = "B1";
-const char *nonheap_name = "out-of-heap";
+static const char *movinggc_n0_name = "N0";
+static const char *movinggc_a0_name = "A0";
+static const char *movinggc_b0_name = "B0";
+static const char *movinggc_a1_name = "A1";
+static const char *movinggc_b1_name = "B1";
+static const char *nonheap_name = "out-of-heap";
 
 struct movinggc_semispace
 {
@@ -114,6 +108,8 @@ struct movinggc_semispace
 typedef struct movinggc_semispace *movinggc_semispace_t;
 
 static struct movinggc_semispace movinggc_semispace_n0;
+static struct movinggc_semispace movinggc_semispace_a0;
+static struct movinggc_semispace movinggc_semispace_b0;
 static struct movinggc_semispace movinggc_semispace_a1;
 static struct movinggc_semispace movinggc_semispace_b1;
 static movinggc_semispace_t movinggc_fromspace;
@@ -197,13 +193,14 @@ typedef void* (*movinggc_allocate_chars_function_t)
 struct movinggc_generation
 {
   const movinggc_generation_index_t generation_index;
+  const movinggc_allocate_chars_function_t allocate_chars;
+  const movinggc_gc_function_t gc;
   movinggc_semispace_t const fromspace;
   movinggc_semispace_t const topspace; /* NULL if not used. */
   movinggc_generation_t const younger_generation;
   movinggc_generation_t const older_generation;
   struct movinggc_roots roots_from_older_generation;
-  const movinggc_allocate_chars_function_t allocate_chars;
-  const movinggc_gc_function_t gc;
+  int gc_no;
 };
 
 extern struct movinggc_generation movinggc_generation_0;
@@ -216,23 +213,34 @@ struct movinggc_generation
 movinggc_generation_0 =
   {
     0,
-    & movinggc_semispace_n0, NULL,
-    NULL, &movinggc_generation_1,
+    the_allocate_chars, the_gc,
+    & movinggc_semispace_a0, & movinggc_semispace_b0,
+    NULL, NULL,
     {0, 0, NULL},
-    the_allocate_chars,
-    the_gc
+    0,
   };
 
-struct movinggc_generation
-movinggc_generation_1 =
-  {
-    1,
-    & movinggc_semispace_a1, & movinggc_semispace_b1,
-    & movinggc_generation_0, NULL,
-    {0, 0, NULL},
-    the_allocate_chars,
-    the_gc
-  };
+/* struct movinggc_generation */
+/* movinggc_generation_0 = */
+/*   { */
+/*     0, */
+/*     the_allocate_chars, the_gc, */
+/*     & movinggc_semispace_n0, NULL, */
+/*     NULL, &movinggc_generation_1, */
+/*     {0, 0, NULL}, */
+/*     0, */
+/*   }; */
+
+/* struct movinggc_generation */
+/* movinggc_generation_1 = */
+/*   { */
+/*     1, */
+/*     the_allocate_chars, the_gc, */
+/*     & movinggc_semispace_a1, & movinggc_semispace_b1, */
+/*     & movinggc_generation_0, NULL, */
+/*     {0, 0, NULL}, */
+/*     0, */
+/*   }; */
 
 void* the_allocate_chars (movinggc_generation_t g, size_t char_no){ return NULL; }
 void the_gc (movinggc_generation_t g) {}
@@ -281,6 +289,12 @@ movinggc_semispace_of (const void *untagged_pointer_as_void_star)
   if (untagged_pointer >= movinggc_semispace_n0.payload_beginning &&
       untagged_pointer < movinggc_semispace_n0.after_payload_end)
     return &movinggc_semispace_n0;
+  if (untagged_pointer >= movinggc_semispace_a0.payload_beginning &&
+      untagged_pointer < movinggc_semispace_a0.after_payload_end)
+    return &movinggc_semispace_a0;
+  if (untagged_pointer >= movinggc_semispace_b0.payload_beginning &&
+      untagged_pointer < movinggc_semispace_b0.after_payload_end)
+    return &movinggc_semispace_b0;
   else if (untagged_pointer >= movinggc_semispace_a1.payload_beginning
            && untagged_pointer < movinggc_semispace_a1.after_payload_end)
     return &movinggc_semispace_a1;
@@ -460,11 +474,15 @@ void
 movinggc_initialize (void)
 {
   movinggc_initialize_semispace (&movinggc_semispace_n0, movinggc_n0_name,
-                                 MOVINGGC_SEMISPACE_WORD_NO);
+                                 MOVINGGC_GENERATION_0_SEMISPACE_WORD_NO);
+  movinggc_initialize_semispace (&movinggc_semispace_a0, movinggc_a0_name,
+                                 MOVINGGC_GENERATION_0_SEMISPACE_WORD_NO);
+  movinggc_initialize_semispace (&movinggc_semispace_b0, movinggc_b0_name,
+                                 MOVINGGC_GENERATION_0_SEMISPACE_WORD_NO);
   movinggc_initialize_semispace (&movinggc_semispace_a1, movinggc_a1_name,
-                                 MOVINGGC_SEMISPACE_WORD_NO);
+                                 MOVINGGC_GENERATION_1_SEMISPACE_WORD_NO);
   movinggc_initialize_semispace (&movinggc_semispace_b1, movinggc_b1_name,
-                                 MOVINGGC_SEMISPACE_WORD_NO);
+                                 MOVINGGC_GENERATION_1_SEMISPACE_WORD_NO);
   movinggc_fromspace = &movinggc_semispace_a1;
   movinggc_tospace = &movinggc_semispace_b1;
 
@@ -475,9 +493,6 @@ movinggc_initialize (void)
   movinggc_hook_argument = NULL;
 
   movinggc_dump_semispaces ();
-  fprintf (stderr, "Each semispace is %li words long (%.1fKiB)\n",
-          (long) MOVINGGC_SEMISPACE_WORD_NO,
-          ((double) MOVINGGC_SEMISPACE_WORD_NO) * sizeof (void *) / 1024.);
 }
 
 struct movinggc_root

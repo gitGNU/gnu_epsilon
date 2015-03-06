@@ -600,49 +600,6 @@ movinggc_swap_spaces (void)
 #endif // #ifdef MOVINGGC_VERBOSE
 }
 
-/* Return the untagged version if the parameter is a valid tagged pointer,
-   otherwise return NULL: */
-static const void *
-movinggc_untag_candidate_pointer (const void *tagged_candidate_pointer)
-{
-  if (MOVINGGC_IS_NONPOINTER (tagged_candidate_pointer))
-    return NULL;
-  /* ... otherwise we can assume that the object is a tagged pointer. */
-  const void *untagged_candidate_pointer =
-    MOVINGGC_UNTAG_POINTER (tagged_candidate_pointer);
-
-#ifdef MOVINGGC_DEBUG
-  /* Is there a pointer tag? */
-  if_unlikely (!MOVINGGC_IS_POINTER (tagged_candidate_pointer))
-    {
-      movinggc_verbose_log ("tagged_candidate_pointer is %p\n",
-                            tagged_candidate_pointer);
-      movinggc_verbose_log ("tagged_candidate_pointer has tag %lx\n",
-                            MOVINGGC_WORD_TO_TAG (tagged_candidate_pointer));
-      movinggc_fatal
-        ("tagged_candidate_pointer is neither a pointer nor a non-pointer");
-    }
-
-  /* Does the parameter refer an already moved pointer? */
-  movinggc_semispace_t semispace =
-    movinggc_semispace_of (untagged_candidate_pointer);
-  if_unlikely (semispace == NULL)
-    {
-      movinggc_fatal ("pointer %p (tagged %p) points out of the heap",
-                      untagged_candidate_pointer, tagged_candidate_pointer);
-    }
-  if_unlikely (semispace == movinggc_tospace)
-    {
-      movinggc_fatal ("pointer %p is already in tospace (%s)",
-                      untagged_candidate_pointer,
-                      movinggc_semispace_name_of (untagged_candidate_pointer));
-    }
-#endif // #ifdef MOVINGGC_DEBUG
-
-  /* Ok, if we arrived here then the candidate pointer is definitely a pointer: */
-  return untagged_candidate_pointer;
-}
-
 static void
 movinggc_scavenge_pointer_to_candidate_pointer (const void
                                                 **pointer_to_candidate_pointer);
@@ -738,17 +695,29 @@ static void
 movinggc_scavenge_pointer_to_candidate_pointer (const void
                                                 **pointer_to_candidate_pointer)
 {
-  /* Dereference the pointer to the candidate pointer; this is always safe if
-     the parameter is, in fact, a pointer to something: */
+  /* Dereference the pointer to the candidate pointer; this is always
+     safe if the parameter is, in fact, a pointer to something: */
   const void *tagged_candidate_pointer = *pointer_to_candidate_pointer;
 
-  /* Is the candidate pointer really a pointer? Scavenge it if it is, and update the
-     pointer-to-pointer; otherwise we have nothing to do: */
-  const void *untagged_pointer =
-    movinggc_untag_candidate_pointer (tagged_candidate_pointer);
-  if (untagged_pointer != NULL)
-    *pointer_to_candidate_pointer =
-      movinggc_scavenge_pointer (untagged_pointer);
+  /* Is the candidate pointer really a pointer? Scavenge it if it is,
+     and update the pointer-to-pointer; otherwise we have nothing to
+     do: */
+  if (MOVINGGC_IS_POINTER (tagged_candidate_pointer))
+    {
+      const void *untagged_pointer =
+        MOVINGGC_UNTAG_POINTER (tagged_candidate_pointer);
+
+#ifdef MOVINGGC_DEBUG
+      movinggc_semispace_t semispace =
+        movinggc_semispace_of (untagged_pointer);
+      if_unlikely (semispace == NULL)
+        movinggc_fatal ("pointer %p (tagged %p) points out of the heap",
+                        untagged_pointer, tagged_candidate_pointer);
+#endif // #ifdef MOVINGGC_DEBUG
+
+      *pointer_to_candidate_pointer =
+        movinggc_scavenge_pointer (untagged_pointer);
+    }
   else
     movinggc_verbose_log
       ("* not scavenging non-pointer %li or %p (tagged %p)\n",

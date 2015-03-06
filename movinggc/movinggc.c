@@ -372,11 +372,11 @@ movinggc_destructively_grow_semispace (movinggc_semispace_t semispace,
 }
 
 static inline void *
-movinggc_allocate_from (movinggc_semispace_t semispace,
+movinggc_allocate_from_semispace (movinggc_semispace_t semispace,
                         size_t size_in_chars)
   __attribute__ ((always_inline, flatten));
 static inline void *
-movinggc_allocate_from (movinggc_semispace_t semispace,
+movinggc_allocate_from_semispace (movinggc_semispace_t semispace,
                         size_t size_in_chars)
 {
 #ifdef MOVINGGC_DEBUG
@@ -463,7 +463,7 @@ movinggc_allocate_chars (size_t size_in_chars)
         movinggc_fatal ("not enough space after GC: semispaces are currently not resizable");
     }
   /* Ok, now we can allocate. */
-  void *res = movinggc_allocate_from (movinggc_fromspace, size_in_chars);
+  void *res = movinggc_allocate_from_semispace (movinggc_fromspace, size_in_chars);
 
   movinggc_verbose_log ("...Allocated %p(%li) (%liB, %s)\n",
                         res, (long) res, size_in_chars,
@@ -666,7 +666,7 @@ movinggc_scavenge_pointer (const void *untagged_pointer)
 #endif // #ifdef MOVINGGC_DEBUG
 
   const void **object_in_tospace =
-    movinggc_allocate_from (movinggc_tospace, size_in_chars);
+    movinggc_allocate_from_semispace (movinggc_tospace, size_in_chars);
   ((const void **) untagged_pointer)[-1] =
     MOVINGGC_FORWARDING_HEADER (object_in_tospace);
   movinggc_verbose_log ("* scavenging %p (%iB, %s) to %p (%s)\n",

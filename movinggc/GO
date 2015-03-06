@@ -41,6 +41,7 @@ OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -finline-functions -funroll-all-loops"
 
 DEBUGFLAGS="$DEBUGFLAGS -Wall"
 DEBUGFLAGS="$DEBUGFLAGS -g"
+DEBUGFLAGS="$DEBUGFLAGS -Werror"
 
 #DEBUGFLAGS="$DEBUGFLAGS -fno-inline" # This makes performance worse
 #PROFILEFLAGS="-g -p -pg"

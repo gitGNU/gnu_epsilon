@@ -16,6 +16,13 @@ You should have received a copy of the GNU General Public License
 along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
+The idea of tagging pointers with a 1 bit and non-pointers with a 0
+bit was hinted at by Appel in, ironically, "Runtime Tags Aren't
+Necessary", 1988.  Appel stated that "Some implementations use a
+low-order tag of 0 for integers", correctly hinting at the advantages;
+however he gave no examples of any such implemenations.  I would like
+to know them.
+
 A pre-GC hook should directly call a function on each root, scavenging
 it.  Do away with the post-GC hook as well.  Dynamic roots are still
 useful for C primitives.

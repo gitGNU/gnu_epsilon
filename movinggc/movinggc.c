@@ -483,81 +483,6 @@ movinggc_gc_then_resize_semispaces_if_needed (size_t size_in_chars)
     movinggc_dump_semispace (movinggc_fromspace);
 }
 
-/*
-register void ** movinggc_fromspace_next_unallocated_field asm (MOVINGGC_REGISTER_3);
-register void ** movinggc_fromspace_after_payload_end_plus_one asm (MOVINGGC_REGISTER_4);
-
-void * slow_path(size_t) __attribute__ ((noinline));
- void * slow_path(size_t x){sleep(10); return NULL;}
-void *
-movinggc_allocate_words_TEST (size_t size_in_words)
-{
-  void* res = movinggc_fromspace_next_unallocated_field;
-  movinggc_fromspace_next_unallocated_field += size_in_words;
-  movinggc_fromspace_next_unallocated_field[-1] =
-    MOVINGGC_NONFORWARDING_HEADER (size_in_words * sizeof (void*));
-  if_unlikely (movinggc_fromspace_next_unallocated_field > movinggc_fromspace_after_payload_end_plus_one)
-    return slow_path (size_in_words);
-  return res;
-}
-void *
-movinggc_allocate_words_TESTchars (size_t size_in_chars)
-{
-  void* res = movinggc_fromspace_next_unallocated_field;
-  char *tmp = (char*)movinggc_fromspace_next_unallocated_field + size_in_chars;
-  movinggc_fromspace_next_unallocated_field = (void*)tmp;
-  movinggc_fromspace_next_unallocated_field[-1] = MOVINGGC_NONFORWARDING_HEADER (size_in_chars);
-  if_unlikely (movinggc_fromspace_next_unallocated_field > movinggc_fromspace_after_payload_end_plus_one)
-    return slow_path (size_in_chars);
-  return res;
-}
-void *
-movinggc_allocate_words_REALISTIC_WORDS (size_t size_in_words)
-{
-  void *res = movinggc_fromspace_next_unallocated_word + 1;
-  *movinggc_fromspace_next_unallocated_word =
-    MOVINGGC_NONFORWARDING_HEADER(size_in_words * sizeof(void*));
-  movinggc_fromspace_next_unallocated_word = res + size_in_words;
-  if_unlikely (movinggc_fromspace_next_unallocated_word
-               > movinggc_fromspace_after_payload_end_plus_one)
-    return slow_path (size_in_words);
-  else
-    return res;
-}
-void *
-movinggc_allocate_words_REALISTIC_CHARS (size_t size_in_chars)
-{
-  void *res = movinggc_fromspace_next_unallocated_word + 1;
-  *movinggc_fromspace_next_unallocated_word =
-    MOVINGGC_NONFORWARDING_HEADER(size_in_chars);
-  char *movinggc_fromspace_next_unallocated_word_in_chars =
-    (char*)res + size_in_chars;
-  movinggc_fromspace_next_unallocated_word = (void**)
-    movinggc_fromspace_next_unallocated_word_in_chars;
-  if_unlikely (movinggc_fromspace_next_unallocated_word
-               > movinggc_fromspace_after_payload_end_plus_one)
-    return slow_path (size_in_chars);
-  else
-    return res;
-}
-
-void*
-movinggc_allocate_words_REALISTIC_CHARS_CONS (void) __attribute__((flatten));
-void *
-movinggc_allocate_words_REALISTIC_CHARS_CONS (void)
-{
-  return movinggc_allocate_words_REALISTIC_CHARS(sizeof(void*) * 2);
-}
-
-void*
-movinggc_allocate_words_REALISTIC_WORDS_CONS (void) __attribute__((flatten));
-void *
-movinggc_allocate_words_REALISTIC_WORDS_CONS (void)
-{
-  return movinggc_allocate_words_REALISTIC_WORDS(2);
-}
-*/
-
 /* Using char* instead of void** may save a few instructions (tested:
    one, on a better-written test, on both x86_64 and MIPS, gcc 4.9.2
    -Ofast, on moore).  Here it's important.  FIXME: rewrite looking at
@@ -800,8 +725,9 @@ movinggc_untag_candidate_pointer (const void *tagged_candidate_pointer)
   return untagged_candidate_pointer;
 }
 
-static void movinggc_scavenge_pointer_to_candidate_pointer (const void
-                                                            **pointer_to_candidate_pointer);
+static void
+movinggc_scavenge_pointer_to_candidate_pointer (const void
+                                                **pointer_to_candidate_pointer);
 
 inline static void *
 movinggc_scavenge_pointer (const void *untagged_pointer)

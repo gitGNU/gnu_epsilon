@@ -431,51 +431,6 @@ movinggc_fill_ratio (void)
   return movinggc_fill_ratio_of (movinggc_fromspace, 0);
 }
 
-/* Using char* instead of void** may save a few instructions (tested:
-   one, on a better-written test, on both x86_64 and MIPS, gcc 4.9.2
-   -Ofast, on moore).  Here it's important.  FIXME: rewrite looking at
-   the generated assembly. */
-void *
-movinggc_allocate_chars (size_t size_in_chars)
-{
-  //const size_t size_in_chars = 8;
-#ifdef MOVINGGC_DEBUG
-  if_unlikely (size_in_chars <= 0)
-    movinggc_fatal ("movinggc_allocate_chars: object size not positive");
-  if_unlikely (size_in_chars % sizeof (void *) != 0)
-    movinggc_fatal
-    ("movinggc_allocate_chars: object size not a wordsize multiple");
-#endif // #ifdef MOVINGGC_DEBUG
-
-  movinggc_verbose_log ("Attempting an allocation from %s...\n",
-                        movinggc_fromspace->name);
-
-  /* Do we have enough space available in fromspace? */
-  if_unlikely (((char *) movinggc_fromspace->next_unallocated_word)
-               + size_in_chars + sizeof (void *)
-               > (char *) movinggc_fromspace->after_payload_end)
-    {
-      movinggc_gc ();
-      size_t free_words = movinggc_fromspace->after_payload_end
-        - movinggc_fromspace->next_unallocated_word;
-      if_unlikely (free_words * sizeof (void*)
-                   < size_in_chars + sizeof (void*))
-        movinggc_fatal ("not enough space after GC: semispaces are currently not resizable");
-    }
-  /* Ok, now we can allocate. */
-  void *res = movinggc_allocate_from_semispace (movinggc_fromspace, size_in_chars);
-
-  movinggc_verbose_log ("...Allocated %p(%li) (%liB, %s)\n",
-                        res, (long) res, size_in_chars,
-                        movinggc_semispace_name_of (res));
-#ifdef MOVINGGC_DEBUG
-  if_unlikely (movinggc_semispace_of (res) != movinggc_fromspace)
-    movinggc_fatal ("%p allocated from %s instead of fromspace (%s)", res,
-                    movinggc_semispace_name_of (res), movinggc_fromspace->name);
-#endif // #ifdef MOVINGGC_DEBUG
-  return res;
-}
-
 void
 movinggc_initialize (void)
 {
@@ -779,14 +734,15 @@ static void movinggc_two_fingers ()
 static void
 movinggc_run_hook (movinggc_hook_t hook)
 {
-  if (hook != NULL)
-    {
-      movinggc_verbose_log ("Entering hook  (roots are %i)...\n",
-                            (int) movinggc_roots_no);
-      hook (movinggc_hook_argument);
-      movinggc_verbose_log ("...exited hook (roots are %i).\n",
-                            (int) movinggc_roots_no);
-    }
+  if (hook == NULL)
+    return;
+  char *name __attribute__ ((unused))
+    = (hook == movinggc_pre_hook) ? "pre" : "post";
+  movinggc_verbose_log ("Entering %s hook  (roots are %i)...\n",
+                        name, (int) movinggc_roots_no);
+  hook (movinggc_hook_argument);
+  movinggc_verbose_log ("...exited %s hook (roots are %i).\n",
+                        name, (int) movinggc_roots_no);
 }
 
 static void
@@ -865,4 +821,49 @@ void *
 movinggc_allocate_cons (void)
 {
   return movinggc_allocate_words (2);
+}
+
+/* Using char* instead of void** may save a few instructions (tested:
+   one, on a better-written test, on both x86_64 and MIPS, gcc 4.9.2
+   -Ofast, on moore).  Here it's important.  FIXME: rewrite looking at
+   the generated assembly. */
+void *
+movinggc_allocate_chars (size_t size_in_chars)
+{
+  //const size_t size_in_chars = 8;
+#ifdef MOVINGGC_DEBUG
+  if_unlikely (size_in_chars <= 0)
+    movinggc_fatal ("movinggc_allocate_chars: object size not positive");
+  if_unlikely (size_in_chars % sizeof (void *) != 0)
+    movinggc_fatal
+    ("movinggc_allocate_chars: object size not a wordsize multiple");
+#endif // #ifdef MOVINGGC_DEBUG
+
+  movinggc_verbose_log ("Attempting an allocation from %s...\n",
+                        movinggc_fromspace->name);
+
+  /* Do we have enough space available in fromspace? */
+  if_unlikely (((char *) movinggc_fromspace->next_unallocated_word)
+               + size_in_chars + sizeof (void *)
+               > (char *) movinggc_fromspace->after_payload_end)
+    {
+      movinggc_gc ();
+      size_t free_words = movinggc_fromspace->after_payload_end
+        - movinggc_fromspace->next_unallocated_word;
+      if_unlikely (free_words * sizeof (void*)
+                   < size_in_chars + sizeof (void*))
+        movinggc_fatal ("not enough space after GC: semispaces are currently not resizable");
+    }
+  /* Ok, now we can allocate. */
+  void *res = movinggc_allocate_from_semispace (movinggc_fromspace, size_in_chars);
+
+  movinggc_verbose_log ("...Allocated %p(%li) (%liB, %s)\n",
+                        res, (long) res, size_in_chars,
+                        movinggc_semispace_name_of (res));
+#ifdef MOVINGGC_DEBUG
+  if_unlikely (movinggc_semispace_of (res) != movinggc_fromspace)
+    movinggc_fatal ("%p allocated from %s instead of fromspace (%s)", res,
+                    movinggc_semispace_name_of (res), movinggc_fromspace->name);
+#endif // #ifdef MOVINGGC_DEBUG
+  return res;
 }

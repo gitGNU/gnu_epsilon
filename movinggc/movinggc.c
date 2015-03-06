@@ -262,15 +262,6 @@ movinggc_dump_semispace_content (movinggc_semispace_t semispace)
     fprintf (stderr, "%p: untagged %p or %li, tag %li (%s)\n", p,
              MOVINGGC_UNTAG_POINTER(*p), (long)MOVINGGC_UNTAG_NONPOINTER(*p),
              (long)*p & 1, MOVINGGC_IS_POINTER(*p) ? "pointer" : "non-pointer");
-#ifdef MOVINGGC_USE_GLOBAL_POINTERS
-  if (semispace == movinggc_fromspace)
-    {
-      fprintf (stderr, "global fromspace next_unallocated_word: %p\n",
-               movinggc_fromspace_next_unallocated_word);
-      fprintf (stderr, "global fromspace after_payload_end: %p\n",
-               movinggc_fromspace_after_payload_end);
-    }
-#endif // #ifdef MOVINGGC_USE_GLOBAL_POINTERS
   fprintf (stderr, "semispace->next_unallocated_word: %p\n", semispace->next_unallocated_word);
   fprintf (stderr, "semispace->after_payload_end: %p\n", semispace->after_payload_end);
   fprintf (stderr, "\n");
@@ -503,31 +494,12 @@ movinggc_allocate_chars (size_t size_in_chars)
                         movinggc_fromspace->name);
 
   /* Do we have enough space available in fromspace? */
-#ifdef MOVINGGC_USE_GLOBAL_POINTERS
-  void **res = movinggc_fromspace_next_unallocated_word + 1;
-  movinggc_fromspace_next_unallocated_word = (void **)
-    (((char *) res) + size_in_chars);
-  if_unlikely (movinggc_fromspace_next_unallocated_word >
-               movinggc_fromspace_after_payload_end)
-  {
-    /* This is horrible, but I have to keep the allocation fast path
-       fast.  Passing a negative size to the semispace resizing
-       function is a bad idea, particularly with the current clunky
-       resizing strategy. */
-    movinggc_fromspace_next_unallocated_word -=
-      (1 + size_in_chars / sizeof (void*));
-    movinggc_gc_then_resize_semispaces_if_needed (size_in_chars);
-    return movinggc_allocate_chars (size_in_chars);
-  }
-  res[-1] = MOVINGGC_NONFORWARDING_HEADER (size_in_chars, 0);
-#else
   if_unlikely (((char *) movinggc_fromspace->next_unallocated_word)
                + size_in_chars + sizeof (void *)
                > (char *) movinggc_fromspace->after_payload_end)
     movinggc_gc_then_resize_semispaces_if_needed (size_in_chars);
   /* Ok, now we can allocate. */
   void *res = movinggc_allocate_from (movinggc_fromspace, size_in_chars);
-#endif // #ifdef MOVINGGC_USE_GLOBAL_POINTERS
 
   movinggc_verbose_log ("...Allocated %p(%li) (%liB, %s)\n",
                         res, (long) res, size_in_chars,
@@ -551,11 +523,6 @@ movinggc_initialize (void)
                                  MOVINGGC_SEMISPACE_WORD_NO);
   movinggc_fromspace = &movinggc_semispace_a1;
   movinggc_tospace = &movinggc_semispace_b1;
-#ifdef MOVINGGC_USE_GLOBAL_POINTERS
-  movinggc_fromspace_next_unallocated_word =
-    movinggc_fromspace->next_unallocated_word;
-  movinggc_fromspace_after_payload_end = movinggc_fromspace->after_payload_end;
-#endif // #ifdef MOVINGGC_USE_GLOBAL_POINTERS
 
   movinggc_gc_index = 0;
   movinggc_allocated_byte_no = 0.0;
@@ -658,14 +625,6 @@ movinggc_swap_spaces (void)
      next collection will start to fill it from the beginning: */
   movinggc_tospace->next_unallocated_word
     = movinggc_tospace->payload_beginning;
-
-#ifdef MOVINGGC_USE_GLOBAL_POINTERS
-  /* Reset global pointers: */
-  movinggc_fromspace_next_unallocated_word
-    = movinggc_fromspace->next_unallocated_word;
-  movinggc_fromspace_after_payload_end
-    = movinggc_fromspace->after_payload_end;
-#endif // #ifdef MOVINGGC_USE_GLOBAL_POINTERS
 
 #ifdef MOVINGGC_DEBUG
   void **p;

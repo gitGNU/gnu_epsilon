@@ -15,6 +15,9 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
+Remove movinggc_tospace.  It shouldn't be a global.  Possibly do the
+same for movinggc_fromspace.
+
 
 The idea of tagging pointers with a 1 bit and non-pointers with a 0
 bit was hinted at by Appel in, ironically, "Runtime Tags Aren't

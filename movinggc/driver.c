@@ -54,7 +54,7 @@ cons (int untagged_car, void *tagged_cdr)
 {
   temporary_roots.root1 = tagged_cdr;//MOVINGGC_TAG_NONPOINTER (untagged_car);
   temporary_roots.root2 = tagged_cdr;
-  void **new_cons = movinggc_allocate_chars (2 * sizeof(void*));
+  void **new_cons = movinggc_allocate_cons ();
   new_cons[0] = temporary_roots.root1;
   new_cons[1] = temporary_roots.root2;
   return MOVINGGC_TAG_POINTER(new_cons);

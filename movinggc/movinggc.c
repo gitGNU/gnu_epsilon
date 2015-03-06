@@ -742,28 +742,6 @@ movinggc_scavenge_pointer_to_candidate_pointer (const void
        tagged_candidate_pointer);
 }
 
-inline static void
-movinggc_scavenge_pointer_to_pointer (const void **pointer_to_tagged_pointer)
-  __attribute__ ((always_inline));
-inline static void
-movinggc_scavenge_pointer_to_pointer (const void **pointer_to_tagged_pointer)
-{
-  /* Dereference the pointer-pointer; this is always safe if
-     the parameter is, in fact, a pointer to something: */
-  const void *tagged_pointer = *pointer_to_tagged_pointer;
-
-  /* Scavenge and update: if the parameter is in fact a pointer to a tagged pointer,
-     as it is assumed to be, we don't have to check anything: */
-  const void *untagged_pointer = MOVINGGC_UNTAG_POINTER (tagged_pointer);
-#ifdef MOVINGGC_DEBUG
-  if (!MOVINGGC_IS_POINTER (tagged_pointer))
-    movinggc_fatal
-      ("movinggc_scavenge_pointer_to_pointer(): %p isn't a tagged pointer",
-       untagged_pointer);
-#endif // #ifdef MOVINGGC_DEBUG
-  *pointer_to_tagged_pointer = movinggc_scavenge_pointer (untagged_pointer);
-}
-
 long
 movinggc_gc_no (void)
 {
@@ -808,31 +786,37 @@ static void movinggc_two_fingers ()
     } // while
 }
 
-
-void
-movinggc_gc (void)
+static void
+movinggc_run_hook (movinggc_hook_t hook)
 {
-  movinggc_log ("GC#%li %s->%s... ", movinggc_gc_index,
-                movinggc_fromspace->name, movinggc_tospace->name);
-
-  if (movinggc_pre_hook)
+  if (hook != NULL)
     {
-      movinggc_verbose_log ("Entering pre-GC hook  (roots are %i)...\n",
+      movinggc_verbose_log ("Entering hook  (roots are %i)...\n",
                             (int) movinggc_roots_no);
-      movinggc_pre_hook (movinggc_hook_argument);
-      movinggc_verbose_log ("...exited pre-GC hook (roots are %i).\n",
+      hook (movinggc_hook_argument);
+      movinggc_verbose_log ("...exited hook (roots are %i).\n",
                             (int) movinggc_roots_no);
     }
+}
+
+static void
+movinggc_scavenge_roots (void)
+{
+#ifdef MOVINGGC_DEBUG
+  size_t static_root_no = movinggc_roots_no;
+#endif // #ifdef MOVINGGC_DEBUG
+
+  movinggc_run_hook (movinggc_pre_hook);
 
 #ifdef MOVINGGC_VERY_VERBOSE
   movinggc_dump_semispaces ();
 #endif // #ifdef MOVINGGC_VERY_VERBOSE
+
 #ifdef MOVINGGC_DEBUG
   if_unlikely (movinggc_fill_ratio_of(movinggc_tospace, 0) != 0.0)
     movinggc_fatal ("tospace (%s) is not empty", movinggc_tospace->name);
 #endif // #ifdef MOVINGGC_DEBUG
 
-  /* Scavenge roots. */
   int root_index;
   for (root_index = 0; root_index < movinggc_roots_no; root_index++)
     {
@@ -845,20 +829,25 @@ movinggc_gc (void)
                                                         word_index);
     } // for
 
-  /* Scavenge reachable objects, starting from the roots already in tospace. */
+  movinggc_run_hook (movinggc_post_hook);
+
+#ifdef MOVINGGC_DEBUG
+  if_unlikely (static_root_no != movinggc_roots_no)
+    movinggc_fatal ("hooks disagree about dynamic root number");
+#endif // #ifdef MOVINGGC_DEBUG
+}
+
+void
+movinggc_gc (void)
+{
+  movinggc_log ("GC#%li %s->%s... ", movinggc_gc_index,
+                movinggc_fromspace->name, movinggc_tospace->name);
+
+  movinggc_scavenge_roots ();
   movinggc_two_fingers ();
 
   movinggc_allocated_byte_no
     += movinggc_tospace->payload_size_in_words * sizeof(void);
-
-  if (movinggc_post_hook)
-    {
-      movinggc_verbose_log ("Entering post-GC hook  (roots are %i)...\n",
-                            (int) movinggc_roots_no);
-      movinggc_post_hook (movinggc_hook_argument);
-      movinggc_verbose_log ("...exited post-GC hook (roots are %i).\n",
-                            (int) movinggc_roots_no);
-    }
 
   size_t scavenged_word_no __attribute__ ((unused)) =
     movinggc_tospace->next_unallocated_word
@@ -880,4 +869,10 @@ void *
 movinggc_allocate_words (size_t size_in_words)
 {
   return movinggc_allocate_chars (size_in_words * sizeof (void *));
+}
+
+void *
+movinggc_allocate_cons (void)
+{
+  return movinggc_allocate_words (2);
 }

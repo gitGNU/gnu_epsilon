@@ -44,10 +44,10 @@ void movinggc_pop_dynamic_roots (size_t how_many);
    When possible it is much better to scan for roots asynchronously,
    right before a collection, for example by examining an execution
    stack with a known structure.  This is the intended use case for
-   the following hooks, to be run before and after collection: the
-   pre-GC hook should push temporary roots, and the post-GC hook
-   should pop them.  The number of active temporary roots must be the
-   same at pre-GC entry and at post-GC exit time.  Hooks may not
+   the following hooks, to be run before and after root scavenging:
+   the pre-root hook should push temporary roots, and the post-root
+   hook should pop them.  The number of active temporary roots must be
+   the same at pre- entry and at post- exit time.  Hooks may not
    allocate from the GC'd heap.
 
    Hook-setting functions can be given a NULL parameter to remove the
@@ -74,6 +74,12 @@ void *movinggc_allocate_chars (size_t size_in_chars)
   __attribute__ ((hot, malloc));
 void *movinggc_allocate_words (size_t size_in_words)
   __attribute__ ((hot, malloc, flatten));
+
+// FIXME: remove, or add more cases.
+void *
+movinggc_allocate_cons (void)
+  __attribute__ ((hot, malloc, flatten));
+
 
 /* Explicit GC.  Also execute the pre- and post-GC hooks, if any. */
 void movinggc_gc (void) __attribute__ ((noinline, cold));

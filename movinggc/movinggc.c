@@ -196,14 +196,14 @@ typedef void* (*movinggc_allocate_chars_function_t)
 
 struct movinggc_generation
 {
-  movinggc_generation_index_t generation_index;
-  movinggc_semispace_t fromspace;
-  movinggc_semispace_t topspace; /* NULL if not used. */
-  movinggc_generation_t younger_generation;
-  movinggc_generation_t older_generation;
+  const movinggc_generation_index_t generation_index;
+  movinggc_semispace_t const fromspace;
+  movinggc_semispace_t const topspace; /* NULL if not used. */
+  movinggc_generation_t const younger_generation;
+  movinggc_generation_t const older_generation;
   struct movinggc_roots roots_from_older_generation;
-  movinggc_allocate_chars_function_t allocate_chars;
-  movinggc_gc_function_t gc;
+  const movinggc_allocate_chars_function_t allocate_chars;
+  const movinggc_gc_function_t gc;
 };
 
 extern struct movinggc_generation movinggc_generation_0;
@@ -216,7 +216,7 @@ struct movinggc_generation
 movinggc_generation_0 =
   {
     0,
-    & movinggc_semispace_a1, NULL,
+    & movinggc_semispace_n0, NULL,
     NULL, &movinggc_generation_1,
     {0, 0, NULL},
     the_allocate_chars,

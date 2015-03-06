@@ -196,7 +196,7 @@ struct movinggc_generation
   const movinggc_allocate_chars_function_t allocate_chars;
   const movinggc_gc_function_t gc;
   movinggc_semispace_t const fromspace;
-  movinggc_semispace_t const topspace; /* NULL if not used. */
+  movinggc_semispace_t const tospace; /* NULL if not used. */
   movinggc_generation_t const younger_generation;
   movinggc_generation_t const older_generation;
   struct movinggc_roots roots_from_older_generation;
@@ -264,7 +264,7 @@ movinggc_dump_semispace_contents (void)
 static void
 movinggc_dump_semispace_content (movinggc_semispace_t semispace)
 {
-  movinggc_dump_semispace(semispace);
+  movinggc_dump_semispace (semispace);
   void **p;
   for (p = semispace->payload_beginning ; p < semispace->after_payload_end; p ++)
     fprintf (stderr, "%p: untagged %p or %li, tag %li (%s)\n", p,
@@ -275,11 +275,28 @@ movinggc_dump_semispace_content (movinggc_semispace_t semispace)
   fprintf (stderr, "\n");
 }
 
-void
-movinggc_dump_semispaces (void)
+static void
+movinggc_dump_generation (movinggc_generation_t g)
 {
-  movinggc_dump_semispace (movinggc_fromspace);
-  movinggc_dump_semispace (movinggc_tospace);
+  while (g != NULL)
+    {
+      fprintf (stderr, "Generation %i:\n", (int)g->generation_index);
+      fprintf (stderr, "Fromspace: ");
+      movinggc_dump_semispace (g->fromspace);
+      fprintf (stderr, "Tospace:   ");
+      if (g->tospace)
+        movinggc_dump_semispace (g->tospace);
+      else
+        fprintf (stderr, "(none)");
+      fprintf (stderr, "\n");
+      g = g->older_generation;
+    } // while
+}
+
+void
+movinggc_dump_generations (void)
+{
+  movinggc_dump_generation (& movinggc_generation_0);
 }
 
 static movinggc_semispace_t
@@ -414,24 +431,6 @@ movinggc_fill_ratio (void)
   return movinggc_fill_ratio_of (movinggc_fromspace, 0);
 }
 
-static void movinggc_gc_then_resize_semispaces_if_needed (size_t size_in_chars)
-  __attribute__ ((noinline, cold));
-static void
-movinggc_gc_then_resize_semispaces_if_needed (size_t size_in_chars)
-{
-  /* No, we need to GC before allocating... */
-  movinggc_gc ();
-
-  size_t free_words = movinggc_fromspace->after_payload_end
-    - movinggc_fromspace->next_unallocated_word;
-  if_unlikely (free_words * sizeof (void*)
-               < size_in_chars + sizeof (void*))
-    {
-      fprintf (stderr, "WARNING: bad resizing strategy: not enough space\n");
-      movinggc_fatal ("semispaces are currently not resizable");
-    }
-}
-
 /* Using char* instead of void** may save a few instructions (tested:
    one, on a better-written test, on both x86_64 and MIPS, gcc 4.9.2
    -Ofast, on moore).  Here it's important.  FIXME: rewrite looking at
@@ -455,7 +454,14 @@ movinggc_allocate_chars (size_t size_in_chars)
   if_unlikely (((char *) movinggc_fromspace->next_unallocated_word)
                + size_in_chars + sizeof (void *)
                > (char *) movinggc_fromspace->after_payload_end)
-    movinggc_gc_then_resize_semispaces_if_needed (size_in_chars);
+    {
+      movinggc_gc ();
+      size_t free_words = movinggc_fromspace->after_payload_end
+        - movinggc_fromspace->next_unallocated_word;
+      if_unlikely (free_words * sizeof (void*)
+                   < size_in_chars + sizeof (void*))
+        movinggc_fatal ("not enough space after GC: semispaces are currently not resizable");
+    }
   /* Ok, now we can allocate. */
   void *res = movinggc_allocate_from (movinggc_fromspace, size_in_chars);
 
@@ -492,7 +498,7 @@ movinggc_initialize (void)
   movinggc_post_hook = NULL;
   movinggc_hook_argument = NULL;
 
-  movinggc_dump_semispaces ();
+  movinggc_dump_generations ();
 }
 
 struct movinggc_root
@@ -596,7 +602,7 @@ movinggc_swap_spaces (void)
 #endif // #ifdef MOVINGGC_DEBUG
   movinggc_verbose_log ("Swap semispaces: the new fromspace is %s\n", movinggc_fromspace->name);
 #ifdef MOVINGGC_VERY_VERBOSE
-  movinggc_dump_semispaces ();
+  movinggc_dump_generations ();
 #endif // #ifdef MOVINGGC_VERBOSE
 }
 
@@ -793,7 +799,7 @@ movinggc_scavenge_roots (void)
   movinggc_run_hook (movinggc_pre_hook);
 
 #ifdef MOVINGGC_VERY_VERBOSE
-  movinggc_dump_semispaces ();
+  movinggc_dump_generations ();
 #endif // #ifdef MOVINGGC_VERY_VERBOSE
 
 #ifdef MOVINGGC_DEBUG

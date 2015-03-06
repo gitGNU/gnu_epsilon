@@ -157,7 +157,7 @@ main (void)
      been relocated. */
   movinggc_set_pre_hook (NULL);
   movinggc_set_post_hook (NULL);
-  //movinggc_dump_semispace_contents ();
+  //movinggc_dump_generation_contents ();
 
   printf ("The root %p (tag %li) is at %p\n", the_root, (long)the_root & 1, &the_root);
   //dump (the_root);
@@ -170,12 +170,12 @@ main (void)
   check (the_root);
   //dump (the_root);
 
-  movinggc_dump_semispaces ();
+  movinggc_dump_generations ();
   printf ("GC'd %li times; allocated %.03fGiB since program start.\n",
           movinggc_gc_no (),
           movinggc_allocated_bytes () / 1024.0 / 1024.0 / 1024.0);
 
-  //movinggc_dump_semispace_contents ();
+  //movinggc_dump_generation_contents ();
   printf ("Success.\n");
   return 0;
 }

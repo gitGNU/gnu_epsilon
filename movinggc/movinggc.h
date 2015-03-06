@@ -21,10 +21,11 @@
 #ifndef MOVINGGC_H_
 #define MOVINGGC_H_
 
+#include <stdint.h>
+
 /* It's important to include features.h because of global register
    variables, which have to be visible in all compilation units. */
 #include "features.h"
-#include "tags.h"
 
 /* Initialize and finalize: */
 void movinggc_initialize (void);
@@ -84,4 +85,84 @@ long movinggc_gc_no (void); // how many times did we GC?
 double movinggc_allocated_bytes (void); // how many times bytes did we allocate since the beginning?
 void movinggc_dump_semispaces (void);
 void movinggc_dump_semispace_contents (void);
+
+/* Generation index.  Generation 0 is the youngest one. */
+typedef int
+movinggc_generation_index_t;
+
+/* Tagging. */
+
+typedef uintptr_t movinggc_bitmask_t;
+typedef void *movinggc_pointer_t;
+
+#define MOVINGGC_TAG_SIZE_IN_BITS 1
+
+#define MOVINGGC_POINTER_TAG    ((movinggc_bitmask_t)1u)
+#define MOVINGGC_NONPOINTER_TAG ((movinggc_bitmask_t)0u)
+
+#define MOVINGGC_GENERATION_BIT_NO 2 /* FIXME: change to 1 if I only have two generations */
+
+#define MOVINGGC_WORD_TO_BITMASK(X) \
+  (movinggc_bitmask_t)((movinggc_pointer_t)(X))
+#define MOVINGGC_BITMASK_TO_POINTER(X) \
+  (movinggc_pointer_t)((movinggc_bitmask_t)(X))
+
+#define MOVINGGC_WORD_TO_TAG(X) \
+  ((MOVINGGC_WORD_TO_BITMASK(X)) & \
+   ((movinggc_bitmask_t)((1 << MOVINGGC_TAG_SIZE_IN_BITS) - 1)))
+
+#define MOVINGGC_IS_POINTER(X) \
+  (MOVINGGC_WORD_TO_TAG(X) == MOVINGGC_POINTER_TAG)
+#define MOVINGGC_IS_NONPOINTER(X) \
+  (MOVINGGC_WORD_TO_TAG(X) == MOVINGGC_NONPOINTER_TAG)
+
+#define MOVINGGC_TAG_POINTER(X) \
+  (MOVINGGC_POINTER_TAG ? \
+    (MOVINGGC_BITMASK_TO_POINTER(MOVINGGC_WORD_TO_BITMASK(X) | \
+     MOVINGGC_POINTER_TAG)) \
+   : \
+   (X))
+#define MOVINGGC_UNTAG_POINTER(X) \
+  (MOVINGGC_POINTER_TAG ? \
+    (MOVINGGC_BITMASK_TO_POINTER(MOVINGGC_WORD_TO_BITMASK(X) & \
+     ~(movinggc_bitmask_t)((1 << MOVINGGC_TAG_SIZE_IN_BITS) - 1))) \
+   : \
+   MOVINGGC_BITMASK_TO_POINTER(MOVINGGC_WORD_TO_BITMASK(X)))
+#define MOVINGGC_TAG_NONPOINTER(X) \
+  (MOVINGGC_BITMASK_TO_POINTER(((MOVINGGC_WORD_TO_BITMASK((movinggc_bitmask_t)X) << \
+                                 MOVINGGC_TAG_SIZE_IN_BITS) | \
+                                MOVINGGC_NONPOINTER_TAG)))
+#define MOVINGGC_UNTAG_NONPOINTER(X) \
+  (MOVINGGC_BITMASK_TO_POINTER(MOVINGGC_WORD_TO_BITMASK(X) >> MOVINGGC_TAG_SIZE_IN_BITS))
+
+/* The non-forwarding case should be the more efficient, since it is
+   used in the fast path of allocation.  We store the object sizes in
+   bytes, and since the size is always even we can store the tag in
+   the least significant bit without shifting.  The same schema works
+   for forwarding pointers, since the referred pointer has also the
+   least significant bit set to zero.
+
+   FIXME: change the comment above. */
+#define MOVINGGC_NONFORWARDING_HEADER(SIZE, GENERATION)             \
+  (MOVINGGC_BITMASK_TO_POINTER(((movinggc_bitmask_t)(SIZE)          \
+                               << MOVINGGC_GENERATION_BIT_NO)       \
+                               | (movinggc_bitmask_t)(GENERATION)))
+#define MOVINGGC_NONFORWARDING_HEADER_TO_SIZE(H)                        \
+  ((size_t)(MOVINGGC_WORD_TO_BITMASK(H) >> MOVINGGC_GENERATION_BIT_NO))
+#define MOVINGGC_NONFORWARDING_HEADER_TO_GENERATION(H)                      \
+  ((size_t)(MOVINGGC_WORD_TO_BITMASK(H)                                     \
+            & (movinggc_bitmask_t)((1 << MOVINGGC_GENERATION_BIT_NO) - 1)))
+
+#define MOVINGGC_FORWARDING_HEADER(UNTAGGED_DESTINATION)                      \
+  (MOVINGGC_BITMASK_TO_POINTER(MOVINGGC_WORD_TO_BITMASK(UNTAGGED_DESTINATION) \
+                               | (movinggc_bitmask_t)1))
+#define MOVINGGC_FORWARDING_HEADER_TO_DESTINATION(H)       \
+  (MOVINGGC_BITMASK_TO_POINTER(MOVINGGC_WORD_TO_BITMASK(H) \
+                               & (movinggc_bitmask_t)~1))
+
+#define MOVINGGC_IS_FORWARDING(H) \
+  (MOVINGGC_WORD_TO_BITMASK(H) & 1)
+#define MOVINGGC_IS_NONFORWARDING(H) \
+  (! MOVINGGC_IS_FORWARDING(H))
+
 #endif // #ifndef MOVINGGC_H_

@@ -170,6 +170,7 @@ main (void)
   check (the_root);
   //dump (the_root);
 
+  movinggc_dump_semispaces ();
   printf ("GC'd %li times; allocated %.03fGiB since program start.\n",
           movinggc_gc_no (),
           movinggc_allocated_bytes () / 1024.0 / 1024.0 / 1024.0);

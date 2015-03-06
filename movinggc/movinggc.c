@@ -28,7 +28,6 @@
 
 #include "features.h"
 #include "movinggc.h"
-#include "tags.h"
 
 #ifdef MOVINGGC_USE_GLOBAL_POINTERS
 #ifdef MOVINGGC_USE_REGISTER_POINTERS
@@ -60,9 +59,12 @@ static void **movinggc_fromspace_after_payload_end = NULL;;
    ((1 << 16) / sizeof(void*)) /* 64Kib */ \
    : \
    ((1 << 15) / sizeof(void*)) /* 32Kib */)
+
 #define MOVINGGC_INITIAL_ROOTS_ALLOCATED_SIZE 64
 
-#define MOVINGGC_SEMISPACE_WORD_NO 30 //1000000//1024 // 1 //32000 //128   // (1 * 1024 * 1024)
+#undef MOVINGGC_SEMISPACE_WORD_NO
+#define MOVINGGC_SEMISPACE_WORD_NO \
+  (32 * 1024 * 1024L / sizeof (void*)) //1000000
 
 /* Grow semispaces if the new fromspace is fuller than this ratio
    after a collection: */
@@ -73,7 +75,9 @@ static void **movinggc_fromspace_after_payload_end = NULL;;
     A = B; \
     B = t_e_m_porary__; }
 
-#define if_likely(CONDITION) \
+#define MOVINGGC_INITIAL_ALLOCATED_ROOT_NO  1 // FIXME: increase
+
+#define if_likely(CONDITION)                    \
   if(__builtin_expect(CONDITION, true))
 #define if_unlikely(CONDITION) \
   if(__builtin_expect(CONDITION, false))
@@ -94,11 +98,12 @@ static void *movinggc_hook_argument;
 static long movinggc_gc_index;
 static double movinggc_allocated_byte_no;
 
-const char *a_name = "A";
-const char *b_name = "B";
+const char *movinggc_n0_name = "N0";
+const char *movinggc_a1_name = "A1";
+const char *movinggc_b1_name = "B1";
 const char *nonheap_name = "out-of-heap";
 
-struct movinggc_semispace_header
+struct movinggc_semispace
 {
   void **next_unallocated_word;
   void **after_payload_end;
@@ -106,15 +111,16 @@ struct movinggc_semispace_header
   size_t payload_size_in_words;
   const char *name;
 }; // struct
-typedef struct movinggc_semispace_header *movinggc_semispace_header_t;
+typedef struct movinggc_semispace *movinggc_semispace_t;
 
-static struct movinggc_semispace_header movinggc_a_semispace;
-static struct movinggc_semispace_header movinggc_b_semispace;
-static movinggc_semispace_header_t movinggc_fromspace;
-static movinggc_semispace_header_t movinggc_tospace;
+static struct movinggc_semispace movinggc_semispace_n0;
+static struct movinggc_semispace movinggc_semispace_a1;
+static struct movinggc_semispace movinggc_semispace_b1;
+static movinggc_semispace_t movinggc_fromspace;
+static movinggc_semispace_t movinggc_tospace;
 
 static void
-movinggc_dump_semispace (movinggc_semispace_header_t semispace)
+movinggc_dump_semispace (movinggc_semispace_t semispace)
 {
   long payload_words =
     semispace->after_payload_end - semispace->payload_beginning;
@@ -129,8 +135,112 @@ movinggc_dump_semispace (movinggc_semispace_header_t semispace)
            chars_free / 1024.0,words_free_percentage);
 }
 
+struct movinggc_roots
+{
+  size_t root_no;
+  size_t allocated_root_no;
+  void ***roots;
+};
+
+typedef struct movinggc_roots*
+movinggc_roots_t;
+
+void
+initialize_roots (movinggc_roots_t roots)
+{
+  roots->allocated_root_no = MOVINGGC_INITIAL_ALLOCATED_ROOT_NO;
+  roots->root_no = 0;
+  roots->roots = (void***)
+    malloc (sizeof (void**) * MOVINGGC_INITIAL_ALLOCATED_ROOT_NO);
+  if_unlikely (roots->roots == NULL)
+    movinggc_fatal ("couldn't initialize roots");
+}
+
+void
+finalize_roots (movinggc_roots_t roots)
+{
+  free (roots->roots);
+  roots->root_no = 0;
+  roots->allocated_root_no = 0;
+  roots->roots = NULL;
+}
+
+void
+push_root (movinggc_roots_t roots, void **new_root)
+{
+  if_unlikely (roots->root_no == roots->allocated_root_no)
+    {
+      roots->allocated_root_no *= 2;
+      roots->roots = (void***)
+        realloc (roots->roots, sizeof (void**) * roots->allocated_root_no);
+      if_unlikely (roots->roots == NULL)
+        movinggc_fatal ("couldn't resize roots");
+    }
+  roots->roots[roots->root_no ++] = new_root;
+}
+
+void
+clear_roots (movinggc_roots_t roots)
+{
+  roots->root_no = 0;
+}
+
+typedef struct movinggc_generation*
+movinggc_generation_t;
+
+typedef void (*movinggc_gc_function_t)
+(movinggc_generation_t g);
+
+typedef void* (*movinggc_allocate_chars_function_t)
+(movinggc_generation_t g, size_t char_no);
+
+struct movinggc_generation
+{
+  movinggc_generation_index_t generation_index;
+  movinggc_semispace_t fromspace;
+  movinggc_semispace_t topspace; /* NULL if not used. */
+  movinggc_generation_t younger_generation;
+  movinggc_generation_t older_generation;
+  struct movinggc_roots roots_from_older_generation;
+  movinggc_allocate_chars_function_t allocate_chars;
+  movinggc_gc_function_t gc;
+};
+
+extern struct movinggc_generation movinggc_generation_0;
+extern struct movinggc_generation movinggc_generation_1;
+
+void* the_allocate_chars (movinggc_generation_t g, size_t char_no);
+void the_gc (movinggc_generation_t g);
+
+struct movinggc_generation
+movinggc_generation_0 =
+  {
+    0,
+    & movinggc_semispace_a1, NULL,
+    NULL, &movinggc_generation_1,
+    {0, 0, NULL},
+    the_allocate_chars,
+    the_gc
+  };
+
+struct movinggc_generation
+movinggc_generation_1 =
+  {
+    1,
+    & movinggc_semispace_a1, & movinggc_semispace_b1,
+    & movinggc_generation_0, NULL,
+    {0, 0, NULL},
+    the_allocate_chars,
+    the_gc
+  };
+
+void* the_allocate_chars (movinggc_generation_t g, size_t char_no){ return NULL; }
+void the_gc (movinggc_generation_t g) {}
+
+/* ************************************************************* */
+
 static void
-movinggc_dump_semispace_content (movinggc_semispace_header_t semispace)
+movinggc_dump_semispace_content (movinggc_semispace_t semispace)
   __attribute__ ((unused));
 void
 movinggc_dump_semispace_contents (void)
@@ -144,7 +254,7 @@ movinggc_dump_semispace_contents (void)
 }
 
 static void
-movinggc_dump_semispace_content (movinggc_semispace_header_t semispace)
+movinggc_dump_semispace_content (movinggc_semispace_t semispace)
 {
   movinggc_dump_semispace(semispace);
   void **p;
@@ -173,16 +283,19 @@ movinggc_dump_semispaces (void)
   movinggc_dump_semispace (movinggc_tospace);
 }
 
-static movinggc_semispace_header_t
+static movinggc_semispace_t
 movinggc_semispace_of (const void *untagged_pointer_as_void_star)
 {
   void **untagged_pointer = (void **) untagged_pointer_as_void_star;
-  if (untagged_pointer >= movinggc_a_semispace.payload_beginning &&
-      untagged_pointer < movinggc_a_semispace.after_payload_end)
-    return &movinggc_a_semispace;
-  else if (untagged_pointer >= movinggc_b_semispace.payload_beginning
-           && untagged_pointer < movinggc_b_semispace.after_payload_end)
-    return &movinggc_b_semispace;
+  if (untagged_pointer >= movinggc_semispace_n0.payload_beginning &&
+      untagged_pointer < movinggc_semispace_n0.after_payload_end)
+    return &movinggc_semispace_n0;
+  else if (untagged_pointer >= movinggc_semispace_a1.payload_beginning
+           && untagged_pointer < movinggc_semispace_a1.after_payload_end)
+    return &movinggc_semispace_a1;
+  else if (untagged_pointer >= movinggc_semispace_b1.payload_beginning
+           && untagged_pointer < movinggc_semispace_b1.after_payload_end)
+    return &movinggc_semispace_b1;
   else
     return NULL;
 }
@@ -190,7 +303,7 @@ movinggc_semispace_of (const void *untagged_pointer_as_void_star)
 const char *
 movinggc_semispace_name_of (const void *untagged_pointer_as_void_star)
 {
-  movinggc_semispace_header_t semispace =
+  movinggc_semispace_t semispace =
     movinggc_semispace_of (untagged_pointer_as_void_star);
   if (semispace != NULL)
     return semispace->name;
@@ -199,13 +312,13 @@ movinggc_semispace_name_of (const void *untagged_pointer_as_void_star)
 }
 
 void
-movinggc_finalize_semispace (movinggc_semispace_header_t semispace)
+movinggc_finalize_semispace (movinggc_semispace_t semispace)
 {
   free (semispace->payload_beginning);
 }
 
 void
-movinggc_initialize_semispace (movinggc_semispace_header_t semispace,
+movinggc_initialize_semispace (movinggc_semispace_t semispace,
                                const char *name,
                                const size_t payload_size_in_words)
 {
@@ -224,8 +337,7 @@ movinggc_initialize_semispace (movinggc_semispace_header_t semispace,
 }
 
 void
-movinggc_destructively_grow_semispace (movinggc_semispace_header_t
-                                       semispace,
+movinggc_destructively_grow_semispace (movinggc_semispace_t semispace,
                                        size_t new_payload_size_in_words)
 {
   const char *name = semispace->name;
@@ -233,11 +345,12 @@ movinggc_destructively_grow_semispace (movinggc_semispace_header_t
   movinggc_initialize_semispace (semispace, name, new_payload_size_in_words);
 }
 
-static inline void *movinggc_allocate_from (movinggc_semispace_header_t
-                                            semispace, size_t size_in_chars)
+static inline void *
+movinggc_allocate_from (movinggc_semispace_t  semispace,
+                        size_t size_in_chars)
   __attribute__ ((always_inline, flatten));
 static inline void *
-movinggc_allocate_from (movinggc_semispace_header_t semispace,
+movinggc_allocate_from (movinggc_semispace_t semispace,
                         size_t size_in_chars)
 {
 #ifdef MOVINGGC_DEBUG
@@ -264,16 +377,22 @@ movinggc_allocate_from (movinggc_semispace_header_t semispace,
 
   /* Ok, there is space available; fill the header word, bump the pointer
      and return the next unallocated object: */
-  (*next_unallocated_word) = MOVINGGC_NONFORWARDING_HEADER (size_in_chars);
+  (*next_unallocated_word) = MOVINGGC_NONFORWARDING_HEADER (size_in_chars, 0);
+#ifdef MOVINGGC_VERBOSE
+  /* fprintf (stderr, "size: %li  generation: %li\n", */
+  /*          (long)MOVINGGC_NONFORWARDING_HEADER_TO_SIZE(*next_unallocated_word), */
+  /*          (long)MOVINGGC_NONFORWARDING_HEADER_TO_GENERATION(*next_unallocated_word)); */
+#endif // #ifdef MOVINGGC_VERBOSE
   semispace->next_unallocated_word =
     next_unallocated_word_after_the_new_objext;
   return ((char *) next_unallocated_word) + sizeof (void *);
 }
 
-void movinggc_grow_semispaces (void) __attribute__ ((noinline));
+void
+movinggc_grow_semispaces (void) __attribute__ ((noinline));
 
 float
-movinggc_fill_ratio_of (movinggc_semispace_header_t semispace,
+movinggc_fill_ratio_of (movinggc_semispace_t semispace,
                         size_t char_no_to_be_allocated)
 {
   const size_t free_word_no =
@@ -318,7 +437,8 @@ movinggc_resize_semispaces (const size_t new_semispace_size_in_words)
   movinggc_destructively_grow_semispace (movinggc_tospace,
                                          new_semispace_size_in_words);
 #ifdef MOVINGGC_VERBOSE
-  movinggc_log ("Grow semispaces to %.01fkiB: ",
+  movinggc_log ("Grow semispaces from %.01fkiB to %.01fkiB: ",
+                old_semispace_size_in_words / 1024.0 * sizeof (void*),
                 new_semispace_size_in_words / 1024.0 * sizeof (void*));
   movinggc_dump_semispace (movinggc_fromspace);
 #endif // #ifdef MOVINGGC_VERBOSE
@@ -363,8 +483,85 @@ movinggc_gc_then_resize_semispaces_if_needed (size_t size_in_chars)
     movinggc_dump_semispace (movinggc_fromspace);
 }
 
-/* Using char* instead of void** saves a few instructions.  Here it's
-   important. */
+/*
+register void ** movinggc_fromspace_next_unallocated_field asm (MOVINGGC_REGISTER_3);
+register void ** movinggc_fromspace_after_payload_end_plus_one asm (MOVINGGC_REGISTER_4);
+
+void * slow_path(size_t) __attribute__ ((noinline));
+ void * slow_path(size_t x){sleep(10); return NULL;}
+void *
+movinggc_allocate_words_TEST (size_t size_in_words)
+{
+  void* res = movinggc_fromspace_next_unallocated_field;
+  movinggc_fromspace_next_unallocated_field += size_in_words;
+  movinggc_fromspace_next_unallocated_field[-1] =
+    MOVINGGC_NONFORWARDING_HEADER (size_in_words * sizeof (void*));
+  if_unlikely (movinggc_fromspace_next_unallocated_field > movinggc_fromspace_after_payload_end_plus_one)
+    return slow_path (size_in_words);
+  return res;
+}
+void *
+movinggc_allocate_words_TESTchars (size_t size_in_chars)
+{
+  void* res = movinggc_fromspace_next_unallocated_field;
+  char *tmp = (char*)movinggc_fromspace_next_unallocated_field + size_in_chars;
+  movinggc_fromspace_next_unallocated_field = (void*)tmp;
+  movinggc_fromspace_next_unallocated_field[-1] = MOVINGGC_NONFORWARDING_HEADER (size_in_chars);
+  if_unlikely (movinggc_fromspace_next_unallocated_field > movinggc_fromspace_after_payload_end_plus_one)
+    return slow_path (size_in_chars);
+  return res;
+}
+void *
+movinggc_allocate_words_REALISTIC_WORDS (size_t size_in_words)
+{
+  void *res = movinggc_fromspace_next_unallocated_word + 1;
+  *movinggc_fromspace_next_unallocated_word =
+    MOVINGGC_NONFORWARDING_HEADER(size_in_words * sizeof(void*));
+  movinggc_fromspace_next_unallocated_word = res + size_in_words;
+  if_unlikely (movinggc_fromspace_next_unallocated_word
+               > movinggc_fromspace_after_payload_end_plus_one)
+    return slow_path (size_in_words);
+  else
+    return res;
+}
+void *
+movinggc_allocate_words_REALISTIC_CHARS (size_t size_in_chars)
+{
+  void *res = movinggc_fromspace_next_unallocated_word + 1;
+  *movinggc_fromspace_next_unallocated_word =
+    MOVINGGC_NONFORWARDING_HEADER(size_in_chars);
+  char *movinggc_fromspace_next_unallocated_word_in_chars =
+    (char*)res + size_in_chars;
+  movinggc_fromspace_next_unallocated_word = (void**)
+    movinggc_fromspace_next_unallocated_word_in_chars;
+  if_unlikely (movinggc_fromspace_next_unallocated_word
+               > movinggc_fromspace_after_payload_end_plus_one)
+    return slow_path (size_in_chars);
+  else
+    return res;
+}
+
+void*
+movinggc_allocate_words_REALISTIC_CHARS_CONS (void) __attribute__((flatten));
+void *
+movinggc_allocate_words_REALISTIC_CHARS_CONS (void)
+{
+  return movinggc_allocate_words_REALISTIC_CHARS(sizeof(void*) * 2);
+}
+
+void*
+movinggc_allocate_words_REALISTIC_WORDS_CONS (void) __attribute__((flatten));
+void *
+movinggc_allocate_words_REALISTIC_WORDS_CONS (void)
+{
+  return movinggc_allocate_words_REALISTIC_WORDS(2);
+}
+*/
+
+/* Using char* instead of void** may save a few instructions (tested:
+   one, on a better-written test, on both x86_64 and MIPS, gcc 4.9.2
+   -Ofast, on moore).  Here it's important.  FIXME: rewrite looking at
+   the generated assembly. */
 void *
 movinggc_allocate_chars (size_t size_in_chars)
 {
@@ -397,7 +594,7 @@ movinggc_allocate_chars (size_t size_in_chars)
     movinggc_gc_then_resize_semispaces_if_needed (size_in_chars);
     return movinggc_allocate_chars (size_in_chars);
   }
-  res[-1] = MOVINGGC_NONFORWARDING_HEADER (size_in_chars);
+  res[-1] = MOVINGGC_NONFORWARDING_HEADER (size_in_chars, 0);
 #else
   if_unlikely (((char *) movinggc_fromspace->next_unallocated_word)
                + size_in_chars + sizeof (void *)
@@ -421,12 +618,14 @@ movinggc_allocate_chars (size_t size_in_chars)
 void
 movinggc_initialize (void)
 {
-  movinggc_initialize_semispace (&movinggc_a_semispace, a_name,
+  movinggc_initialize_semispace (&movinggc_semispace_n0, movinggc_n0_name,
                                  MOVINGGC_SEMISPACE_WORD_NO);
-  movinggc_initialize_semispace (&movinggc_b_semispace, b_name,
+  movinggc_initialize_semispace (&movinggc_semispace_a1, movinggc_a1_name,
                                  MOVINGGC_SEMISPACE_WORD_NO);
-  movinggc_fromspace = &movinggc_a_semispace;
-  movinggc_tospace = &movinggc_b_semispace;
+  movinggc_initialize_semispace (&movinggc_semispace_b1, movinggc_b1_name,
+                                 MOVINGGC_SEMISPACE_WORD_NO);
+  movinggc_fromspace = &movinggc_semispace_a1;
+  movinggc_tospace = &movinggc_semispace_b1;
 #ifdef MOVINGGC_USE_GLOBAL_POINTERS
   movinggc_fromspace_next_unallocated_word =
     movinggc_fromspace->next_unallocated_word;
@@ -582,7 +781,7 @@ movinggc_untag_candidate_pointer (const void *tagged_candidate_pointer)
     }
 
   /* Does the parameter refer an already moved pointer? */
-  movinggc_semispace_header_t semispace =
+  movinggc_semispace_t semispace =
     movinggc_semispace_of (untagged_candidate_pointer);
   if_unlikely (semispace == NULL)
     {

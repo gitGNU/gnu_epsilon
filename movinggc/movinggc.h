@@ -75,7 +75,7 @@ void *movinggc_allocate_chars (size_t size_in_chars)
 void *movinggc_allocate_words (size_t size_in_words)
   __attribute__ ((hot, malloc, flatten));
 
-/* Explicit GC.  Also executes the pre- and post-GC hooks, if any. */
+/* Explicit GC.  Also execute the pre- and post-GC hooks, if any. */
 void movinggc_gc (void) __attribute__ ((noinline, cold));
 
 /* Statistics and debugging: */

@@ -327,7 +327,11 @@ movinggc_initialize_semispace (movinggc_semispace_t semispace,
   semispace->next_unallocated_word = semispace_payload;
 }
 
-void
+static void
+movinggc_destructively_grow_semispace (movinggc_semispace_t semispace,
+                                       size_t new_payload_size_in_words)
+  __attribute__ ((unused));
+static void
 movinggc_destructively_grow_semispace (movinggc_semispace_t semispace,
                                        size_t new_payload_size_in_words)
 {
@@ -337,7 +341,7 @@ movinggc_destructively_grow_semispace (movinggc_semispace_t semispace,
 }
 
 static inline void *
-movinggc_allocate_from (movinggc_semispace_t  semispace,
+movinggc_allocate_from (movinggc_semispace_t semispace,
                         size_t size_in_chars)
   __attribute__ ((always_inline, flatten));
 static inline void *
@@ -379,9 +383,6 @@ movinggc_allocate_from (movinggc_semispace_t semispace,
   return ((char *) next_unallocated_word) + sizeof (void *);
 }
 
-void
-movinggc_grow_semispaces (void) __attribute__ ((noinline));
-
 float
 movinggc_fill_ratio_of (movinggc_semispace_t semispace,
                         size_t char_no_to_be_allocated)
@@ -399,65 +400,13 @@ movinggc_fill_ratio (void)
   return movinggc_fill_ratio_of (movinggc_fromspace, 0);
 }
 
-bool movinggc_should_we_grow_semispaces (size_t chars_no_to_be_allocated)
-  __attribute__ ((noinline));
-bool
-movinggc_should_we_grow_semispaces (size_t chars_no_to_be_allocated)
-{
-  const float current_fill_ratio =
-    movinggc_fill_ratio_of (movinggc_fromspace, chars_no_to_be_allocated);
-  return current_fill_ratio > MOVINGGC_GROW_THRESHOLD;
-}
-
-static void
-movinggc_gc_internal (bool include_in_stati)
-  __attribute__ ((cold, noinline));
-
-static void
-movinggc_resize_semispaces (const size_t new_semispace_size_in_words)
-{
-  const size_t old_semispace_size_in_words __attribute__ ((unused)) =
-    movinggc_fromspace->payload_size_in_words;
-  /* Destructively grow tospace: of couse we can afford to lose its
-     content, as all the useful data are in fromspace: */
-  movinggc_destructively_grow_semispace (movinggc_tospace,
-                                         new_semispace_size_in_words);
-  /* Collect, so that the growd tospace becomes fromspace and vice-versa;
-     then we can destructively grow also the new tospace: */
-  movinggc_gc_internal (0);
-  movinggc_destructively_grow_semispace (movinggc_tospace,
-                                         new_semispace_size_in_words);
-#ifdef MOVINGGC_VERBOSE
-  movinggc_log ("Grow semispaces from %.01fkiB to %.01fkiB: ",
-                old_semispace_size_in_words / 1024.0 * sizeof (void*),
-                new_semispace_size_in_words / 1024.0 * sizeof (void*));
-  movinggc_dump_semispace (movinggc_fromspace);
-#endif // #ifdef MOVINGGC_VERBOSE
-}
-
-void
-movinggc_grow_semispaces (void)
-{
-  movinggc_resize_semispaces (movinggc_fromspace->payload_size_in_words * 2);
-}
-
 static void movinggc_gc_then_resize_semispaces_if_needed (size_t size_in_chars)
   __attribute__ ((noinline, cold));
 static void
 movinggc_gc_then_resize_semispaces_if_needed (size_t size_in_chars)
 {
   /* No, we need to GC before allocating... */
-  movinggc_gc_internal (1);
-
-  bool resized = false;
-
-  /* And maybe we should also grow semispaces.  If we're really
-     unlucky even more than once: */
-  while_unlikely (movinggc_should_we_grow_semispaces (size_in_chars))
-    {
-      movinggc_grow_semispaces ();
-      resized = true;
-    }
+  movinggc_gc ();
 
   size_t free_words = movinggc_fromspace->after_payload_end
     - movinggc_fromspace->next_unallocated_word;
@@ -465,13 +414,8 @@ movinggc_gc_then_resize_semispaces_if_needed (size_t size_in_chars)
                < size_in_chars + sizeof (void*))
     {
       fprintf (stderr, "WARNING: bad resizing strategy: not enough space\n");
-      movinggc_resize_semispaces (movinggc_fromspace->payload_size_in_words
-                                  + 2 * (size_in_chars
-                                         / sizeof (void*) + sizeof(void*)));
-      resized = true;
+      movinggc_fatal ("semispaces are currently not resizable");
     }
-  if (resized)
-    movinggc_dump_semispace (movinggc_fromspace);
 }
 
 /* Using char* instead of void** may save a few instructions (tested:
@@ -865,25 +809,19 @@ static void movinggc_two_fingers ()
 }
 
 
-static void
-movinggc_gc_internal (bool include_in_stats)
+void
+movinggc_gc (void)
 {
-  if (include_in_stats)
-    movinggc_log ("GC#%li %s->%s... ", movinggc_gc_index,
-                  movinggc_fromspace->name, movinggc_tospace->name);
-  else
-    movinggc_verbose_log ("Internal GC %s->%s... ",
-                          movinggc_fromspace->name, movinggc_tospace->name);
+  movinggc_log ("GC#%li %s->%s... ", movinggc_gc_index,
+                movinggc_fromspace->name, movinggc_tospace->name);
 
   if (movinggc_pre_hook)
     {
-      if (include_in_stats)
-        movinggc_verbose_log ("Entering pre-GC hook  (roots are %i)...\n",
-                              (int) movinggc_roots_no);
+      movinggc_verbose_log ("Entering pre-GC hook  (roots are %i)...\n",
+                            (int) movinggc_roots_no);
       movinggc_pre_hook (movinggc_hook_argument);
-      if (include_in_stats)
-        movinggc_verbose_log ("...exited pre-GC hook (roots are %i).\n",
-                              (int) movinggc_roots_no);
+      movinggc_verbose_log ("...exited pre-GC hook (roots are %i).\n",
+                            (int) movinggc_roots_no);
     }
 
 #ifdef MOVINGGC_VERY_VERBOSE
@@ -910,43 +848,32 @@ movinggc_gc_internal (bool include_in_stats)
   /* Scavenge reachable objects, starting from the roots already in tospace. */
   movinggc_two_fingers ();
 
-  if (include_in_stats)
-    movinggc_allocated_byte_no
-      += movinggc_tospace->payload_size_in_words * sizeof(void);
+  movinggc_allocated_byte_no
+    += movinggc_tospace->payload_size_in_words * sizeof(void);
 
   if (movinggc_post_hook)
     {
-      if (include_in_stats)
-        movinggc_verbose_log ("Entering post-GC hook  (roots are %i)...\n",
-                              (int) movinggc_roots_no);
+      movinggc_verbose_log ("Entering post-GC hook  (roots are %i)...\n",
+                            (int) movinggc_roots_no);
       movinggc_post_hook (movinggc_hook_argument);
-      if (include_in_stats)
-        movinggc_verbose_log ("...exited post-GC hook (roots are %i).\n",
-                              (int) movinggc_roots_no);
+      movinggc_verbose_log ("...exited post-GC hook (roots are %i).\n",
+                            (int) movinggc_roots_no);
     }
 
   size_t scavenged_word_no __attribute__ ((unused)) =
     movinggc_tospace->next_unallocated_word
     - movinggc_tospace->payload_beginning;
 
-  if (include_in_stats)
-    movinggc_log ("GC done: scavenged %.02fkiB of %.02fkiB\n",
-                  (float) scavenged_word_no * sizeof(void*) / 1024.0,
-                  (float)(movinggc_tospace->after_payload_end
-                          - movinggc_tospace->payload_beginning) * sizeof(void*)
-                  / 1024.0);
+  movinggc_log ("GC done: scavenged %.02fkiB of %.02fkiB\n",
+                (float) scavenged_word_no * sizeof(void*) / 1024.0,
+                (float)(movinggc_tospace->after_payload_end
+                        - movinggc_tospace->payload_beginning) * sizeof(void*)
+                / 1024.0);
   movinggc_swap_spaces ();
 #ifdef MOVINGGC_VERY_VERBOSE
   movinggc_dump_semispace (movinggc_fromspace);
 #endif // #ifdef MOVINGGC_VERBOSE
-  if (include_in_stats)
-    movinggc_gc_index ++;
-}
-
-void
-movinggc_gc (void)
-{
-  movinggc_gc_internal (1);
+  movinggc_gc_index ++;
 }
 
 void *

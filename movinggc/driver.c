@@ -164,16 +164,13 @@ main (void)
   printf ("Checking integrity...\n");
   check (the_root);
   printf ("Force a final collection before integrity check...\n");
-  movinggc_gc ();
+  movinggc_full_gc ();
   /* Dump again, to make sure nothing broke. */
   printf ("Checking integrity again...\n");
   check (the_root);
   //dump (the_root);
 
   movinggc_dump_generations ();
-  printf ("GC'd %li times; allocated %.03fGiB since program start.\n",
-          movinggc_gc_no (),
-          movinggc_allocated_bytes () / 1024.0 / 1024.0 / 1024.0);
 
   //movinggc_dump_generation_contents ();
   printf ("Success.\n");

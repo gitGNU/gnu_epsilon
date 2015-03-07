@@ -82,9 +82,18 @@ void *
 movinggc_allocate_cons (void)
   __attribute__ ((hot, malloc, flatten));
 
+/* This has to be called on a slot before it's overwritten with a
+   (tagged) pointer.
 
-/* Explicit GC.  Also execute the pre- and post-GC hooks, if any. */
-void movinggc_gc (void) __attribute__ ((noinline, cold));
+   It is *not* necessary to call it in the following two cases:
+   a) when the write operation is an initialization;
+   b) when the new value being written is a non-pointer. */
+void movinggc_write_barrier (void **untagged_initial_pointer,
+                             long offset_in_words);
+
+
+/* Explicit full GC.  Also execute the pre- and post-GC hooks, if any. */
+void movinggc_full_gc (void) __attribute__ ((noinline, cold));
 
 /* Statistics and debugging: */
 float movinggc_fill_ratio (void);

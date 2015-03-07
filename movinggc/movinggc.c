@@ -58,13 +58,13 @@ static void **movinggc_fromspace_after_payload_end = NULL;;
 #define MOVINGGC_INITIAL_ROOTS_ALLOCATED_SIZE 64
 
 #define MOVINGGC_GENERATION_0_SEMISPACE_WORD_NO \
-  (1 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (20 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_GENERATION_1_SEMISPACE_WORD_NO \
-  (512 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (32 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_GENERATION_2_SEMISPACE_WORD_NO \
-  (32 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (24 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_INITIAL_ALLOCATED_ROOT_NO  1 // FIXME: increase
 
@@ -225,6 +225,7 @@ struct movinggc_generation
   movinggc_generation_t const older_generation;
   struct movinggc_roots roots_from_older_generations;
   int gc_no;
+  double scavenged_words;
   double gc_time;
 };
 
@@ -289,6 +290,7 @@ movinggc_generation_0 =
     {0, 0, NULL},
     0,
     0.0,
+    0.0,
   };
 
 struct movinggc_generation
@@ -305,6 +307,7 @@ movinggc_generation_1 =
     {0, 0, NULL},
     0,
     0.0,
+    0.0,
   };
 
 struct movinggc_generation
@@ -320,6 +323,7 @@ movinggc_generation_2 =
     & movinggc_generation_1, NULL,
     {0, 0, NULL},
     0,
+    0.0,
     0.0,
   };
 
@@ -382,8 +386,13 @@ movinggc_call_on_generation (movinggc_generation_t g,
 {
   while (g != NULL)
     {
+      long word_no =
+        g->fromspace->after_payload_end - g->fromspace->payload_beginning;
       fprintf (stderr, "Generation %i (collected %12i times",
                (int)g->generation_index, (int)g->gc_no);
+      if (g->gc_no != 0)
+        fprintf (stderr, ", %5.01f%% survival",
+                 g->scavenged_words / word_no / g->gc_no * 100);
 #ifdef MOVINGGC_TIME
       if (g->gc_no != 0)
         fprintf (stderr, ", %.9fs average", g->gc_time / g->gc_no);
@@ -1093,7 +1102,10 @@ movinggc_gc_generation (movinggc_generation_t g)
       movinggc_clear_roots (& younger_g->roots_from_older_generations);
     } // for
 
+  long scavenged_words = tospace->next_unallocated_word - initial_left_finger;
+
   g->gc_no ++;
+  g->scavenged_words += scavenged_words;
 
 #ifdef MOVINGGC_TIME
   double elapsed_time = movinggc_get_current_time () - time_before;
@@ -1106,7 +1118,7 @@ movinggc_gc_generation (movinggc_generation_t g)
   movinggc_log ("...%i-GC %s->%s: END (scavenged %.02fKiB",
                 (int)g->generation_index,
                 fromspace->name, tospace->name,
-                (float)(tospace->next_unallocated_word - tospace->payload_beginning) * sizeof(void*) / 1024.0);
+                (float)scavenged_words * sizeof(void*) / 1024.0);
 #ifdef MOVINGGC_TIME
   movinggc_log (" in %.9fs", elapsed_time);
 #endif // #ifdef MOVINGGC_TIME

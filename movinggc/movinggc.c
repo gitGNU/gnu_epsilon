@@ -25,6 +25,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
+#include <sys/time.h>
 
 #include "features.h"
 #include "movinggc.h"
@@ -110,6 +111,18 @@ static struct movinggc_semispace movinggc_semispace_a2;
 static struct movinggc_semispace movinggc_semispace_b2;
 /* static movinggc_semispace_t movinggc_fromspace; */
 /* static movinggc_semispace_t movinggc_tospace; */
+
+// FIXME: this wraps at midnight.
+#ifdef MOVINGGC_TIME
+double
+movinggc_get_current_time (void){
+  struct timeval result_as_timeval;
+  int res = gettimeofday(&result_as_timeval, NULL);
+  if_unlikely (res != 0)
+    movinggc_fatal ("gettimeofday failed");
+  return result_as_timeval.tv_sec + result_as_timeval.tv_usec / 1000000.0;
+}
+#endif // #ifdef MOVINGGC_TIME
 
 static void
 movinggc_dump_semispace (movinggc_semispace_t semispace)
@@ -211,6 +224,7 @@ struct movinggc_generation
   movinggc_generation_t const older_generation;
   struct movinggc_roots roots_from_older_generations;
   int gc_no;
+  double gc_time;
 };
 
 extern struct movinggc_generation movinggc_generation_0;
@@ -273,6 +287,7 @@ movinggc_generation_0 =
     NULL, &movinggc_generation_1,
     {0, 0, NULL},
     0,
+    0.0,
   };
 
 struct movinggc_generation
@@ -288,8 +303,8 @@ movinggc_generation_1 =
     & movinggc_generation_0, & movinggc_generation_2,
     {0, 0, NULL},
     0,
+    0.0,
   };
-
 
 struct movinggc_generation
 movinggc_generation_2 =
@@ -304,6 +319,7 @@ movinggc_generation_2 =
     & movinggc_generation_1, NULL,
     {0, 0, NULL},
     0,
+    0.0,
   };
 
 /* static const size_t movinggc_generation_no = 1; */
@@ -365,8 +381,13 @@ movinggc_call_on_generation (movinggc_generation_t g,
 {
   while (g != NULL)
     {
-      fprintf (stderr, "Generation %i (collected %i times):\n",
+      fprintf (stderr, "Generation %i (collected %i times",
                (int)g->generation_index, (int)g->gc_no);
+#ifdef MOVINGGC_TIME
+      if (g->gc_no != 0)
+        fprintf (stderr, ", %gs average", g->gc_time / g->gc_no);
+#endif // #ifdef MOVINGGC_TIME
+      fprintf (stderr, "):\n");
       fprintf (stderr, "  Fromspace: ");
       sf (g->fromspace);
       if (g->tospace)
@@ -997,6 +1018,10 @@ movinggc_scan_previous_generations (movinggc_generation_t younger_than,
 void
 movinggc_gc_generation (movinggc_generation_t g)
 {
+#ifdef MOVINGGC_TIME
+  double time_before = movinggc_get_current_time ();
+#endif // #ifdef MOVINGGC_TIME
+
   /* Collecting this generation might promote objects into next older
      one, so we first have to make sure it has enough space. */
   movinggc_generation_t next_older = g->older_generation;
@@ -1064,12 +1089,24 @@ movinggc_gc_generation (movinggc_generation_t g)
     } // for
 
   g->gc_no ++;
+
+#ifdef MOVINGGC_TIME
+  double elapsed_time = movinggc_get_current_time () - time_before;
+  g->gc_time += elapsed_time;
+#endif // #ifdef MOVINGGC_TIME
+
 #ifdef MOVINGGC_VERBOSE
   /* movinggc_log ("[\n"); */
   movinggc_dump_generations ();
-  movinggc_log ("...%i-GC %s->%s: END (scavenged %.02fKiB)]\n", (int)g->generation_index,
+  movinggc_log ("...%i-GC %s->%s: END (scavenged %.02fKiB",
+                (int)g->generation_index,
                 fromspace->name, tospace->name,
-                (float)(tospace->next_unallocated_word - tospace->payload_beginning) * sizeof(void*) / 1024.0);
+                (float)(tospace->next_unallocated_word - tospace->payload_beginning) * sizeof(void*) / 1024.0,
+                elapsed_time);
+#ifdef MOVINGGC_TIME
+  movinggc_log (" in %gs", elapsed_time);
+#endif // #ifdef MOVINGGC_TIME
+  movinggc_log (")]\n");
 #endif // #ifdef MOVINGGC_VERBOSE
   /* movinggc_dump_generation_contents (); */
   /* fprintf (stderr, "-----------------\nAFTER GC]\n\n"); */

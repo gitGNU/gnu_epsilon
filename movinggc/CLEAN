@@ -21,4 +21,4 @@
 
 set -e
 
-rm -f *.out *.i *.o *.s *.res core *.gcda PROFILE
+rm -f *.out *.i *.o *.s *.res core *.gcda PROFILE callgrind.out.* perf.data*

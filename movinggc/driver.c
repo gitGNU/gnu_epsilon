@@ -49,6 +49,8 @@ post_gc_hook (void *tr_as_void_star)
   movinggc_pop_dynamic_roots (2);
 }
 
+static long cons_call_no = 0;
+
 inline void *
 cons (int untagged_car, void *tagged_cdr)
 {
@@ -57,6 +59,7 @@ cons (int untagged_car, void *tagged_cdr)
   void **new_cons = movinggc_allocate_cons ();
   new_cons[0] = temporary_roots.root1;
   new_cons[1] = temporary_roots.root2;
+  cons_call_no ++;
   return MOVINGGC_TAG_POINTER(new_cons);
 }
 
@@ -86,8 +89,10 @@ dump_or_check (void **list, int verbose)
     }
   if (verbose)
     fprintf (stderr, "Non-pointer %li\n", (long)MOVINGGC_UNTAG_NONPOINTER(list));
+  fprintf (stderr, "Allocated %.02fMiB.\n",
+           (float)cons_call_no * sizeof(void*) * 3 / 1024.0 / 1024.0);
   fprintf (stderr, "The list length is %li; alive heap data is %.02fkiB.\n", length,
-          (float)length * sizeof(void*) * 3 / 1024.0);
+           (float)length * sizeof(void*) * 3 / 1024.0);
 }
 
 void
@@ -159,20 +164,20 @@ main (void)
   movinggc_set_post_hook (NULL);
   //movinggc_dump_generation_contents ();
 
-  fprintf (stderr, "The root %p (tag %li) is at %p\n", the_root, (long)the_root & 1, &the_root);
-  //dump (the_root);
-  fprintf (stderr, "Checking integrity...\n");
+  /* fprintf (stderr, "The root %p (tag %li) is at %p\n", the_root, (long)the_root & 1, &the_root); */
+  /* //dump (the_root); */
+  /* fprintf (stderr, "Checking integrity...\n"); */
+  /* check (the_root); */
+  /* fprintf (stderr, "Force a final collection before integrity checks...\n"); */
+  //movinggc_full_gc ();
+  /* /\* Dump again, to make sure nothing broke. *\/ */
+  /* fprintf (stderr, "Checking integrity again...\n"); */
   check (the_root);
-  fprintf (stderr, "Force a final collection before integrity checks...\n");
-  movinggc_full_gc ();
-  /* Dump again, to make sure nothing broke. */
-  fprintf (stderr, "Checking integrity again...\n");
-  check (the_root);
-  //dump (the_root);
-
+  /* //dump (the_root); */
   movinggc_dump_generations ();
 
   //movinggc_dump_generation_contents ();
+  //movinggc_dump_generations ();
   fprintf (stderr, "Success.\n");
   return 0;
 }

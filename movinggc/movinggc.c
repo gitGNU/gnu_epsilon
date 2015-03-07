@@ -57,7 +57,7 @@ static void **movinggc_fromspace_after_payload_end = NULL;;
 #define MOVINGGC_INITIAL_ROOTS_ALLOCATED_SIZE 64
 
 #define MOVINGGC_GENERATION_0_SEMISPACE_WORD_NO \
-  (1 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (10 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_GENERATION_1_SEMISPACE_WORD_NO \
   (1024L * 1024 * 1024 / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
@@ -352,10 +352,9 @@ movinggc_call_on_generation (movinggc_generation_t g,
       if (g->tospace)
         sf (g->tospace);
       else
-        fprintf (stderr, "(none)");
+        fprintf (stderr, "(none)\n");
       if (gf != NULL)
         gf (g);
-      fprintf (stderr, "\n");
       g = g->older_generation;
     } // while
 }
@@ -930,6 +929,7 @@ movinggc_gc_generation (movinggc_generation_t g)
   movinggc_log ("[%i-GC %s->%s: BEGIN...\n", (int)g->generation_index,
                 fromspace->name, tospace->name);
   movinggc_dump_generations ();
+  movinggc_log ("]\n");
 
   /* Any generation younger than the one we are collecting is empty. */
   movinggc_generation_t younger_g;
@@ -963,6 +963,7 @@ movinggc_gc_generation (movinggc_generation_t g)
   movinggc_dump_generations ();
 #endif // #ifdef MOVINGGC_VERBOSE
   g->gc_no ++;
+  movinggc_log ("[\n");
   movinggc_dump_generations ();
   movinggc_log ("...%i-GC %s->%s: END]\n", (int)g->generation_index,
                 fromspace->name, tospace->name);

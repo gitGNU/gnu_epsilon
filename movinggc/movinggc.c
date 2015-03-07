@@ -58,7 +58,7 @@ static void **movinggc_fromspace_after_payload_end = NULL;;
 #define MOVINGGC_INITIAL_ROOTS_ALLOCATED_SIZE 64
 
 #define MOVINGGC_GENERATION_0_SEMISPACE_WORD_NO \
-  (256 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (1 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_GENERATION_1_SEMISPACE_WORD_NO \
   (512 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
@@ -68,7 +68,7 @@ static void **movinggc_fromspace_after_payload_end = NULL;;
 
 #define MOVINGGC_INITIAL_ALLOCATED_ROOT_NO  1 // FIXME: increase
 
-#define if_likely(CONDITION)                    \
+#define if_likely(CONDITION) \
   if(__builtin_expect(CONDITION, true))
 #define if_unlikely(CONDITION) \
   if(__builtin_expect(CONDITION, false))
@@ -382,11 +382,11 @@ movinggc_call_on_generation (movinggc_generation_t g,
 {
   while (g != NULL)
     {
-      fprintf (stderr, "Generation %i (collected %i times",
+      fprintf (stderr, "Generation %i (collected %12i times",
                (int)g->generation_index, (int)g->gc_no);
 #ifdef MOVINGGC_TIME
       if (g->gc_no != 0)
-        fprintf (stderr, ", %gs average", g->gc_time / g->gc_no);
+        fprintf (stderr, ", %.9fs average", g->gc_time / g->gc_no);
 #endif // #ifdef MOVINGGC_TIME
       fprintf (stderr, "):\n");
       fprintf (stderr, "  Fromspace: ");
@@ -1106,10 +1106,9 @@ movinggc_gc_generation (movinggc_generation_t g)
   movinggc_log ("...%i-GC %s->%s: END (scavenged %.02fKiB",
                 (int)g->generation_index,
                 fromspace->name, tospace->name,
-                (float)(tospace->next_unallocated_word - tospace->payload_beginning) * sizeof(void*) / 1024.0,
-                elapsed_time);
+                (float)(tospace->next_unallocated_word - tospace->payload_beginning) * sizeof(void*) / 1024.0);
 #ifdef MOVINGGC_TIME
-  movinggc_log (" in %gs", elapsed_time);
+  movinggc_log (" in %.9fs", elapsed_time);
 #endif // #ifdef MOVINGGC_TIME
   movinggc_log (")]\n");
 #endif // #ifdef MOVINGGC_VERBOSE

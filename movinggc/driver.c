@@ -89,7 +89,7 @@ dump_or_check (void **list, int verbose)
     }
   if (verbose)
     fprintf (stderr, "Non-pointer %li\n", (long)MOVINGGC_UNTAG_NONPOINTER(list));
-  fprintf (stderr, "Allocated %.02fMiB.\n",
+  fprintf (stderr, "Allocated %.02fMiB.  ",
            (float)cons_call_no * sizeof(void*) * 3 / 1024.0 / 1024.0);
   fprintf (stderr, "The list length is %li; alive heap data is %.02fkiB.\n", length,
            (float)length * sizeof(void*) * 3 / 1024.0);
@@ -135,7 +135,7 @@ main (void)
   fprintf (stderr, "* Start main loop\n");
 
 #define OUTER_LOOP_LENGTH      100
-#define INNER_LOOP_LENGTH      10000000
+#define INNER_LOOP_LENGTH      1000000
 #define EXPECTED_LENGTH        100000
 #define ADD_PROBABILITY        ((float)EXPECTED_LENGTH / (float)INNER_LOOP_LENGTH)
   for (j = 0; j < OUTER_LOOP_LENGTH; j++)

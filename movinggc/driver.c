@@ -132,7 +132,7 @@ main (void)
   movinggc_set_post_hook (post_gc_hook);
   movinggc_set_hook_argument (&temporary_roots);
 
-  fprintf (stderr, "Start main loop\n");
+  fprintf (stderr, "* Start main loop\n");
 
 #define OUTER_LOOP_LENGTH      100
 #define INNER_LOOP_LENGTH      1000000
@@ -154,7 +154,7 @@ main (void)
             }
         }                       // inner for
     }
-  fprintf (stderr, "End main loop\n");
+  fprintf (stderr, "* End main loop\n");
   //printf("\n");
   /* Remove hooks.  This is absolutely essential if I want to call a
      GC from now on, since the content of temporary_roots might now
@@ -164,17 +164,20 @@ main (void)
   movinggc_set_post_hook (NULL);
   //movinggc_dump_generation_contents ();
 
-  /* fprintf (stderr, "The root %p (tag %li) is at %p\n", the_root, (long)the_root & 1, &the_root); */
-  /* //dump (the_root); */
-  /* fprintf (stderr, "Checking integrity...\n"); */
-  /* check (the_root); */
-  /* fprintf (stderr, "Force a final collection before integrity checks...\n"); */
-  //movinggc_full_gc ();
-  /* /\* Dump again, to make sure nothing broke. *\/ */
-  /* fprintf (stderr, "Checking integrity again...\n"); */
+  movinggc_dump_generations ();
+
+  fprintf (stderr, "* The root %p (tag %li) is at %p\n", the_root, (long)the_root & 1, &the_root);
+  //dump (the_root);
+  fprintf (stderr, "* Checking integrity...\n");
+  check (the_root);
+  fprintf (stderr, "* Force a final collection before integrity checks...\n");
+  movinggc_full_gc ();
+  /* Dump again, to make sure nothing broke. */
+  fprintf (stderr, "* Checking integrity again...\n");
   check (the_root);
   /* //dump (the_root); */
-  movinggc_dump_generations ();
+
+  //movinggc_dump_generations ();
 
   //movinggc_dump_generation_contents ();
   //movinggc_dump_generations ();

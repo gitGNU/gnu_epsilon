@@ -57,10 +57,10 @@ static void **movinggc_fromspace_after_payload_end = NULL;;
 #define MOVINGGC_INITIAL_ROOTS_ALLOCATED_SIZE 64
 
 #define MOVINGGC_GENERATION_0_SEMISPACE_WORD_NO \
-  (4 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (30 * 1024 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_GENERATION_1_SEMISPACE_WORD_NO \
-  (100 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (2 * 30 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_INITIAL_ALLOCATED_ROOT_NO  1 // FIXME: increase
 

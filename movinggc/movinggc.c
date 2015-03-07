@@ -25,7 +25,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
-#include <sys/time.h>
+#include <sys/times.h>
 
 #include "features.h"
 #include "movinggc.h"
@@ -58,10 +58,10 @@ static void **movinggc_fromspace_after_payload_end = NULL;;
 #define MOVINGGC_INITIAL_ROOTS_ALLOCATED_SIZE 64
 
 #define MOVINGGC_GENERATION_0_SEMISPACE_WORD_NO \
-  (4 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (256 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_GENERATION_1_SEMISPACE_WORD_NO \
-  (256 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (512 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_GENERATION_2_SEMISPACE_WORD_NO \
   (32 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
@@ -112,15 +112,16 @@ static struct movinggc_semispace movinggc_semispace_b2;
 /* static movinggc_semispace_t movinggc_fromspace; */
 /* static movinggc_semispace_t movinggc_tospace; */
 
-// FIXME: this wraps at midnight.
 #ifdef MOVINGGC_TIME
+static double movinggc_ticks_per_second;
 double
-movinggc_get_current_time (void){
-  struct timeval result_as_timeval;
-  int res = gettimeofday(&result_as_timeval, NULL);
-  if_unlikely (res != 0)
-    movinggc_fatal ("gettimeofday failed");
-  return result_as_timeval.tv_sec + result_as_timeval.tv_usec / 1000000.0;
+movinggc_get_current_time (void)
+{
+  struct tms t;
+  int res = (int)times (& t);
+  if_unlikely (res == -1)
+    movinggc_fatal ("times failed");
+  return (double)(t.tms_utime + t.tms_stime) / movinggc_ticks_per_second;
 }
 #endif // #ifdef MOVINGGC_TIME
 
@@ -576,6 +577,10 @@ movinggc_initialize (void)
                                  MOVINGGC_GENERATION_2_SEMISPACE_WORD_NO);
   /* movinggc_fromspace = &movinggc_semispace_a0; */
   /* movinggc_tospace = &movinggc_semispace_b0; */
+
+#ifdef MOVINGGC_TIME
+  movinggc_ticks_per_second = (double)sysconf (_SC_CLK_TCK);
+#endif // #ifdef MOVINGGC_TIME
 
   movinggc_pre_hook = NULL;
   movinggc_post_hook = NULL;

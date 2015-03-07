@@ -135,7 +135,7 @@ main (void)
   fprintf (stderr, "* Start main loop\n");
 
 #define OUTER_LOOP_LENGTH      100
-#define INNER_LOOP_LENGTH      1000000
+#define INNER_LOOP_LENGTH      10000000
 #define EXPECTED_LENGTH        100000
 #define ADD_PROBABILITY        ((float)EXPECTED_LENGTH / (float)INNER_LOOP_LENGTH)
   for (j = 0; j < OUTER_LOOP_LENGTH; j++)

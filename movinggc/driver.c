@@ -52,7 +52,7 @@ post_gc_hook (void *tr_as_void_star)
 inline void *
 cons (int untagged_car, void *tagged_cdr)
 {
-  temporary_roots.root1 = tagged_cdr;//MOVINGGC_TAG_NONPOINTER (untagged_car);
+  temporary_roots.root1 = MOVINGGC_TAG_NONPOINTER (untagged_car);
   temporary_roots.root2 = tagged_cdr;
   void **new_cons = movinggc_allocate_cons ();
   new_cons[0] = temporary_roots.root1;
@@ -69,24 +69,24 @@ dump_or_check (void **list, int verbose)
       void **untagged_list = MOVINGGC_UNTAG_POINTER (list);
       if (untagged_list < (void **) 0xa)
         {
-          printf ("By the way, list is %p\n", list);
-          printf ("By the way, untagged_list is %p\n", untagged_list);
-          printf ("That stupid bug again: untagged_list is < 0xa");
+          fprintf (stderr, "By the way, list is %p\n", list);
+          fprintf (stderr, "By the way, untagged_list is %p\n", untagged_list);
+          fprintf (stderr, "That stupid bug again: untagged_list is < 0xa");
           exit (EXIT_FAILURE);
         }
       if (verbose)
         {
-          printf ("%p (%s): ", untagged_list,
+          fprintf (stderr, "%p (%s): ", untagged_list,
                   movinggc_semispace_name_of (untagged_list));
-          printf ("%li\n", (long) MOVINGGC_UNTAG_NONPOINTER (untagged_list[0]));
+          fprintf (stderr, "%li\n", (long) MOVINGGC_UNTAG_NONPOINTER (untagged_list[0]));
           //dump(MOVINGGC_UNTAG_POINTER((cons[1])));
         }
       length ++;
       list = untagged_list[1];
     }
   if (verbose)
-    printf ("Non-pointer %li\n", (long)MOVINGGC_UNTAG_NONPOINTER(list));
-  printf ("The list length is %li; alive heap data is %.02fkiB.\n", length,
+    fprintf (stderr, "Non-pointer %li\n", (long)MOVINGGC_UNTAG_NONPOINTER(list));
+  fprintf (stderr, "The list length is %li; alive heap data is %.02fkiB.\n", length,
           (float)length * sizeof(void*) * 3 / 1024.0);
 }
 
@@ -127,7 +127,7 @@ main (void)
   movinggc_set_post_hook (post_gc_hook);
   movinggc_set_hook_argument (&temporary_roots);
 
-  printf ("Start main loop\n");
+  fprintf (stderr, "Start main loop\n");
 
 #define OUTER_LOOP_LENGTH      100
 #define INNER_LOOP_LENGTH      1000000
@@ -149,7 +149,7 @@ main (void)
             }
         }                       // inner for
     }
-  printf ("End main loop\n");
+  fprintf (stderr, "End main loop\n");
   //printf("\n");
   /* Remove hooks.  This is absolutely essential if I want to call a
      GC from now on, since the content of temporary_roots might now
@@ -159,20 +159,20 @@ main (void)
   movinggc_set_post_hook (NULL);
   //movinggc_dump_generation_contents ();
 
-  printf ("The root %p (tag %li) is at %p\n", the_root, (long)the_root & 1, &the_root);
+  fprintf (stderr, "The root %p (tag %li) is at %p\n", the_root, (long)the_root & 1, &the_root);
   //dump (the_root);
-  printf ("Checking integrity...\n");
+  fprintf (stderr, "Checking integrity...\n");
   check (the_root);
-  printf ("Force a final collection before integrity check...\n");
+  fprintf (stderr, "Force a final collection before integrity checks...\n");
   movinggc_full_gc ();
   /* Dump again, to make sure nothing broke. */
-  printf ("Checking integrity again...\n");
+  fprintf (stderr, "Checking integrity again...\n");
   check (the_root);
   //dump (the_root);
 
   movinggc_dump_generations ();
 
   //movinggc_dump_generation_contents ();
-  printf ("Success.\n");
+  fprintf (stderr, "Success.\n");
   return 0;
 }

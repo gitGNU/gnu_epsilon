@@ -160,14 +160,14 @@ typedef void *movinggc_pointer_t;
    least significant bit set to zero.
 
    FIXME: change the comment above. */
-#define MOVINGGC_NONFORWARDING_HEADER(SIZE, GENERATION)             \
-  (MOVINGGC_BITMASK_TO_POINTER(((movinggc_bitmask_t)(SIZE)          \
-                               << MOVINGGC_GENERATION_BIT_NO)       \
-                               | (movinggc_bitmask_t)(GENERATION)))
+#define MOVINGGC_NONFORWARDING_HEADER(SIZE, GENERATION)                    \
+  (MOVINGGC_BITMASK_TO_POINTER((((movinggc_bitmask_t)(SIZE)                \
+                                << MOVINGGC_GENERATION_BIT_NO)             \
+                                | (movinggc_bitmask_t)(GENERATION)) << 1))
 #define MOVINGGC_NONFORWARDING_HEADER_TO_SIZE(H)                        \
-  ((size_t)(MOVINGGC_WORD_TO_BITMASK(H) >> MOVINGGC_GENERATION_BIT_NO))
+  ((size_t)(MOVINGGC_WORD_TO_BITMASK(H) >> 1) >> MOVINGGC_GENERATION_BIT_NO)
 #define MOVINGGC_NONFORWARDING_HEADER_TO_GENERATION(H)                      \
-  ((size_t)(MOVINGGC_WORD_TO_BITMASK(H)                                     \
+  ((size_t)((MOVINGGC_WORD_TO_BITMASK(H) >> 1)                              \
             & (movinggc_bitmask_t)((1 << MOVINGGC_GENERATION_BIT_NO) - 1)))
 
 #define MOVINGGC_FORWARDING_HEADER(UNTAGGED_DESTINATION)                      \

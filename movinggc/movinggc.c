@@ -57,10 +57,10 @@ static void **movinggc_fromspace_after_payload_end = NULL;;
 #define MOVINGGC_INITIAL_ROOTS_ALLOCATED_SIZE 64
 
 #define MOVINGGC_GENERATION_0_SEMISPACE_WORD_NO \
-  (1 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (4 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_GENERATION_1_SEMISPACE_WORD_NO \
-  (8 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (100 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_INITIAL_ALLOCATED_ROOT_NO  1 // FIXME: increase
 
@@ -452,12 +452,12 @@ movinggc_destructively_grow_semispace (movinggc_semispace_t semispace,
 /* This is supposed not to fail.  The function should only be called
    when there is sufficient room in the given semispace. */
 static inline void *
-movinggc_allocate_from_semispace (movinggc_generation_t g,
+movinggc_allocate_from_semispace (movinggc_generation_index_t gi,
                                   movinggc_semispace_t semispace,
                                   size_t size_in_chars)
   __attribute__ ((hot, always_inline, flatten));
 static inline void *
-movinggc_allocate_from_semispace (movinggc_generation_t g,
+movinggc_allocate_from_semispace (movinggc_generation_index_t gi,
                                   movinggc_semispace_t semispace,
                                   size_t size_in_chars)
 {
@@ -485,7 +485,7 @@ movinggc_allocate_from_semispace (movinggc_generation_t g,
   /* Ok, there is space available; fill the header word, bump the pointer
      and return the next unallocated object: */
   (*next_unallocated_word) =
-    MOVINGGC_NONFORWARDING_HEADER (size_in_chars, g->generation_index);
+    MOVINGGC_NONFORWARDING_HEADER (size_in_chars, gi);
 
 #ifdef MOVINGGC_VERBOSE
   /* fprintf (stderr, "size: %li  generation: %li\n", */
@@ -732,7 +732,7 @@ movinggc_scavenge_pointer (movinggc_generation_t fromg,
 #endif // #ifdef MOVINGGC_DEBUG
 
   const void **object_in_tospace =
-    movinggc_allocate_from_semispace (tog, tospace, size_in_chars);
+    movinggc_allocate_from_semispace (tog->generation_index, tospace, size_in_chars);
     //fromg->allocate_chars_in_tospace (fromg, size_in_chars); // FIXME: why in the word is this faster?
   ((const void **) untagged_pointer)[-1] =
     MOVINGGC_FORWARDING_HEADER (object_in_tospace);
@@ -808,10 +808,14 @@ movinggc_scavenge_pointer_to_candidate_pointer (movinggc_generation_t fromg,
    always points to tospace object headers, never to object fields. */
 static void movinggc_two_fingers (movinggc_generation_t fromg,
                                   movinggc_generation_t tog,
+                                  void **initial_left_finger,
                                   movinggc_semispace_t fromspace,
                                   movinggc_semispace_t tospace)
 {
-  void **left_finger = (void**)tospace->payload_beginning;
+#ifdef MOVINGGC_VERBOSE
+  long scavenged_pointer_no = 0;
+#endif // #ifdef MOVINGGC_VERBOSE
+  void **left_finger = initial_left_finger;
   while (left_finger < (void**)tospace->next_unallocated_word)
     {
       size_t object_size_in_bytes =
@@ -826,14 +830,22 @@ static void movinggc_two_fingers (movinggc_generation_t fromg,
       size_t object_size_in_words = object_size_in_bytes / sizeof (void*);
       int i;
       for (i = 1; i <= object_size_in_words; i ++)
-        movinggc_scavenge_pointer_to_candidate_pointer (fromg, tog,
-                                                        tospace, left_finger + i);
+        {
+          movinggc_scavenge_pointer_to_candidate_pointer (fromg, tog,
+                                                          tospace, left_finger + i);
+#ifdef MOVINGGC_VERBOSE
+          scavenged_pointer_no ++;
+#endif // #ifdef MOVINGGC_VERBOSE
+        }
       left_finger += i;
 #ifdef MOVINGGC_DEBUG
       if_unlikely (left_finger > (void**)tospace->next_unallocated_word)
         movinggc_fatal ("left finger crossed an object boundary");
 #endif // #ifdef MOVINGGC_DEBUG
     } // while
+#ifdef MOVINGGC_VERBOSE
+  movinggc_log ("Scavenged %li candidate pointers\n", scavenged_pointer_no);
+#endif // #ifdef MOVINGGC_VERBOSE
 }
 
 static void
@@ -874,6 +886,9 @@ movinggc_scavenge_roots (movinggc_generation_t fromg,
 
   /* Scavenge static and dynamic roots. */
   int root_index;
+#ifdef MOVINGGC_VERBOSE
+  long scavenged_root_pointer_no = 0;
+#endif // #ifdef MOVINGGC_VERBOSE
   for (root_index = 0; root_index < movinggc_roots_no; root_index++)
     {
       void **candidate_pointers = (void **)
@@ -883,7 +898,13 @@ movinggc_scavenge_roots (movinggc_generation_t fromg,
       for (word_index = 0; word_index < word_no; word_index++)
         movinggc_scavenge_pointer_to_candidate_pointer (fromg, tog, tospace,
                                                         candidate_pointers + word_index);
+#ifdef MOVINGGC_VERBOSE
+      scavenged_root_pointer_no ++;
+#endif // #ifdef MOVINGGC_VERBOSE
     } // for
+#ifdef MOVINGGC_VERBOSE
+  movinggc_log ("Scavenged %li candidate root pointers\n", scavenged_root_pointer_no);
+#endif // #ifdef MOVINGGC_VERBOSE
 
   movinggc_run_hook (movinggc_post_hook);
 
@@ -982,6 +1003,10 @@ movinggc_gc_generation (movinggc_generation_t g)
 
   movinggc_generation_t tog = g->tospace ? g : g->older_generation;
 
+  /* Remember where the part to scavenge in tospace begins, before
+     touching roots. */
+  void **initial_left_finger = tospace->next_unallocated_word;
+
   /* Any generation younger than the one we are collecting is
      effectively a set of roots.  Scan them.
      [FIXME: What shall I do about inter-generational pointers?
@@ -994,7 +1019,7 @@ movinggc_gc_generation (movinggc_generation_t g)
   /* movinggc_dump_generation_contents (); */
   /* fprintf (stderr, "BEFORE TWO-FINGERS: END\n-----------------\n\n"); */
 
-  movinggc_two_fingers (g, tog, fromspace, tospace);
+  movinggc_two_fingers (g, tog, initial_left_finger, fromspace, tospace);
 
   if (g->tospace != NULL)
     movinggc_flip_spaces (g);
@@ -1098,7 +1123,7 @@ void *
 movinggc_allocate_chars_in_tospace_from_double_semispace_generation (movinggc_generation_t g,
                                                                      size_t size_in_chars)
 {
-  return movinggc_allocate_from_semispace (g, g->tospace, size_in_chars);
+  return movinggc_allocate_from_semispace (g->generation_index, g->tospace, size_in_chars);
 }
 
 
@@ -1123,7 +1148,7 @@ movinggc_allocate_chars_from_semispace_generation_slow_path (movinggc_generation
     movinggc_fatal ("not enough room for allocating right after a collection");
 
   /* This time we are sure there is room. */
-  return movinggc_allocate_from_semispace (g, g->fromspace, size_in_chars);
+  return movinggc_allocate_from_semispace (g->generation_index, g->fromspace, size_in_chars);
 }
 
 /* Using char* instead of void** may save a few instructions (tested:
@@ -1154,7 +1179,7 @@ movinggc_allocate_chars_from_semispace_generation (movinggc_generation_t g,
     return movinggc_allocate_chars_from_semispace_generation_slow_path (g, size_in_chars);
 
   /* Ok, now we can allocate. */
-  void *res = movinggc_allocate_from_semispace (g, fromspace, size_in_chars);
+  void *res = movinggc_allocate_from_semispace (g->generation_index, fromspace, size_in_chars);
 
   movinggc_verbose_log ("...Allocated %p(%li) (%liB, %s)\n",
                         res, (long) res, size_in_chars,

@@ -28,8 +28,8 @@
 #define inline  /* nothing */
 #endif // #if 0
 
-//#define MOVINGGC_DEBUG
-//#define MOVINGGC_VERBOSE
+#define MOVINGGC_DEBUG
+#define MOVINGGC_VERBOSE
 //#define MOVINGGC_VERY_VERBOSE
 
 #define MOVINGGC_USE_MEMCPY

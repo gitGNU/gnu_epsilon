@@ -58,13 +58,13 @@ static void **movinggc_fromspace_after_payload_end = NULL;;
 #define MOVINGGC_INITIAL_ROOTS_ALLOCATED_SIZE 64
 
 #define MOVINGGC_GENERATION_0_SEMISPACE_WORD_NO \
-  (800 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (28 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_GENERATION_1_SEMISPACE_WORD_NO \
-  (1280 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_GENERATION_2_SEMISPACE_WORD_NO \
-  (3 * 1024L * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (2 * 1024L * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_INITIAL_ALLOCATED_ROOT_NO  1 // FIXME: increase
 
@@ -1061,7 +1061,8 @@ movinggc_gc_generation (movinggc_generation_t g)
       movinggc_gc_generation (next_older);
       if_unlikely (movinggc_free_words_in_generation (next_older)
                    < movinggc_used_words_in_generation (g))
-        movinggc_fatal ("not enough space in next generation");
+        movinggc_fatal ("Not enough room in generation %i to collect generation %i, after GC\n",
+                        (int)next_older->generation_index, (int)g->generation_index);
     }
 
   movinggc_semispace_t const fromspace = g->fromspace;

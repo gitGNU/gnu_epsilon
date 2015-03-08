@@ -27,6 +27,19 @@
 #include <time.h>
 #include <sys/times.h>
 
+#ifdef HAS_CLOCK_GETTIME
+//#include <linux/jiffies.h>
+//#include "/usr/src/linux-headers-3.16-2-common/include/linux/jiffies.h"
+//#include <linux/sched.h>
+
+#include <linux/kernel.h>
+#include <linux/jiffies.h>
+#include <linux/timer.h>
+#include <linux/timex.h>
+#include <linux/param.h>
+#include <asm/msr.h>
+#endif // #ifdef HAS_CLOCK_GETTIME
+
 #include "features.h"
 #include "movinggc.h"
 
@@ -55,17 +68,8 @@ static void **movinggc_fromspace_after_payload_end = NULL;;
 #define movinggc_verbose_log(...)       /* do nothing */
 #endif // #ifdef MOVINGGC_VERBOSE
 
+/* FIXME: make names more explicit. */
 #define MOVINGGC_INITIAL_ROOTS_ALLOCATED_SIZE 64
-
-#define MOVINGGC_GENERATION_0_SEMISPACE_WORD_NO \
-  (28 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
-
-#define MOVINGGC_GENERATION_1_SEMISPACE_WORD_NO \
-  (128 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
-
-#define MOVINGGC_GENERATION_2_SEMISPACE_WORD_NO \
-  (3 * 1024L * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
-
 #define MOVINGGC_INITIAL_ALLOCATED_ROOT_NO  1 // FIXME: increase
 
 #define if_likely(CONDITION) \
@@ -117,12 +121,20 @@ static double movinggc_ticks_per_second;
 double
 movinggc_get_current_time (void)
 {
+#ifdef HAS_CLOCK_GETTIME
+  struct timespec t;
+  clock_gettime (CLOCK_REALTIME
+                 //CLOCK_MONOTONIC_RAW//CLOCK_REALTIME_COARSE//CLOCK_PROCESS_CPUTIME_ID
+                 , &t);
+  return t.tv_sec + t.tv_nsec / 1000000000.0;
+#else
   struct tms t;
-  int res = (int)times (& t);
-  if_unlikely (res == -1)
+  if_unlikely ((int)times (& t) == -1)
     movinggc_fatal ("times failed");
   return (double)(t.tms_utime + t.tms_stime) / movinggc_ticks_per_second;
+#endif // #ifdef HAS_CLOCK_GETTIME
 }
+static double movinggc_initialization_time;
 #endif // #ifdef MOVINGGC_TIME
 
 static void
@@ -235,8 +247,8 @@ extern struct movinggc_generation movinggc_generation_2;
 
 static void*
 movinggc_allocate_chars_from_semispace_generation (movinggc_generation_t
-                                                          g,
-                                                          size_t size_in_chars)
+                                                   g,
+                                                   size_t size_in_chars)
   __attribute__ ((hot, malloc));
 
 static void*
@@ -416,13 +428,22 @@ void
 movinggc_dump_times (void)
 {
 #ifdef MOVINGGC_TIME
+  double now = movinggc_get_current_time ();
+  double total_time = now - movinggc_initialization_time;
+
+  fprintf (stderr, "Total run time %.3fs:\n", total_time);
   double total_gc_time = 0.0;
   movinggc_generation_t g;
   for (g = movinggc_generations[0]; g != NULL; g = g->older_generation)
     total_gc_time += g->gc_time;
-  fprintf (stderr, "Total GC time %.3fs (", total_gc_time);
+  double total_mutator_time = total_time - total_gc_time;
+  fprintf (stderr, "  total mutator time %.3fs (%.1f%%)\n", total_mutator_time,
+           total_mutator_time / total_time * 100);
+  fprintf (stderr, "  total GC time      %.3fs (%.1f%%", total_gc_time,
+           total_gc_time / total_time * 100);
   if (total_gc_time > 0.0)
     {
+      fprintf (stderr, ", of which: ");
       bool first = true;
       for (g = movinggc_generations[0]; g != NULL; g = g->older_generation)
         {
@@ -434,7 +455,7 @@ movinggc_dump_times (void)
                    g->gc_time / total_gc_time * 100, (int)g->generation_index);
         } // for
     } // if
-  fprintf (stderr, ")\n");
+  fprintf (stderr, ").\n");
 #else
   fprintf (stderr, "(Timing not configured in.)\n");
 #endif // #ifdef MOVINGGC_TIME
@@ -602,6 +623,7 @@ movinggc_initialize (void)
 
 #ifdef MOVINGGC_TIME
   movinggc_ticks_per_second = (double)sysconf (_SC_CLK_TCK);
+  movinggc_initialization_time = movinggc_get_current_time ();
 #endif // #ifdef MOVINGGC_TIME
 
   movinggc_pre_hook = NULL;

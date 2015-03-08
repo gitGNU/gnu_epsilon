@@ -28,11 +28,19 @@
 #define inline  /* nothing */
 #endif // #if 0
 
+#define MOVINGGC_GENERATION_0_SEMISPACE_WORD_NO \
+  (24 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+#define MOVINGGC_GENERATION_1_SEMISPACE_WORD_NO \
+  (1 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+#define MOVINGGC_GENERATION_2_SEMISPACE_WORD_NO \
+  (4 * 1024L * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+
 //#define MOVINGGC_DEBUG
 //#define MOVINGGC_VERBOSE
 //#define MOVINGGC_VERY_VERBOSE
-#define MOVINGGC_TIME
+//#define MOVINGGC_TIME
 
+#define HAS_CLOCK_GETTIME
 #define MOVINGGC_USE_MEMCPY
 
 //#define MOVINGGC_USE_GLOBAL_POINTERS

@@ -58,13 +58,13 @@ static void **movinggc_fromspace_after_payload_end = NULL;;
 #define MOVINGGC_INITIAL_ROOTS_ALLOCATED_SIZE 64
 
 #define MOVINGGC_GENERATION_0_SEMISPACE_WORD_NO \
-  (20 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (100 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_GENERATION_1_SEMISPACE_WORD_NO \
-  (32 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (200 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_GENERATION_2_SEMISPACE_WORD_NO \
-  (24 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (3000 * 1024L * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_INITIAL_ALLOCATED_ROOT_NO  1 // FIXME: increase
 
@@ -261,21 +261,6 @@ movinggc_words_in_semispace_generation (movinggc_generation_t g);
 static size_t
 movinggc_free_words_in_semispace_generation (movinggc_generation_t g);
 
-/* struct movinggc_generation */
-/* movinggc_generation_0 = */
-/*   { */
-/*     0, */
-/*     movinggc_allocate_chars_from_semispace_generation, */
-/*     movinggc_allocate_chars_in_tospace_from_double_semispace_generation, */
-/*     movinggc_words_in_semispace_generation, */
-/*     movinggc_free_words_in_semispace_generation, */
-/*     movinggc_gc_generation, */
-/*     & movinggc_semispace_a0, & movinggc_semispace_b0, */
-/*     NULL, NULL, */
-/*     {0, 0, NULL}, */
-/*     0, */
-/*   }; */
-
 struct movinggc_generation
 movinggc_generation_0 =
   {
@@ -425,6 +410,34 @@ movinggc_dump_generation_contents (void)
   movinggc_call_on_generation (& movinggc_generation_0,
                                movinggc_dump_semispace_content,
                                movinggc_dump_older_generation_pointers);
+}
+
+void
+movinggc_dump_times (void)
+{
+#ifdef MOVINGGC_TIME
+  double total_gc_time = 0.0;
+  movinggc_generation_t g;
+  for (g = movinggc_generations[0]; g != NULL; g = g->older_generation)
+    total_gc_time += g->gc_time;
+  fprintf (stderr, "Total GC time %.3fs (", total_gc_time);
+  if (total_gc_time > 0.0)
+    {
+      bool first = true;
+      for (g = movinggc_generations[0]; g != NULL; g = g->older_generation)
+        {
+          if (first)
+            first = false;
+          else
+            fprintf (stderr, ", ");
+          fprintf (stderr, "%.01f%% generation %i",
+                   g->gc_time / total_gc_time * 100, (int)g->generation_index);
+        } // for
+    } // if
+  fprintf (stderr, ")\n");
+#else
+  fprintf (stderr, "(Timing not configured in.)\n");
+#endif // #ifdef MOVINGGC_TIME
 }
 
 static bool

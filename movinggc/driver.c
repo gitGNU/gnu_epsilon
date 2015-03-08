@@ -109,7 +109,7 @@ check (void **list)
 
 float random_from_0_to_1 (void)
 {
-  float r = (float)(rand () % 1000000) / 1000000.0;
+  float r = (float)(rand () % 10000000) / 10000000.0;
   return r;
 }
 
@@ -125,8 +125,8 @@ main (void)
   //srand (0); // I want deterministic results
   movinggc_initialize ();
   int i, j;
-  void *the_root;
-  register_roots (&the_root, 1);
+  void *root1;
+  register_roots (&root1, 1);
 
   movinggc_set_pre_hook (pre_gc_hook);
   movinggc_set_post_hook (post_gc_hook);
@@ -138,17 +138,18 @@ main (void)
 #define INNER_LOOP_LENGTH      1000000
 #define EXPECTED_LENGTH        100000
 #define ADD_PROBABILITY        ((float)EXPECTED_LENGTH / (float)INNER_LOOP_LENGTH)
+  root1 = MOVINGGC_TAG_NONPOINTER (NULL); /* yes, the empty list is a non-pointer */
   for (j = 0; j < OUTER_LOOP_LENGTH; j++)
     {
-      the_root = MOVINGGC_TAG_NONPOINTER (NULL); /* yes, the empty list is a non-pointer */
+      root1 = MOVINGGC_TAG_NONPOINTER (NULL);
       for (i = 0; i < INNER_LOOP_LENGTH ; i++)
         {
-          void *new_cons = cons (i, the_root);
+          void *new_cons = cons (i, root1);
           if (i % 10 == 0)
           //if (random_from_0_to_1 () <= ADD_PROBABILITY)
             {                   //(rand() % 100 >= 95){
               //if(rand() % 200 <= 1){
-              the_root = new_cons;
+              root1 = new_cons;
               //printf("Created the new the_root at %p (%s): %i\n", new_cons, movinggc_semispace_name_of(MOVINGGC_UNTAG_POINTER(the_root)), i);
               //movinggc_dump_free_space_statistics();
             }
@@ -165,17 +166,18 @@ main (void)
   //movinggc_dump_generation_contents ();
 
   movinggc_dump_generations ();
+  movinggc_dump_times ();
 
-  fprintf (stderr, "* The root %p (tag %li) is at %p\n", the_root, (long)the_root & 1, &the_root);
-  //dump (the_root);
+  fprintf (stderr, "* The root %p (tag %li) is at %p\n", root1, (long)root1 & 1, &root1);
+  //dump (root1);
   fprintf (stderr, "* Checking integrity...\n");
-  check (the_root);
+  check (root1);
   fprintf (stderr, "* Force a final collection before integrity checks...\n");
   movinggc_full_gc ();
   /* Dump again, to make sure nothing broke. */
   fprintf (stderr, "* Checking integrity again...\n");
-  check (the_root);
-  /* //dump (the_root); */
+  check (root1);
+  /* //dump (root1); */
 
   //movinggc_dump_generations ();
 

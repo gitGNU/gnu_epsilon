@@ -102,6 +102,8 @@ long movinggc_gc_no (void); // how many times did we GC?
 double movinggc_allocated_bytes (void); // how many times bytes did we allocate since the beginning?
 void movinggc_dump_generations (void);
 void movinggc_dump_generation_contents (void);
+void
+movinggc_dump_times (void);
 
 /* Generation index.  Generation 0 is the youngest one. */
 typedef int

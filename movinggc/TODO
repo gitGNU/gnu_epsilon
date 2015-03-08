@@ -21,6 +21,10 @@ same for movinggc_fromspace.
 
 Write barrier!
 
+Make the header size a configuration parameter.  This will be very
+useful for instrumenting the code, and should not complicate the
+source too much.
+
 The idea of tagging pointers with a 1 bit and non-pointers with a 0
 bit was hinted at by Appel in, ironically, "Runtime Tags Aren't
 Necessary", 1988.  Appel stated that "Some implementations use a

@@ -61,10 +61,10 @@ static void **movinggc_fromspace_after_payload_end = NULL;;
   (28 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_GENERATION_1_SEMISPACE_WORD_NO \
-  (1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (128 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_GENERATION_2_SEMISPACE_WORD_NO \
-  (2 * 1024L * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (3 * 1024L * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 #define MOVINGGC_INITIAL_ALLOCATED_ROOT_NO  1 // FIXME: increase
 
@@ -430,7 +430,7 @@ movinggc_dump_times (void)
             first = false;
           else
             fprintf (stderr, ", ");
-          fprintf (stderr, "%.1f%% generation %i",
+          fprintf (stderr, "%.1f%% g%i",
                    g->gc_time / total_gc_time * 100, (int)g->generation_index);
         } // for
     } // if
@@ -1049,8 +1049,9 @@ movinggc_gc_generation (movinggc_generation_t g)
   double time_before = movinggc_get_current_time ();
 #endif // #ifdef MOVINGGC_TIME
 
-  /* Collecting this generation might promote objects into next older
-     one, so we first have to make sure it has enough space. */
+  /* Collecting this generation might promote objects into the next
+     older one, so we first have to make sure the older generation has
+     enough room. */
   movinggc_generation_t next_older = g->older_generation;
   if (next_older != NULL
       && movinggc_free_words_in_generation (next_older)

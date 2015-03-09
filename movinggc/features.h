@@ -18,8 +18,8 @@
    along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>. */
 
 
-#ifndef MOVINGGC_FEATURES_H_
-#define MOVINGGC_FEATURES_H_
+#ifndef EGC_FEATURES_H_
+#define EGC_FEATURES_H_
 
 #if 0
 // Horrible kludges to make the gprof output more useful:
@@ -28,60 +28,60 @@
 #define inline  /* nothing */
 #endif // #if 0
 
-#define MOVINGGC_GENERATION_0_SEMISPACE_WORD_NO \
+#define EGC_GENERATION_0_SEMISPACE_WORD_NO \
   (24 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
-#define MOVINGGC_GENERATION_1_SEMISPACE_WORD_NO \
+#define EGC_GENERATION_1_SEMISPACE_WORD_NO \
   (1 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
-#define MOVINGGC_GENERATION_2_SEMISPACE_WORD_NO \
+#define EGC_GENERATION_2_SEMISPACE_WORD_NO \
   (4 * 1024L * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
-//#define MOVINGGC_DEBUG
-//#define MOVINGGC_VERBOSE
-//#define MOVINGGC_VERY_VERBOSE
-//#define MOVINGGC_TIME
+//#define EGC_DEBUG
+//#define EGC_VERBOSE
+//#define EGC_VERY_VERBOSE
+//#define EGC_TIME
 
 #define HAS_CLOCK_GETTIME
-#define MOVINGGC_USE_MEMCPY
+#define EGC_USE_MEMCPY
 
-//#define MOVINGGC_USE_GLOBAL_POINTERS
-//#define MOVINGGC_USE_REGISTER_POINTERS
+//#define EGC_USE_GLOBAL_POINTERS
+//#define EGC_USE_REGISTER_POINTERS
 
-#ifdef MOVINGGC_USE_REGISTER_POINTERS
-#if defined(MOVINGGC_ARCHITECTURE_i686) \
-    || defined(MOVINGGC_ARCHITECTURE_i686_AT386 /* for the Hurd */)
+#ifdef EGC_USE_REGISTER_POINTERS
+#if defined(EGC_ARCHITECTURE_i686) \
+    || defined(EGC_ARCHITECTURE_i686_AT386 /* for the Hurd */)
 // x86: We can use %esi, %ebx and %edi
-#define MOVINGGC_REGISTER_1 "esi"
-#define MOVINGGC_REGISTER_2 "ebx"
-#define MOVINGGC_REGISTER_3 "edi"
-#elif defined(MOVINGGC_ARCHITECTURE_x86_64)
+#define EGC_REGISTER_1 "esi"
+#define EGC_REGISTER_2 "ebx"
+#define EGC_REGISTER_3 "edi"
+#elif defined(EGC_ARCHITECTURE_x86_64)
 // x86_64: We can use %rbp, %rbx, %r12, %r13, %r14, %r15.
-#define MOVINGGC_REGISTER_1 "%r13"
-#define MOVINGGC_REGISTER_2 "%r14"
-#define MOVINGGC_REGISTER_3 "%r15"
-#define MOVINGGC_REGISTER_4 "%r12"
-#elif defined(MOVINGGC_ARCHITECTURE_ppc)
+#define EGC_REGISTER_1 "%r13"
+#define EGC_REGISTER_2 "%r14"
+#define EGC_REGISTER_3 "%r15"
+#define EGC_REGISTER_4 "%r12"
+#elif defined(EGC_ARCHITECTURE_ppc)
 // ppc: We can use ...?
-#define MOVINGGC_REGISTER_1 "??"
-#define MOVINGGC_REGISTER_2 "??"
-#define MOVINGGC_REGISTER_3 "??"
+#define EGC_REGISTER_1 "??"
+#define EGC_REGISTER_2 "??"
+#define EGC_REGISTER_3 "??"
 // MIPS: $16-$23, $30
-#elif defined(MOVINGGC_ARCHITECTURE_mips) || defined(MOVINGGC_ARCHITECTURE_mips64)
-#define MOVINGGC_REGISTER_1 "%20"
-#define MOVINGGC_REGISTER_2 "%21"
-#define MOVINGGC_REGISTER_3 "%22"
-#define MOVINGGC_REGISTER_4 "%23"
-#define MOVINGGC_REGISTER_5 "%30"
+#elif defined(EGC_ARCHITECTURE_mips) || defined(EGC_ARCHITECTURE_mips64)
+#define EGC_REGISTER_1 "%20"
+#define EGC_REGISTER_2 "%21"
+#define EGC_REGISTER_3 "%22"
+#define EGC_REGISTER_4 "%23"
+#define EGC_REGISTER_5 "%30"
 #else
 #error Unknown architecture: can not use register pointers
 #endif // ... architecture-specific code
-register void ** movinggc_fromspace_next_unallocated_word
-asm (MOVINGGC_REGISTER_1);
-register void ** movinggc_fromspace_after_payload_end
-asm (MOVINGGC_REGISTER_2);
+register void ** egc_fromspace_next_unallocated_word
+asm (EGC_REGISTER_1);
+register void ** egc_fromspace_after_payload_end
+asm (EGC_REGISTER_2);
 #endif
 
-#if defined(MOVINGGC_USE_REGISTER_POINTERS) && !defined(MOVINGGC_USE_GLOBAL_POINTERS)
+#if defined(EGC_USE_REGISTER_POINTERS) && !defined(EGC_USE_GLOBAL_POINTERS)
 #error Register pointers can only be enabled with global pointers
 #endif
 
-#endif // #ifndef MOVINGGC_FEATURES_H_
+#endif // #ifndef EGC_FEATURES_H_

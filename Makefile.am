@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in -*-Makefile-*-
 
 ## This file is part of GNU epsilon
-## Copyright (C) 2006, 2007, 2008, 2013, 2014 Luca Saiu
+## Copyright (C) 2006, 2007, 2008, 2013, 2014, 2015 Luca Saiu
 ## (based on the eAM and NAUSEA Makefile.am files, both by Luca Saiu)
 ## Copyright (C) 2012 Université Paris 13
 ## Copyright (C) 2012 Luca Saiu

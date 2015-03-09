@@ -1,6 +1,6 @@
 /* Experimantal driver for code produced by the epsilon0 compiler with the C backend
 
-   Copyright (C) 2013 Luca Saiu
+   Copyright (C) 2013, 2015 Luca Saiu
    Updated in 2014 by Luca Saiu
 
    This file is part of GNU epsilon.

@@ -1,6 +1,6 @@
 /* Data representation: tagged backend, conditionally #include'd by data.c.
 
-   Copyright (C) 2012 Luca Saiu
+   Copyright (C) 2012, 2015 Luca Saiu
    Updated in 2014 by Luca Saiu
    Written by Luca Saiu
 

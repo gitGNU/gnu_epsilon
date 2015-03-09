@@ -1,6 +1,7 @@
 /* Data representation, tagging and memory operations.
 
-   Copyright (C) 2012 Luca Saiu [written during his few weeks with no employment]
+   Copyright (C) 2012 Luca Saiu
+   Updated in 2015 by Luca Saiu
    Written by Luca Saiu
 
    This file is part of GNU epsilon.

@@ -1,7 +1,7 @@
 ;;;;; This is -*- epsilon -*-
 ;;;;; Trivial compiler
 
-;;;;; Copyright (C) 2013, 2014 Luca Saiu
+;;;;; Copyright (C) 2013, 2014, 2015 Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
 

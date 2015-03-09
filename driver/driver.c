@@ -24,6 +24,10 @@
 #include <unistd.h>
 #include "runtime/runtime.h"
 
+#ifdef EPSILON_EGC
+#include "movinggc/movinggc.h"
+#endif // #ifdef EPSILON_EGC
+
 void epsilon_main_entry_point(epsilon_value*);
 
 // FIXME: factorize, replacing old cruft
@@ -43,16 +47,26 @@ int main(int argc, char **argv){
     minimum_global_address = maximum_global_address;
     maximum_global_address = temporary;
   }
-  GC_add_roots(minimum_global_address, maximum_global_address);
   //printf("Assembly roots are [%p, %p)\n", minimum_global_address, maximum_global_address);
 
   epsilon_thread_context_t context = epsilon_make_thread_context();
+#ifdef EPSILON_EGC
+  egc_register_roots ((void**)minimum_global_address,
+                      (void**)maximum_global_address - (void**)minimum_global_address);
+#else
+  GC_add_roots(minimum_global_address, maximum_global_address);
   GC_add_roots(context, ((char*)context) + sizeof(struct epsilon_thread_context) + 1);
+#endif // #ifdef EPSILON_EGC
+  fprintf (stderr, "Globals: [%p, %p]\n", minimum_global_address, maximum_global_address);
+  fprintf (stderr, "Stack:   [%p, %p]\n", context->stack_lowest_address, context->stack_highest_address);
   //printf("C%p S%p L%p H%p\n", context, context->stack, context->stack_lowest_address, context->stack_highest_address);
   //epsilon_value result =
     epsilon_run_thread_context(context, epsilon_main_entry_point);
   //printf("R:  %li %p\n", epsilon_value_to_epsilon_int(result), result);
   //printf("C%p S%p L%p H%p\n", context, context->stack, context->stack_lowest_address, context->stack_highest_address);
 
+#ifdef EPSILON_EGC
+  egc_dump_generations ();
+#endif // #ifdef EPSILON_EGC
   return EXIT_SUCCESS;
 }

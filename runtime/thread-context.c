@@ -22,11 +22,21 @@
 
 #include "thread-context.h"
 
+#ifdef EPSILON_EGC
+#include "movinggc/movinggc.h"
+#endif // #ifdef EPSILON_EGC
+
 #define EPSILON_STACK_ELEMENT_NO (1 << 12)
+
+// FIXME: add support for the epsilon GC
 
 epsilon_thread_context_t epsilon_make_thread_context(void){
   epsilon_thread_context_t result = GC_malloc(sizeof(struct epsilon_thread_context));
+#ifdef EPSILON_EGC
+  result->stack = epsilon_xmalloc(sizeof(epsilon_value) * EPSILON_STACK_ELEMENT_NO);
+#else
   result->stack = GC_malloc(sizeof(epsilon_value) * EPSILON_STACK_ELEMENT_NO);
+#endif // #ifdef EPSILON_EGC
   /* int i; */
   /* for(i = 0; i < EPSILON_STACK_ELEMENT_NO; i ++) */
   /*   result->stack[i] = (epsilon_value)(long)0xdead; */

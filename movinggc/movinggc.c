@@ -83,7 +83,7 @@ static void **egc_fromspace_after_payload_end = NULL;;
 
 #define egc_fatal(message, ...)                                        \
   do {                                                                      \
-    fprintf(stderr, "Egc fatal error: " message "\n", ## __VA_ARGS__); \
+    fprintf(stderr, "eGC fatal error: " message "\n", ## __VA_ARGS__); \
     exit(EXIT_FAILURE);                                                     \
   } while (0)
 
@@ -645,7 +645,7 @@ struct egc_root *egc_roots = NULL;
 size_t egc_roots_allocated_size = 0;
 size_t egc_roots_no = 0;
 void
-register_roots (void **pointer_to_roots, size_t size_in_words)
+egc_register_roots (void **pointer_to_roots, size_t size_in_words)
 {
   /* Grow the array of roots, if needed: */
   if_unlikely (egc_roots_no == egc_roots_allocated_size)
@@ -662,7 +662,7 @@ register_roots (void **pointer_to_roots, size_t size_in_words)
                  sizeof (struct egc_root) * egc_roots_allocated_size);
       if_unlikely (egc_roots ==
                    NULL)
-        egc_fatal ("register_roots: couldn't enlerge the array");
+        egc_fatal ("egc_register_roots: couldn't enlerge the array");
     } // if
 
   /* Add the new root: */
@@ -677,7 +677,7 @@ register_roots (void **pointer_to_roots, size_t size_in_words)
 void
 egc_push_dynamic_root (void **root_pointer)
 {
-  register_roots (root_pointer, 1);
+  egc_register_roots (root_pointer, 1);
 }
 
 void

@@ -499,7 +499,7 @@
 (e1:define (trivial-compiler:emit-symbol-identifier f symbol)
   (trivial-compiler:emit-string-identifier f (symbol:symbol->string symbol)))
 
-(e1:define (trivial-compiler:compile-data f data-graph 64bit)
+(e1:define (trivial-compiler:compile-data f data-graph 64bit tag)
   (e1:let* ((hash (data-graph:graph-get-pointer-hash data-graph))
             (pointers (data-graph:graph-get-pointers data-graph))
             (symbol-hash (data-graph:graph-get-symbol-hash data-graph))
@@ -512,7 +512,7 @@
     (io:write-string f "  #.section .data.rel\n")
     (io:write-string f "  .globl global_data_beginning\n")
     (io:write-string f "p0:\n")
-    (io:write-string f "  .quad 0xbad # omitted from compilation\n")
+    (io:write-string f "  .quad 0xbad000 # omitted from compilation\n")
     (e1:dolist (pointer pointers)
       (e1:let* ((index (unboxed-hash:get hash pointer))
                 (is-symbol (unboxed-hash:has? symbol-hash pointer))
@@ -534,10 +534,15 @@
               (trivial-compiler:emit-symbol-identifier f pointer)
               (e1:let* ((element (buffer:get pointer j)))
                 (e1:if (e0:primitive whatever:atom? element)
-                  (io:write-fixnum f element)
+                  (e1:begin
+                    (io:write-fixnum f element)
+                    (e1:when tag
+                      (io:write-string f "*2")))
                   (e1:begin
                     (io:write-string f "p")
-                    (io:write-fixnum f (unboxed-hash:get hash element)))))))
+                    (io:write-fixnum f (unboxed-hash:get hash element))
+                    (e1:when tag
+                      (io:write-string f "+1")))))))
           (io:write-string f "\n"))))
     (io:write-string f "global_data_end:\n")
     (io:write-string f "  #.section .data.rel\n")
@@ -606,7 +611,7 @@ void epsilon_main_entry_point(epsilon_value *stack){")
             (pointers (data-graph:graph-get-pointers data-graph))
             (symbol-hash (data-graph:graph-get-symbol-hash data-graph)))
     (io:write-string f "char global_data_beginning;\n")
-    (io:write-string f "epsilon_value p0[] = { EPSILON_LONG_TO_EPSILON_WORD(0xbad) }; // omitted from compilation\n")
+    (io:write-string f "epsilon_value p0[] = { EPSILON_LONG_TO_EPSILON_WORD(0xbad000) }; // omitted from compilation\n")
     (e1:dolist (pointer pointers)
       (e1:let* ((index (unboxed-hash:get hash pointer))
                 (is-symbol (unboxed-hash:has? symbol-hash pointer))
@@ -869,7 +874,7 @@ epsilon_main_entry_point:
     (io:close-file f)))
 
 (e1:define (compiler:mips-compile-data f data-graph)
-  (trivial-compiler:compile-data f data-graph #f))
+  (trivial-compiler:compile-data f data-graph #f #f))
 
 (e1:define (compiler:mips-compile-procedure f procedure-name data-graph)
   (e1:let* ((formals (state:procedure-get-formals procedure-name))
@@ -1124,7 +1129,7 @@ epsilon_main_entry_point:
 (e1:define compiler:x86_64
   (compiler:metadata  #:procedure-closure
                       (e1:lambda (procedure-name target-file-name)
-                        (compiler:x86_64-compile-to-assembly procedure-name target-file-name))
+                        (compiler:x86_64-compile-to-assembly procedure-name target-file-name #f))
                       #:assembly-file-extension ".s"
                       #:object-file-extension ".o"
                       #:CCAS configuration:CCAS
@@ -1139,14 +1144,32 @@ epsilon_main_entry_point:
                                             " "
                                             "-lepsilondriver-native-untagged -lepsilonruntime-untagged -lepsilonutility")))
 
-(e1:define (compiler:x86_64-compile-to-assembly main target-file-name)
+(e1:define compiler:x86_64-egc
+  (compiler:metadata  #:procedure-closure
+                      (e1:lambda (procedure-name target-file-name)
+                        (compiler:x86_64-compile-to-assembly procedure-name target-file-name #t))
+                      #:assembly-file-extension ".s"
+                      #:object-file-extension ".o"
+                      #:CCAS configuration:CCAS
+                      #:ASFLAGS (string:append "-c"
+                                               " "
+                                               configuration:CCASFLAGS)
+                      #:CCLD configuration:CC
+                      #:LDFLAGS (string:append "-L'" configuration:abs_top_builddir "/lib'"
+                                               " "
+                                               configuration:LDFLAGS)
+                      #:LIBS (string:append configuration:LIBS
+                                            " "
+                                            "-lepsilondriver-native-tagged-egc -lepsilonruntime-tagged-egc -lepsilonutility")))
+
+(e1:define (compiler:x86_64-compile-to-assembly main target-file-name egc)
   (e1:let* ((data-graph (data-graph:graph-from-compiled-only main))
             (f (io:open-file target-file-name io:write-mode)))
-    (compiler:x86_64-compile-data f data-graph)
+    (compiler:x86_64-compile-data f data-graph egc)
     (io:write-string f "# Procedures\n")
     (io:write-string f "  .text\n")
     (e1:dolist (procedure-name (data-graph:graph-get-procedures data-graph))
-      (compiler:x86_64-compile-procedure f procedure-name data-graph))
+      (compiler:x86_64-compile-procedure f procedure-name data-graph egc))
     (fio:write-to f "# Driver
   .balign 8 #.align 2
   .globl epsilon_main_entry_point
@@ -1158,10 +1181,10 @@ epsilon_main_entry_point:
   .size epsilon_main_entry_point, .-epsilon_main_entry_point\n\n")
     (io:close-file f)))
 
-(e1:define (compiler:x86_64-compile-data f data-graph)
-  (trivial-compiler:compile-data f data-graph #t))
+(e1:define (compiler:x86_64-compile-data f data-graph egc)
+  (trivial-compiler:compile-data f data-graph #t egc))
 
-(e1:define (compiler:x86_64-compile-procedure f procedure-name data-graph)
+(e1:define (compiler:x86_64-compile-procedure f procedure-name data-graph egc)
   (e1:let* ((formals (state:procedure-get-formals procedure-name))
             (body (state:procedure-get-body procedure-name))
             (procedure (trivial-compiler:compile-procedure procedure-name formals body data-graph)))
@@ -1171,6 +1194,7 @@ epsilon_main_entry_point:
     (io:write-string f " (mangled as \"")
     (trivial-compiler:emit-symbol-identifier f procedure-name)
     (io:write-string f "\")\n")
+    (fio:write-to f  "# " (e body) "\n")
     (io:write-string f "# io-no is ")
     (io:write-fixnum f (trivial-compiler:procedure-get-io-no procedure))
     (io:write-string f "\n")
@@ -1197,7 +1221,7 @@ epsilon_main_entry_point:
     (trivial-compiler:emit-symbol-identifier f procedure-name)
     (io:write-string f "_TAIL:\n")
     (io:write-string f "################ BEGIN\n")
-    (compiler:x86_64-compile-instructions f procedure (trivial-compiler:procedure-get-instructions procedure))
+    (compiler:x86_64-compile-instructions f procedure (trivial-compiler:procedure-get-instructions procedure) egc)
     (io:write-string f "################ END\n")
     ;;(io:write-string f "  .end ")
     ;;(trivial-compiler:emit-symbol-identifier f procedure-name)
@@ -1228,12 +1252,14 @@ epsilon_main_entry_point:
 (e1:define (compiler:x86_64-emit-stack-access f stack-index)
   (io:write-fixnum f (fixnum:* stack-index 8))
   (io:write-string f "(%rbx)"))
-(e1:define (compiler:x86_64-emit-load-value-to-%rax f procedure value)
+(e1:define (compiler:x86_64-emit-load-value-to-%rax f procedure value tag)
   (io:write-string f "  movq ")
   (e1:if (e0:primitive whatever:atom? value)
     (e1:begin
       (io:write-string f "$")
       (io:write-fixnum f value)
+      (e1:when tag
+        (io:write-string f "*2"))
       (io:write-string f ", %rax\n"))
     (e1:let* ((data-graph (trivial-compiler:procedure-get-data-graph procedure))
               (pointer-hash (data-graph:graph-get-pointer-hash data-graph))
@@ -1241,13 +1267,15 @@ epsilon_main_entry_point:
               (index (unboxed-hash:get pointer-hash value)))
       (io:write-string f "$p")
       (io:write-fixnum f index)
+      (e1:when tag
+        (io:write-string f "+1"))
       (io:write-string f ", %rax")
       (e1:when (unboxed-hash:has? symbol-hash value)
         (io:write-string f " # ")
         (io:write-symbol f value))
       (io:write-string f "\n"))))
 
-(e1:define (compiler:x86_64-compile-instructions f procedure ii)
+(e1:define (compiler:x86_64-compile-instructions f procedure ii tag)
   (e1:dolist (i (list:reverse ii))
     (e1:match i
       ((trivial-compiler:instruction-return)
@@ -1265,7 +1293,10 @@ epsilon_main_entry_point:
        (fio:write-to f "  movq ")
        (compiler:x86_64-emit-stack-access f (compiler:x86_64-local->stack-index procedure local-index))
        (fio:write-to f ", %rax # load symbol address\n")
-       (fio:write-to f "  mov 9*8(%rax), %rax # Load native code address from symbol\n")
+       (fio:write-to f "  mov 9*8")
+       (e1:when tag
+         (fio:write-to f "-1"))
+       (fio:write-to f "(%rax), %rax # Load native code address from symbol\n")
        (fio:write-to f "  jmp *%rax\n")
        (fio:write-to f "  # tail-call-indirect: END\n"))
       ((trivial-compiler:instruction-nontail-call name scratch-index)
@@ -1285,7 +1316,10 @@ epsilon_main_entry_point:
        (fio:write-to f "  movq ")
        (compiler:x86_64-emit-stack-access f (compiler:x86_64-local->stack-index procedure local-index))
        (fio:write-to f ", %rax # load symbol address\n")
-       (fio:write-to f "  movq 9*8(%rax), %rax # Load native code address from symbol\n")
+       (fio:write-to f "  movq 9*8")
+       (e1:when tag
+         (fio:write-to f "-1"))
+       (fio:write-to f "(%rax), %rax # Load native code address from symbol\n")
        (fio:write-to f "  addq $")
        (fio:write-to f (i (fixnum:* (compiler:x86_64-scratch->stack-index procedure scratch-index) 8)))
        (fio:write-to f ", %rbx # pass frame pointer\n")
@@ -1333,7 +1367,7 @@ epsilon_main_entry_point:
       ((trivial-compiler:instruction-get-global global-name scratch-index)
        ;;; FIXME: this is correct, but I could generate better code by exploiting global immutability
        (fio:write-to f "  # get-global: BEGIN\n")
-       (compiler:x86_64-emit-load-value-to-%rax f procedure global-name)
+       (compiler:x86_64-emit-load-value-to-%rax f procedure global-name #f) ;; never use the tag here
        (fio:write-to f "  movq 2*8(%rax), %rax # Load global binding from symbol\n")
        (fio:write-to f "  movq %rax, ")
        (compiler:x86_64-emit-stack-access f (compiler:x86_64-scratch->stack-index procedure scratch-index))
@@ -1343,13 +1377,13 @@ epsilon_main_entry_point:
       ;;  (fio:write-to f "  # set-global [FIXME: IMPLEMENT]\n"))
       ((trivial-compiler:instruction-get-value value scratch-index)
        (fio:write-to f "  # get-value: BEGIN\n")
-       (compiler:x86_64-emit-load-value-to-%rax f procedure value)
+       (compiler:x86_64-emit-load-value-to-%rax f procedure value tag)
        (fio:write-to f "  movq %rax, ")
        (compiler:x86_64-emit-stack-access f (compiler:x86_64-scratch->stack-index procedure scratch-index))
        (fio:write-to f "\n")
        (fio:write-to f "  # get-value: END\n"))
       ((trivial-compiler:instruction-primitive name scratch-index)
-       (fio:write-to f "  # primitive: BEGIN\n")
+       (fio:write-to f "  # primitive: " (sy name) " BEGIN\n")
        (fio:write-to f "  movq 8*")
        (fio:write-to f (i (state:primitive-get-index name)))
        (fio:write-to f "(%r12), %rax # Load primitive address\n")
@@ -1373,19 +1407,19 @@ epsilon_main_entry_point:
          (compiler:x86_64-emit-stack-access f (compiler:x86_64-scratch->stack-index procedure scratch-index))
          (fio:write-to f ", %r11 # load the discriminand\n")
          (e1:dolist (value values)
-           (compiler:x86_64-emit-load-value-to-%rax f procedure value)
+           (compiler:x86_64-emit-load-value-to-%rax f procedure value tag)
            (fio:write-to f "  cmpq %r11, %rax\n")
            (fio:write-to f "  je ")
            (fio:write-to f (st then-label))
            (fio:write-to f " # branch if equal\n"))
          ;;(fio:write-to f "  # The next instruction should be an lw, harmless as a delay slot; anyway I want to avoid an assembler warning in case the next command is a multi-instruction macro\n")
-         (compiler:x86_64-compile-instructions f procedure else-instructions)
+         (compiler:x86_64-compile-instructions f procedure else-instructions tag)
          (fio:write-to f "  jmp ")
          (fio:write-to f (st after-label))
          (fio:write-to f " # skip the \"else\" branch\n")
          (fio:write-to f (st then-label))
          (fio:write-to f ":\n")
-         (compiler:x86_64-compile-instructions f procedure then-instructions)
+         (compiler:x86_64-compile-instructions f procedure then-instructions tag)
          (fio:write-to f (st after-label))
          (fio:write-to f ":\n"))
        (fio:write-to f "  # if-in: END\n"))
@@ -1465,7 +1499,8 @@ epsilon_main_entry_point:
 
 (e1:toplevel
   (e1:cond ((string:equal? configuration:host_cpu "x86_64")
-            (e1:define compiler:native compiler:x86_64))
+            (e1:define compiler:native compiler:x86_64)
+            (e1:define compiler:native-egc compiler:x86_64-egc))
            ((e1:or (string:equal? configuration:host_cpu "mips")
                    (string:equal? configuration:host_cpu "mipsel")
                    (string:equal? configuration:host_cpu "mips64")
@@ -1499,6 +1534,17 @@ epsilon_main_entry_point:
   `(compiler:compile ,@stuff))
 (e1:define-macro (e1:compile-to-assembly . stuff)
   `(compiler:compile-to-assembly ,@stuff))
+
+(e1:define-macro (e1:compile-egc . stuff)
+  `(compiler:compile-with compiler:native-egc ,@stuff))
+(e1:define-macro (e1:compile-to-assembly-egc . stuff)
+  `(compiler:compile-to-assembly-with compiler:native-egc ,@stuff))
+
+(e1:define-macro (e1:compile-c . stuff)
+  `(compiler:compile-with compiler:c ,@stuff))
+(e1:define-macro (e1:compile-to-assembly-c . stuff)
+  `(compiler:compile-to-assembly-with compiler:c ,@stuff))
+
 
 
 ;;;;; C64 compiler

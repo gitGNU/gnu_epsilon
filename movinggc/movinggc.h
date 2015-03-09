@@ -31,7 +31,7 @@
 void egc_initialize (void);
 
 /* Register an array of permanent roots: */
-void register_roots (void **pointer_to_roots, size_t size_in_words);
+void egc_register_roots (void **pointer_to_roots, size_t size_in_words);
 
 /* Handle temporary roots.  It is not allowed to register permanent
    roots when any temporary root is active.  Attempting to do so will

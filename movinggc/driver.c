@@ -126,7 +126,7 @@ main (void)
   egc_initialize ();
   int i, j;
   void *root1;
-  register_roots (&root1, 1);
+  egc_register_roots (&root1, 1);
 
   egc_set_pre_hook (pre_gc_hook);
   egc_set_post_hook (post_gc_hook);

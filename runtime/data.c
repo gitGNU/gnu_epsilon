@@ -96,12 +96,16 @@ inline epsilon_int epsilon_value_length(epsilon_value x){
 #endif
 
 void epsilon_data_initialize(void){
+#ifdef EPSILON_EGC
+  egc_initialize ();
+#else
   GC_INIT();
 #if HAVE_GC_ALLOW_REGISTER_THREADS
   GC_allow_register_threads();
 #else
   #warning GC_allow_register_threads is not available.  Trying to go on without calling it.
 #endif
+#endif // #ifdef EPSILON_EGC
   //printf("The main thread is %p\n", (void*)pthread_self());
 }
 

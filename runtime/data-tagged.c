@@ -31,7 +31,11 @@
    fixnums with 0.  Otherwise, the converse.  I want to measure which solution
    is more efficient, so I will implement both.
    #define'ing EPSILON_1_FOR_POINTERS is more efficient on optimum. */
-//#define EPSILON_1_FOR_POINTERS
+#define EPSILON_1_FOR_POINTERS
+
+#ifdef EPSILON_EGC
+#include "movinggc/movinggc.h"
+#endif // #ifdef EPSILON_EGC
 
 #define EPSILON_HAS_1_TAG(word) \
   (((epsilon_int)(word)) & 1)
@@ -85,8 +89,15 @@ inline bool epsilon_is_pointer(epsilon_value value){
   return EPSILON_IS_POINTER(value);
 }
 inline size_t epsilon_buffer_size(epsilon_value pointer_value){ // in words
+  /* With Boehm's GC I store the buffer size in its first word.
+     epsilon's GC keeps it in a hidden header along with other bits. */
+#ifdef EPSILON_EGC
+  void **pointer = (void**)EPSILON_UNTAG_POINTER (pointer_value);
+  return EGC_NONFORWARDING_HEADER_TO_SIZE (pointer[-1]);
+#else
   /* This is unsafe: if you call it on a fixnum, too bad.  We care for efficiency here. */
   return *((epsilon_int*)(EPSILON_UNTAG_POINTER(pointer_value)));
+#endif // #ifdef EPSILON_EGC
 }
 
 inline epsilon_int epsilon_value_to_epsilon_int(epsilon_value value){
@@ -126,7 +137,11 @@ inline epsilon_value epsilon_manually_allocate_with_epsilon_int_length(epsilon_i
   return EPSILON_TAG_POINTER(address);
 }
 inline epsilon_value epsilon_gc_allocate_with_epsilon_int_length(epsilon_int length_in_words){
+#ifdef EPSILON_EGC
+  epsilon_int* address = egc_allocate_words (length_in_words);
+#else
   epsilon_int* address = GC_MALLOC((length_in_words + 1) * sizeof(epsilon_value));
+#endif // #ifdef EPSILON_EGC
   *address = length_in_words;
   return EPSILON_TAG_POINTER(address);
 }
@@ -137,10 +152,27 @@ inline void epsilon_gc_destroy(epsilon_value pointer_value){
   // Do nothing.
 }
 inline epsilon_value epsilon_load_with_epsilon_int_offset(epsilon_value pointer_value, epsilon_int offset_in_words){
-  return ((epsilon_value*)EPSILON_UNTAG_POINTER(pointer_value))[offset_in_words + 1];
+  /* With Boehm's GC I keep the buffer length in the first word.
+     There's no need for this with epsilon's GC. */
+  const int offset =
+#ifdef EPSILON_EGC
+    0
+#else
+    1
+#endif // #ifdef EPSILON_EGC
+    ;
+  return ((epsilon_value*)EPSILON_UNTAG_POINTER(pointer_value))[offset_in_words + offset];
+  return ((epsilon_value*)EPSILON_UNTAG_POINTER(pointer_value))[offset_in_words];
 }
 inline void epsilon_store_with_epsilon_int_offset(epsilon_value pointer_value, epsilon_int offset_in_words, epsilon_value datum){
-  ((epsilon_value*)EPSILON_UNTAG_POINTER(pointer_value))[offset_in_words + 1] = datum;
+  const int offset =
+#ifdef EPSILON_EGC
+    0
+#else
+    1
+#endif // #ifdef EPSILON_EGC
+    ;
+  ((epsilon_value*)EPSILON_UNTAG_POINTER(pointer_value))[offset_in_words + offset] = datum;
 }
 
 inline void epsilon_runtime_appropriate_fail(char *reason){

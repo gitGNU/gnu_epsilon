@@ -298,12 +298,20 @@ lib_LIBRARIES += lib/libepsilonruntime-smob.a
 lib_libepsilonruntime_smob_a_SOURCES = $(RUNTIME_SOURCES)
 lib_libepsilonruntime_smob_a_CPPFLAGS = -DEPSILON_RUNTIME_SMOB
 
+lib_LIBRARIES += lib/libepsilonruntime-tagged-egc.a
+lib_libepsilonruntime_tagged_egc_a_SOURCES = $(RUNTIME_SOURCES)
+lib_libepsilonruntime_tagged_egc_a_SOURCES += movinggc/movinggc.c
+lib_libepsilonruntime_tagged_egc_a_CPPFLAGS = -DEPSILON_RUNTIME_TAGGED -DEPSILON_EGC
+
 lib_LIBRARIES += lib/libepsilondriver-c-untagged.a
 lib_libepsilondriver_c_untagged_a_SOURCES = \
   runtime/backend-specific/c/backend-specific-c.c \
   driver/driver.c
 lib_libepsilondriver_c_untagged_a_LIBADD = \
-  lib/libepsilonruntime-smob.a lib/libepsilonutility.a
+  lib/libepsilonruntime-untagged.a lib/libepsilonutility.a
+# # FIXME: It was like this, with the SMOB runtime.  I strongly suspect that was a mistake.
+# lib_libepsilondriver_c_untagged_a_LIBADD = \
+#   lib/libepsilonruntime-smob.a lib/libepsilonutility.a
 
 lib_LIBRARIES += lib/libepsilondriver-native-untagged.a
 lib_libepsilondriver_native_untagged_a_SOURCES = \
@@ -316,6 +324,19 @@ else
 lib_libepsilondriver_native_untagged_a_SOURCES += \
   runtime/backend-specific/always-fail/backend-specific-c.c
 endif
+
+lib_LIBRARIES += lib/libepsilondriver-native-tagged-egc.a
+lib_libepsilondriver_native_tagged_egc_a_SOURCES = \
+  driver/driver.c
+if NATIVE_COMPILING
+lib_libepsilondriver_native_tagged_egc_a_SOURCES += \
+  runtime/backend-specific/@NATIVE_CPU@/backend-specific-c.c \
+  runtime/backend-specific/@NATIVE_CPU@/backend-specific-s.S
+else
+lib_libepsilondriver_native_tagged_egc_a_SOURCES += \
+  runtime/backend-specific/always-fail/backend-specific-c.c
+endif
+lib_libepsilondriver_native_tagged_egc_a_CPPFLAGS = -DEPSILON_RUNTIME_TAGGED -DEPSILON_EGC
 ## ####################################################### libraries: end
 
 

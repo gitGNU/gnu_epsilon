@@ -22,3 +22,4 @@
 ;;;;; Scratch
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;gcc -g -lunistring -lreadline -lpthread -lgc ~/repos/epsilon/_build/49s/lib/{libepsilondriver-native-tagged-egc.a,libepsilonruntime-tagged-egc.a,libepsilonutility.a} boo.s

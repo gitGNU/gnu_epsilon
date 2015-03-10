@@ -33,10 +33,10 @@
 #define EGC_GENERATION_1_SEMISPACE_WORD_NO \
   (1 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 #define EGC_GENERATION_2_SEMISPACE_WORD_NO \
-  (4 * 1024L * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+  (10 * 1024L * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
-#define EGC_DEBUG
-#define EGC_VERBOSE
+//#define EGC_DEBUG
+//#define EGC_VERBOSE
 //#define EGC_VERY_VERBOSE
 //#define EGC_TIME
 

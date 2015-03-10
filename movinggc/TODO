@@ -16,10 +16,41 @@ You should have received a copy of the GNU General Public License
 along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
-Remove movinggc_tospace.  It shouldn't be a global.  Possibly do the
-same for movinggc_fromspace.
+Implement or at least document my circular-buffer write barrier idea.
+It has the potential of being extremely fast, at the cost of one
+reserved register and three instructions per write barrier: increment,
+mask or remainder, store (no conditionals); one more instruction on
+RISCs if the buffer size is too large for the mask to fit in an
+immediate operand.  On the x86 it might even be possible to avoid the
+masking operation using a sub-register.  I can reliably detect
+overflow by checking if the last buffer element (the only one I need
+to initialize) is non-zero.
 
-Write barrier!
+Previous work by others: "The Design and Implementation of the SELF
+Compiler, and Optimizing Compiler for Object-Oriented Programming
+Languages", Chambers 1992 (cited by "A Fast Write Barrier for
+Generational Garbage Collectors", Hölzle 1993", p.2) shows another
+three-instruction write barrier (on the SPARC), again with no
+conditionals, using card marking.  Hölzle reduces it to two
+instructions, possibly losing some precision.  Hölzle finds his
+technique to have superior performance to SSBs (for SELF, a
+high-mutation language).
+My technique is more precise than either in the common case, but has
+bad performance in the worst case.  [Hosking 1992] introduced the
+"Sequential Store Buffer" (with or without filtering) similar to what
+I've just independently rediscovered.  Instead of my modulo idea
+Hosking used a hardware trap to detect buffer overflow.
+Add a GC check point function, which is trivial by itself.  Start
+thinking of how to support blocking primitives in multi-thread
+programs.
+
+Use the write barrier in epsilon primitives.  Add an initializing
+store primitive if it's not already there.
+
+Store older->younger inter-generational pointers in only one place (in
+the older generation), not in every in-between generation.  make sure
+noting breaks when G3 points to G1, then G1 objects are promoted to
+G2.
 
 Make the header size a configuration parameter.  This will be very
 useful for instrumenting the code, and should not complicate the

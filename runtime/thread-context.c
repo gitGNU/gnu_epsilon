@@ -32,10 +32,12 @@
 // FIXME: add support for the epsilon GC
 
 epsilon_thread_context_t epsilon_make_thread_context(void){
-  epsilon_thread_context_t result = GC_malloc(sizeof(struct epsilon_thread_context));
 #ifdef EPSILON_EGC
-  result->stack = epsilon_xmalloc(sizeof(epsilon_value) * EPSILON_STACK_ELEMENT_NO);
+  epsilon_thread_context_t result =
+    epsilon_xmalloc (sizeof (struct epsilon_thread_context));
+  result->stack = epsilon_xmalloc (sizeof(epsilon_value) * EPSILON_STACK_ELEMENT_NO);
 #else
+  epsilon_thread_context_t result = GC_malloc(sizeof(struct epsilon_thread_context));
   result->stack = GC_malloc(sizeof(epsilon_value) * EPSILON_STACK_ELEMENT_NO);
 #endif // #ifdef EPSILON_EGC
   /* int i; */
@@ -54,7 +56,10 @@ epsilon_thread_context_t epsilon_make_thread_context(void){
   return result;
 }
 
-void epsilon_destroy_thread_context(epsilon_thread_context_t context){
-  //free(context->stack);
-  //free(context);
+void epsilon_destroy_thread_context (epsilon_thread_context_t context){
+#ifdef EPSILON_EGC
+  free (context->stack);
+  free (context);
+  printf ("Hoo-hoo\n");
+#endif // #ifdef EPSILON_EGC
 }

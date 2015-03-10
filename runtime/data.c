@@ -130,6 +130,9 @@ epsilon_value epsilon_join_thread(epsilon_thread thread){
 
 epsilon_value epsilon_call_with_initialized_gc(epsilon_thread_function function,
                                                epsilon_value datum){
+#ifdef EPSILON_EGC
+  epsilon_fatal ("epsilon_call_with_initialized_gc: unimplemented");
+#else
   //pthread_t thread = pthread_self();
   //printf("epsilon_call_with_initialized_gc: registering %p\n", (void*)thread);
   struct GC_stack_base stack_base;
@@ -145,6 +148,7 @@ epsilon_value epsilon_call_with_initialized_gc(epsilon_thread_function function,
   GC_unregister_my_thread();
 //printf("epsilon_call_with_initialized_gc: unregistered %p\n", (void*)thread);
   return result;
+#endif // #ifdef EPSILON_EGC
 }
 #endif // #ifndef EPSILON_RUNTIME_SMOB
 

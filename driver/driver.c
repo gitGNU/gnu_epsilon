@@ -65,6 +65,7 @@ int main(int argc, char **argv){
   //printf("R:  %li %p\n", epsilon_value_to_epsilon_int(result), result);
   //printf("C%p S%p L%p H%p\n", context, context->stack, context->stack_lowest_address, context->stack_highest_address);
 
+  // Don't bother destroying the main thread context right before exiting.
 #ifdef EPSILON_EGC
   egc_dump_generations ();
 #endif // #ifdef EPSILON_EGC

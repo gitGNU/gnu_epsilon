@@ -1206,7 +1206,7 @@ egc_free_words_in_semispace_generation (egc_generation_t g)
 }
 
 void egc_write_barrier (void **untagged_initial_pointer,
-                             long offset_in_words)
+                        long offset_in_words)
 {
   egc_generation_index_t pointer_generation =
     EGC_NONFORWARDING_HEADER_TO_GENERATION(untagged_initial_pointer[-1]);

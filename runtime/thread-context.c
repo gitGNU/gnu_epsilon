@@ -21,7 +21,10 @@
    along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>. */
 
 
+#include <stdio.h>
+
 #include "thread-context.h"
+#include "utility/malloc.h"
 
 #ifdef EPSILON_EGC
 #include "movinggc/movinggc.h"

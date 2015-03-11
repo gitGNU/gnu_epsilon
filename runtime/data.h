@@ -26,6 +26,10 @@
 #include <stdbool.h>
 #include "../utility/types.h"
 
+#ifdef EPSILON_EGC
+#include "movinggc/movinggc.h"
+#endif // #ifdef EPSILON_EGC
+
 /* This should be treated as an abstract data type.  According to
    which runtime is specified via a preprocessor macro, there might be
    or not be boxedness tags, and the representation might or might not

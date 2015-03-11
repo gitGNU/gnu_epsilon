@@ -138,7 +138,7 @@ inline epsilon_value epsilon_manually_allocate_with_epsilon_int_length(epsilon_i
 }
 inline epsilon_value epsilon_gc_allocate_with_epsilon_int_length(epsilon_int length_in_words){
 #ifdef EPSILON_EGC
-  epsilon_int* address = egc_allocate_words (length_in_words);
+  epsilon_int* address = egc_allocate_words_inizializing (length_in_words);
 #else
   epsilon_int* address = GC_MALLOC((length_in_words + 1) * sizeof(epsilon_value));
 #endif // #ifdef EPSILON_EGC

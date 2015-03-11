@@ -28,20 +28,22 @@
 #define inline  /* nothing */
 #endif // #if 0
 
-#define EGC_GENERATION_0_SEMISPACE_WORD_NO \
-  (24 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
-#define EGC_GENERATION_1_SEMISPACE_WORD_NO \
-  (1 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
-#define EGC_GENERATION_2_SEMISPACE_WORD_NO \
-  (10 * 1024L * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
-
-//#define EGC_DEBUG
+#define EGC_DEBUG
 //#define EGC_VERBOSE
 //#define EGC_VERY_VERBOSE
 //#define EGC_TIME
+#define EGC_USE_MEMCPY
+
+#define EGC_GENERATION_0_SEMISPACE_WORD_NO \
+  (4000 * 1024 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+#define EGC_GENERATION_1_SEMISPACE_WORD_NO \
+  (1 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+#define EGC_GENERATION_2_SEMISPACE_WORD_NO \
+  (64 * 1024L * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+
+
 
 #define HAS_CLOCK_GETTIME
-#define EGC_USE_MEMCPY
 
 //#define EGC_USE_GLOBAL_POINTERS
 //#define EGC_USE_REGISTER_POINTERS

@@ -3,7 +3,7 @@
    Copyright (C) 2012 Université Paris 13
    Copyright (C) 2012 Luca Saiu
    Written by Luca Saiu
-   Updated in 2013 and 2014 by Luca Saiu
+   Updated in 2013, 2014 and 2015 by Luca Saiu
 
    This file is part of GNU epsilon.
 
@@ -227,7 +227,7 @@ static epsilon_int epsilon_e0_eval_with_stack(epsilon_value expression, imperati
     epsilon_value bound_variables = epsilon_load_with_epsilon_int_offset(expression, 2);
     epsilon_int bound_variable_no = epsilon_value_length(bound_variables);
     if(bound_variable_no > bound_expression_result_no){
-      printf("%i bound variables for %i-dimension expression\n", bound_variable_no, bound_expression_result_no);
+      printf("%i bound variables for %i-dimension expression\n", (int)bound_variable_no, (int)bound_expression_result_no);
       epsilon_value p;
       for(p = bound_variables; ! epsilon_value_is_null(p); p = epsilon_value_cdr(p))
         epsilon_print_e0_symbol(epsilon_value_car(p));

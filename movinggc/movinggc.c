@@ -1190,7 +1190,21 @@ void *
 egc_allocate_chars (size_t size_in_chars)
 {
   return egc_generation_0.allocate_chars(& egc_generation_0,
-                                              size_in_chars);
+                                         size_in_chars);
+}
+
+void *
+egc_allocate_chars_inizializing (size_t size_in_chars)
+{
+  void *res = egc_allocate_chars (size_in_chars);
+  memset (res, 0, size_in_chars);
+  return res;
+}
+
+void *
+egc_allocate_words_inizializing (size_t size_in_words)
+{
+  return egc_allocate_chars_inizializing (size_in_words * sizeof (void*));
 }
 
 static size_t
@@ -1268,14 +1282,16 @@ egc_allocate_chars_from_semispace_generation_slow_path (egc_generation_t g,
    the generated assembly. */
 void *
 egc_allocate_chars_from_semispace_generation (egc_generation_t g,
-                                                   size_t size_in_chars)
+                                              size_t size_in_chars)
 {
 #ifdef EGC_DEBUG
   if_unlikely (size_in_chars <= 0)
-    egc_fatal ("egc_allocate_chars: object size not positive");
+    egc_fatal ("egc_allocate_chars: object size %li not positive",
+               (long)size_in_chars);
   if_unlikely (size_in_chars % sizeof (void *) != 0)
     egc_fatal
-    ("egc_allocate_chars: object size not a wordsize multiple");
+    ("egc_allocate_chars: object size %li not a wordsize multiple",
+     (long)size_in_chars);
 #endif // #ifdef EGC_DEBUG
 
   egc_semispace_t const fromspace = g->fromspace;

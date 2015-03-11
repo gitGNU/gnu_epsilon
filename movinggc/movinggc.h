@@ -70,11 +70,20 @@ void egc_set_hook_argument (void *argument);
    3) the post-GC hook, if any, passing the same GC hook argument;
    4) a heap resize, if needed.
 
-   The char version is faster, but it still assumes objects to have a
-   size which is a multiple of the word size. */
+   The char versions are faster, but it still assumes objects to have
+   a size which is a multiple of the word size.  The initializing
+   versions fill the new buffer with (non-pointer) zeroes.  Notice
+   that initialization takes time, and it is better avoided; the
+   function are provided for convenience, to be used in cases where it
+   is complicated to completely initialize a buffer before allocating
+   another. */
 void *egc_allocate_chars (size_t size_in_chars)
   __attribute__ ((hot, malloc));
 void *egc_allocate_words (size_t size_in_words)
+  __attribute__ ((hot, malloc, flatten));
+void *egc_allocate_chars_inizializing (size_t size_in_chars)
+  __attribute__ ((hot, malloc, flatten));
+void *egc_allocate_words_inizializing (size_t size_in_chars)
   __attribute__ ((hot, malloc, flatten));
 
 // FIXME: remove, or add more cases.

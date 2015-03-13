@@ -985,7 +985,7 @@
 ;;; with unused data.
 
 (e1:define (set-as-list:set-as-list->unboxed-hash sal)
-  (e1:let ((res (unboxed-hash:make-given-bucket-no (list:length sal))))
+  (e1:let* ((res (unboxed-hash:make-given-bucket-no (list:length sal))))
     (set-as-list:set-as-list->unboxed-hash-helper sal res)
     res))
 (e1:define (set-as-list:set-as-list->unboxed-hash-helper sal hash)
@@ -994,12 +994,12 @@
     (set-as-list:set-as-list->unboxed-hash-helper (list:tail sal) hash)))
 
 (e1:define (set-as-list:unboxed-hash->set-as-list h)
-  (e1:let ((alist (unboxed-hash:unboxed-hash->alist h)))
+  (e1:let* ((alist (unboxed-hash:unboxed-hash->alist h)))
     (set-as-list:unboxed-hash->set-as-list-helper alist list:nil)))
 (e1:define (set-as-list:unboxed-hash->set-as-list-helper al acc)
   (e1:if (list:null? al)
     acc
-    (e1:let ((new-acc (list:cons (cons:get-car (list:head al)) acc)))
+    (e1:let* ((new-acc (list:cons (cons:get-car (list:head al)) acc)))
       (set-as-list:unboxed-hash->set-as-list-helper (list:tail al) new-acc))))
 
 

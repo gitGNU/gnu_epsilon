@@ -2341,6 +2341,28 @@ global_data_end:
 ;;;;; 6502 optimized arithmetic special cases
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(e1:define (e1:define-6502-procedures)
+  ;;(e1:define configuration:bits-per-word 16)
+  (e1:define (fixnum:* a b) (fixnum:non-primitive-* a b))
+  (e1:define (fixnum:/% a b) (fixnum:non-primitive-/% a b))
+  (e1:define (fixnum:/ a b) (fixnum:non-primitive-/ a b))
+  (e1:define (fixnum:% aq bq) (fixnum:non-primitive-% aq bq))
+  (e1:define (fixnum:left-shift a b) (fixnum:non-primitive-left-shift a b))
+  (e1:define (fixnum:arithmetic-right-shift a b) (fixnum:non-primitive-arithmetic-right-shift a b))
+  (e1:define (fixnum:logic-right-shift a b) (fixnum:non-primitive-logic-right-shift a b))
+  (e1:define fixedpoint:fractional-bit-no 8)
+  (e1:define fixedpoint:fractional-bitmask
+    (fixnum:1- (fixnum:left-shift (e0:value 1) fixedpoint:fractional-bit-no)))
+  (e1:define fixedpoint:1
+    (fixedpoint:fixnum->fixedpoint 1))
+  (e1:define fixedpoint:10
+    (fixedpoint:fixnum->fixedpoint 10))
+  (e1:define fixedpoint:1/10
+    (fixedpoint:/ fixedpoint:1
+                  fixedpoint:10))
+  (e1:define (fixedpoint:10/ x)
+    (fixedpoint:* x fixedpoint:1/10)))
+
 (e1:define (fixnum:2* n)
   (e1:primitive fixnum:left-shift-1-bit n))
 (e1:define (fixnum:4* n)
@@ -2648,28 +2670,6 @@ global_data_end:
 (e1:when #f
   (c (stripes))
   (c (test-sprites))
-  ))
-(e1:toplevel (e1:when #t ;#f
-  ;;(e1:define configuration:bits-per-word 16)
-  (e1:define (fixnum:* a b) (fixnum:non-primitive-* a b))
-  (e1:define (fixnum:/% a b) (fixnum:non-primitive-/% a b))
-  (e1:define (fixnum:/ a b) (fixnum:non-primitive-/ a b))
-  (e1:define (fixnum:% aq bq) (fixnum:non-primitive-% aq bq))
-  (e1:define (fixnum:left-shift a b) (fixnum:non-primitive-left-shift a b))
-  (e1:define (fixnum:arithmetic-right-shift a b) (fixnum:non-primitive-arithmetic-right-shift a b))
-  (e1:define (fixnum:logic-right-shift a b) (fixnum:non-primitive-logic-right-shift a b))
-  (e1:define fixedpoint:fractional-bit-no 8)
-  (e1:define fixedpoint:fractional-bitmask
-    (fixnum:1- (fixnum:left-shift (e0:value 1) fixedpoint:fractional-bit-no)))
-  (e1:define fixedpoint:1
-    (fixedpoint:fixnum->fixedpoint 1))
-  (e1:define fixedpoint:10
-    (fixedpoint:fixnum->fixedpoint 10))
-  (e1:define fixedpoint:1/10
-    (fixedpoint:/ fixedpoint:1
-                  fixedpoint:10))
-  (e1:define (fixedpoint:10/ x)
-    (fixedpoint:* x fixedpoint:1/10))
   ))
 
 (e1:define-macro (c1 . stuff)

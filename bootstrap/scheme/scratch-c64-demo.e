@@ -20,6 +20,8 @@
 
 ;; (e1:define-macro (fio:write . stuff) '(e1:bundle))
 
+(e1:define-6502-procedures)
+
 (e1:define-c64-multi-color-sprite sprite-stand "
 . aaa
  bbbb
@@ -417,6 +419,7 @@ bbbbb
   (medium-punch)
   (high-punch)
   (kick))
+
 
 ;; (e1:define state-stand        0)
 ;; (e1:define state-walk         1)

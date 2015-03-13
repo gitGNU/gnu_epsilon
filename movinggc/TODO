@@ -16,6 +16,10 @@ You should have received a copy of the GNU General Public License
 along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
+Remove non-GC allocation and destruction from epsilon's primitives in
+C.  They are not used and they would make a huge mess with the moving
+collector.
+
 Implement or at least document my circular-buffer write barrier idea.
 [See my WRITE-BARRIER-NOTES file, on moore]
 

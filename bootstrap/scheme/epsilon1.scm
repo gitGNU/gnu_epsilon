@@ -2,7 +2,7 @@
 ;;;;; Bootstrap driver
 
 ;;;;; Copyright (C) 2012 Université Paris 13
-;;;;; Copyright (C) 2013, 2014 Luca Saiu
+;;;;; Copyright (C) 2013, 2014, 2015 Luca Saiu
 ;;;;; Written by Luca Saiu
 
 ;;;;; Copyright (C) 2013 Jérémie Koenig
@@ -980,6 +980,27 @@
   (variadic:define-left-deep set-as-list:without set-as-list:without set-as-list:empty))
 (e1:define-macro (set-as-list:make . elements)
   `(set-as-list:with set-as-list:empty ,@elements))
+
+;;; It's useful to convert between set-as-list's and (unboxed) hashes
+;;; with unused data.
+
+(e1:define (set-as-list:set-as-list->unboxed-hash sal)
+  (e1:let ((res (unboxed-hash:make-given-bucket-no (list:length sal))))
+    (set-as-list:set-as-list->unboxed-hash-helper sal res)
+    res))
+(e1:define (set-as-list:set-as-list->unboxed-hash-helper sal hash)
+  (e1:unless (list:null? sal)
+    (unboxed-hash:set! hash (list:head sal) #f)
+    (set-as-list:set-as-list->unboxed-hash-helper (list:tail sal) hash)))
+
+(e1:define (set-as-list:unboxed-hash->set-as-list h)
+  (e1:let ((alist (unboxed-hash:unboxed-hash->alist h)))
+    (set-as-list:unboxed-hash->set-as-list-helper alist list:nil)))
+(e1:define (set-as-list:unboxed-hash->set-as-list-helper al acc)
+  (e1:if (list:null? al)
+    acc
+    (e1:let ((new-acc (list:cons (cons:get-car (list:head al)) acc)))
+      (set-as-list:unboxed-hash->set-as-list-helper (list:tail al) new-acc))))
 
 
 ;;;;; Value-list

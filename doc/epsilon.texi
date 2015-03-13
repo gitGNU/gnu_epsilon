@@ -2,7 +2,7 @@
 \input texinfo.tex @c ...indeed, it is Texinfo.
 
 @c This file is part of the GNU epsilon manual.
-@c Copyright (C) 2005, 2013  Luca Saiu
+@c Copyright (C) 2005, 2013, 2015  Luca Saiu
 @c Copyright (C) 2012  Université Paris 13
 @c Written by Luca Saiu
 
@@ -49,7 +49,7 @@ last updated on @value{UPDATED}).
 epsilon is an extensible programming language.
 [FIXME: say something more]
 
-Copyright @copyright{} 2005, 2013 Luca Saiu
+Copyright @copyright{} 2005, 2013, 2015 Luca Saiu
 
 Copyright @copyright{} 2012 Universit@'e Paris 13
 
@@ -234,14 +234,14 @@ epsilon\subscript\
 
 This manual is @emph{very} incomplete, actually just a stub.  The
 project needs actual documentation, and I plan to write it --- but not
-before the implementation itself is in a stable state.
+before the implementation itself is in a more stable state.
 
 At the present time I'm using this document mostly to try out ideas,
 for myself.  You're welcome to look if you're curious, but this is not
 really ready for users.
 
 As the document gradually converges to a stable state, the
-presentation style will get richer, and I'll write English in a more
+presentation style will get richer and I'll write English in a more
 careful way.  I'm actually a perfectionist.  But I can't waste time on
 my literary ambitions when I'm writing braindumps.
 
@@ -255,22 +255,23 @@ philosophy and rationale, in my PhD thesis.  It's available at
 @url{http://ageinghacker.net/publications#phd-thesis}, and you're very
 welcome to read it.  Anyway, even if it also describes some source
 code, a thesis is not software documentation.  The mathematical
-treatment is not very accessible, and there is barely any mention of
-the user interface.
+treatment is not very accessible, and the user interface as described
+has already changed in a substantial way.
 
-Essentially, my thesis provides a formal treatment of epsilon, also
+Essentially my thesis provides a formal treatment of epsilon, also
 deriving some properties from its semantics, by formal proofs.  Such a
 formal system is inherently fragile, and can't be kept correct unless
 the language is frozen.  I don't plan any radical change
 in @epsilonzero at the current time, but I might see some change to
 make in the future.  This is definitely a @emph{The Right Thing} kind
-of project, and if it turns out that I have to destroy in order to
-build a better thing, I'm perfectly willing.  The thesis will stay as
-it is: it covers my language philosophy and describes very precisely a
-particular state in the language history.  At the present time, that
-state is a strict subset of the current state, which makes the
-description still very relevant.  In the future, this may change and
-the software may drift away into a different direction.
+of project, and if it turns out that I have to temporarily destroy
+much of it in order to build a better thing, I'm perfectly willing.
+The thesis will stay as it is: it covers my language philosophy and
+describes very precisely a particular state in the language history.
+At the present time that state is mostly a strict subset of the
+current state, which makes the description still relevant.  In the
+future, this may change and the software may drift away into a
+different direction.
 
 I plan to use my blog to post updates about epsilon; again, mostly
 thinking of myself as the public.  Blog posts will show ideas in a
@@ -296,7 +297,7 @@ Thanks.
 Thanks to its architecture, compilers for epsilon are simply sets of
 ordinary procedures, technically part of its library.  There is no
 magic external program called a compiler: compilation is simply a
-functionality available to program, which can decide at some point to
+functionality available to programs, which can decide at some point to
 dump their state into a native executable file during their execution.
 
 As a consequence of epsilon's architecture, its compilers are
@@ -326,11 +327,11 @@ currently the ugliest part of the compiler.  I'd like to rewrite
 that.}
 
 @section Intermediate language
-The intermediate language has a very uniform behavior: parameters and
-results are passed through a thread-local stack.  Each procedure
-activation has a stack frame containing slots for input and output,
-for local variables, and scratch space.  The exact stack layout is
-specific to each backend.
+The intermediate language has a very uniform behavior: temporaries,
+parameters and results are all passed through the thread-local
+@emph{epsilon stack}.  Each procedure activation has a stack frame
+containing slots for input and output, for local variables, and
+scratch space.  The exact stack layout is specific to each backend.
 
 Primitives may be implemented in portable C or in assembly.  In either
 case, they operate on the stack, popping parameters off the top of the
@@ -369,22 +370,27 @@ The intermediate code distinguishes tail and non-tail calls.
 @fixme{The SVM exists, but it was conceived for a previous iteration
 of the architecture.  I have to adapt it a little, which will result in
 simpler code, and likely in better performance as well.}
+@fixme{Do I need a bytecode interpreter?  I experimented with Forth-style
+threaded code, which seems to work well.  I might drop the SVM altogether.}
 
 @subsection C backend
 This was actually the first backend I wrote.  It works, but I don't
 think it will scale to large programs (even if people tell me that
 recent GCCs are very good at compiling huge C source files made of
-small function, which is my case).  More importantly, the problem of
+small functions, which is my case).  More importantly, the problem of
 sibling-call compilation is entirely delegated to GCC.
 
-@fixme{I will replace this with the SVM}
+The C backend implicitly uses the C stack for return addresses.
+
+@fixme{I might replace this with the SVM}
 
 @subsection MIPS backend
-@fixme{This already generates working code, even if the interface is kinda ugly}
+The MIPS backend works well.  It currently generates 32-bit code only.
 
-@subsubsection Register map
+@c @subsubsection MIPS register map
 We use registers which are callee-save according to C ABIs:
-@code{$16}-@code{$23}.  They should be plenty.
+@code{$16}-@code{$23}.  They are plenty, for the needs of the trivial
+compiler.
 
 I don't reserve for our internal purposes the registers used for
 passing parameters (@code{$4}-@code{$7} on the o32 ABI,
@@ -392,64 +398,76 @@ passing parameters (@code{$4}-@code{$7} on the o32 ABI,
 (@code{$2}-@code{$3}) in C, nor C the stack pointer @code{$29} or the
 global pointer @code{$28}.
 
-The global pointer @code{$29} can be trashed by C functions under the
+The global pointer @code{$28} can be trashed by C functions under the
 o32 ABI.  All the more recent ABIs have since fixed that, but o32 is
-still widespread.  I currently restore @code{$29} after calling C
+still widespread.  I currently restore @code{$28} after calling C
 functions, without conditionalizing on the ABI.
 
-@table @code
-@item $2-$3
+The MIPS compiler saves return addresses on the epsilon stack,
+currently for all procedures --- it wouldn't be needed for leaf
+procedures not calling primitives.
+
+@table @w{}
+@item @code{$2}-@code{$3}
 scratch
-@item $16
+@item @code{$16}
 epsilon stack pointer
-@item $21
-a valid copy of the global pointer, to restore @code{$29}
-@item $22
+@item @code{$21}
+a valid copy of the global pointer, to restore @code{$28}
+@item @code{$22}
 @code{epsilon_c_primitive_functions} base.
-@item $23
-pointer to the C @code{struct thread_context} structure for the current thread.
+@item @code{$23}
+pointer to the @code{struct thread_context} C structure for the current thread.
+@item @code{$31}
+return address (saved on the stack at procedure entry).
 @end table
 Easily available for future use:
-@table @code
-@item $17-$20
+@table @w{}
+@item @code{$17}-@code{$20}
 available for future use
-@item $12-$15
+@item @code{$12}-@code{$15}
 (caller-save) available as scratch for future use
-@item $24-$25
+@item @code{$24}-@code{$25}
 (caller-save) available as scratch for future use
 @end table
 
 @subsection x86_64 backend
-There are two completely different calling conventions.  If I also have to support the microsoft convention, I will have to conditionalize a little.
+The x86_64 backend works well.
+
+There are two completely different calling conventions.  If I wanted
+to support the microsoft convention as well I'd have to conditionalize
+a little.
 
 @table @emph
-@item GNU (actually system V, also used by the other Unix systems)
+@item GNU (actually System V, also used by the other Unix systems)
 parameters @code{%rdi}, @code{%rsi}, @code{%rdx}, @code{%rcx}, @code{%r8}, and @code{%r9} --- results @code{%rax}, @code{%rdx}
 @item microsoft
 parameters @code{%rcx}, @code{%rdx}, @code{%r8}, @code{%r9} --- result @code{%rax}
 @end table
-I'll completely ignore the microsoft convention for the time being.
+I'll completely ignore the microsoft convention for the time being.  I
+might accept patches by others to support it in the future, but not
+now for this trivial compiler.
 
 Again, I'm only reserving callee-save registers.
-In the SysV ABI, callee-save registers are
+In the SysV ABI callee-save registers are
 @code{%rbx}, @code{%r12}, @code{%r13}, @code{%r14}, @code{%r15}.
 @code{%rsp} is also technically callee-save, but I don't want to use it.  The same holds for @code{%rbp}; that should be less critical, but I still won't use it.
 
-So, here's my tentative register map for the SysV ABI:
-@table @code
-@item %rax %r11
+Here's the current register map for the SysV ABI:
+@table @w{}
+@item @code{%rax},@code{%r11}
 scratch
-@item %rbx
-epsilon stack pointer
-@item %r12
+@item @code{%rbx}
+epsilon frame pointer
+@item @code{%r12}
 @code{epsilon_c_primitive_functions} base.
-@item %r13
-pointer to the C @code{struct thread_context} structure for the current thread.
+@item @code{%r13}
+pointer to the @code{struct thread_context} C structure for the current thread.
 @end table
 
 Easily available for future use:
-@table @code
-@item %r14 %r15
+@table @w{}
+@item @code{%r14}-@code{%r15}
 available for future use
 @end table
 
@@ -457,8 +475,93 @@ I use the C stack for return addresses, and for return addresses only.
 This comes for free when using @code{callq}, which pushes a return
 address to @code{%rsp}.
 
+@subsection MOS Technology 6502 backend (Commodore 64)
+The backend currently targets the Commodore 64 computer, but it should
+be easy to adapt to other machines using the 6502 CPU.  This is the
+only 16-bit backend, and the only one targeting ``the metal''; however
+some KERNAL (sic) ROM routines are used.
+
+The machine is way too small to host an epsilon interactive REPL or
+native compilation, but cross-compiling to the Commodore 64 from
+another platform works fine.  Compilation relies on the ACME
+cross-assembler, building @code{PRG} program images.
+
+The compiler generates a one-line BASIC starter, consisting of a
+@code{SYS} call to the machine-language program.  I don't bother
+correctly setting the pointers to delimit BASIC RAM.  The compiler is
+intended to generate fully machine-language programs, and doesn't
+support interacting with BASIC.
+
+Only a subset of the primitives is supported.  The CPU is 8-bit and
+particularly weak, not supporting multiplication, division, or even
+a barrel shifter.  Some fixnum primitives are replaced with
+@emph{epsilon procedures}; this in particular makes multiplication,
+division and remainder excruciatingly slow.  I might rewrite some of
+them in assembly.
+
+Supported primitives are
+@code{fixnum:+}, @code{fixnum:-}, @code{fixnum:*},
+@code{fixnum:bitwise-and}, @code{fixnum:bitwise-or}, @code{fixnum:bitwise-xor},
+@code{whatever:zero?}, @code{fixnum:1+}, @code{fixnum:1-},
+@code{fixnum:bitwise-not},
+@code{fixnum:left-shift-1-bit},
+@code{fixnum:arithmetic-right-shift-1-bit}, @code{fixnum:logic-right-shift-1-bit},
+@code{whatever:eq?}, @code{fixnum:<}, @code{fixnum:<=}, @code{fixnum:negate},
+@code{buffer:make}, @code{buffer:get}, @code{buffer:set!},  @code{buffer:initialize!},
+@code{io:standard-output}, @code{io:write-character}.
+
+``Heap'' allocation is supported, but there is currently no way to
+release heap memory, nor a garbage collector.  Disk files are not
+supported.  Character output transparently converts from ASCII to
+PETSCII.
+
+The following primitives are backend-specific, and useful for
+memory-mapped I/O:
+@code{io:load-byte}, @code{io:store-byte!},
+@code{c64:read-timer}.
+
+The following procedures are supported but are @emph{not} primitives
+wrappers in the 6502 backend: @code{fixnum:*}, @code{fixnum:/},
+@code{fixnum:%}, @code{fixnum:%/}, @code{fixnum:left-shift},
+@code{fixnum:arithmetic-right-shift}, @code{fixnum:logic-right-shift}.
+
+The 6502 is an @emph{accumulator} CPU.  Its only registers are the
+@code{A} accumulator, the two index registers @code{X} and @code{Y},
+plus a set of seven 1-bit flags.  It's not practical to reserve any
+register.  A compiler more elaborate than the current one would
+reserve zeropage 16-bit elements as ``registers''.  Using 8-bit
+instead of 16-bit operations where possible would considerably
+improve efficiency.
+
+The hardware return stack at page @code{$01} would only suffice for
+128-deep calls, and is therefore not used.  The trivial compiler uses
+its own stack for return addresses, parameters, results and
+temporaries.  All operands are 16-bits.  Stack accesses are painful on
+the 6502, which is unsuited to pointers.  Accessing a 16-bit word from
+the stack needs two memory accesses in @emph{zeropage indirect
+indexed} addressing mode, using the @code{Y} register to compute an
+8-bit offset from a 16-bit base pointer held in page @code{$00}.
+All computation is in binary mode; BCD mode is not used.
+
+The 6502 backend, differently from the others, makes heavy use
+of assembler macros in order to define operations which are predefined
+on other architectures.  The runtime library is completely written in
+assembly.  See @file{runtime/backend-specific/c64/runtime.a}.
+
+Reserved page @code{$00} globals (all of them are 16 bits):
+
+@table @w{}
+@item @code{00c1}
+frame pointer (updated at procedure entry/exit)
+@item @code{0002},@code{00fb},@code{00fd}
+scratch
+@end table
+
+The ``heap'' allocation pointer is currently not in page @code{$00}, and its
+address is not constant.
+
 @subsection Future backends
-@fixme{I plan to write a backends for PowerPC and x86 as well.  I
+@fixme{I plan to write a backend for ARM, PowerPC, and x86 as well.  I
 don't have access to hardware implementations of other architectures at
 the present time, but I know where to ask when the time comes.}
 

@@ -3699,6 +3699,23 @@
                                              body)))))
 
 
+;;;;; Symbol recognition with boxedness tags
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; When we have boxedness tags we can recognize a symbol at runtime,
+;;; easily enough.  We just have to check that it is a buffer with
+;;; another buffer as its first element, and that this inner buffer
+;;; (the symbol name) is in the symbol table associated to the
+;;; original object.
+(e1:define (boxedness:symbol? p)
+  (e1:and (boxedness:buffer? p)
+          (fixnum:> (boxedness:buffer-length p) 0)
+          (e1:let ((possible-name (buffer:get p 0)))
+            (e1:and (boxedness:buffer? possible-name)
+                    (string-hash:has? symbol:table possible-name)
+                    (whatever:eq? (string-hash:get symbol:table possible-name) p)))))
+
+
 ;;;;; Simple generic input ports
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

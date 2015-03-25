@@ -19,7 +19,7 @@
 ;;;;; along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
-;;;;; epsilon0 statically reachable globals, buffers and procedures
+;;;;; epsilon0 "statically" reachable globals, buffers and procedures
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; It's useful for compilers and analyzers to know the globals,
@@ -42,10 +42,10 @@
 ;;; expression might compute procedure names at run time in a complex
 ;;; way.  Here we make the assumption that e0:call-indirect can only
 ;;; obtain a procedure name via:
-;;;   i)  a literal symbol;
-;;;   ii) the value of a global;
-;;;   iii) a reachable pointer in memory, excluding every other symbol
-;;;        field.
+;;;   i)   a symbol literal;
+;;;   ii)  the value of a global;
+;;;   iii) pointers reachable without passing trhu the symbol table
+;;;        or non-global-value symbol fields.
 ;;; This is adequate for "static" epsilon0 programs; for dynamic
 ;;; epsilon0 programs we will have to be conservative and consider
 ;;; *every* procedure to be reachable.
@@ -53,10 +53,15 @@
 ;;; The rationale for the choice above is being able to compile static
 ;;; programs without including unnecessary procedures and global data,
 ;;; and without translating symbol data structures and epsilon0
-;;; expressions as data.  This is crucial for memory-constrained
-;;; targets, and still desirable elsewhere.
+;;; expressions, macros or macro procedures as data.  This is crucial
+;;; for memory-constrained targets, and still desirable elsewhere.
 
 ;;; FIXME: add buffers to the worklist
+
+;;; FIXME: optionally, only include the given procedure among the
+;;; calless if it's explicitly called.  This way I'll be able to reuse
+;;; this facility, which is efficient, for recursion analysis and
+;;; inlining.
 
 ;;; Given an expression an a set-as-list of its local variables update
 ;;; the given hashes of globals, pointer literals and procedures it
@@ -136,4 +141,7 @@
     (e1:dolist (p (set-as-list:unboxed-hash->set-as-list ps))
       (fio:write "Procedure " (sy p) "\n"))
     (e1:dolist (b (set-as-list:unboxed-hash->set-as-list bs))
-      (fio:write "Buffer " (i b) "\n"))))
+      (fio:write "Buffer " (i b))
+      (e1:when (boxedness:symbol? b)
+        (fio:write " (symbol: " (sy b) ")"))
+      (fio:write "\n"))))

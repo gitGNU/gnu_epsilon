@@ -28,18 +28,18 @@
 #define inline  /* nothing */
 #endif // #if 0
 
-#define EGC_DEBUG
+//#define EGC_DEBUG
 //#define EGC_VERBOSE
 //#define EGC_VERY_VERBOSE
-//#define EGC_TIME
+#define EGC_TIME
 #define EGC_USE_MEMCPY
 
-#define EGC_GENERATION_0_SEMISPACE_WORD_NO \
-  (4000 * 1024 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
-#define EGC_GENERATION_1_SEMISPACE_WORD_NO \
-  (1 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
-#define EGC_GENERATION_2_SEMISPACE_WORD_NO \
-  (64 * 1024L * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+#define EGC_GENERATION_0_WORD_NO \
+  (20 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+#define EGC_GENERATION_1_WORD_NO \
+  (10 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
+#define EGC_GENERATION_2_WORD_NO \
+  (20 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
 
 
 

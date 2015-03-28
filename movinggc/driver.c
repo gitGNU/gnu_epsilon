@@ -121,8 +121,8 @@ main (void)
   /* egc_verbose_log("p = %p\n", p); */
   /* egc_verbose_log("%p\n", EGC_TAG_POINTER(p)); */
   /* return 0; */
-  srand(time(NULL));
-  //srand (0); // I want deterministic results
+  //srand(time(NULL));
+  srand (0); // I want deterministic results
   egc_initialize ();
   int i, j;
   void *root1;
@@ -145,8 +145,8 @@ main (void)
       for (i = 0; i < INNER_LOOP_LENGTH ; i++)
         {
           void *new_cons = cons (i, root1);
-          if (i % 10 == 0)
-          //if (random_from_0_to_1 () <= ADD_PROBABILITY)
+          //if (i % 10 == 0)
+          if (random_from_0_to_1 () <= ADD_PROBABILITY)
             {                   //(rand() % 100 >= 95){
               //if(rand() % 200 <= 1){
               root1 = new_cons;
@@ -169,15 +169,15 @@ main (void)
   egc_dump_times ();
 
   fprintf (stderr, "* The root %p (tag %li) is at %p\n", root1, (long)root1 & 1, &root1);
-  //dump (root1);
   fprintf (stderr, "* Checking integrity...\n");
+  //dump (root1);
   check (root1);
   fprintf (stderr, "* Force a final collection before integrity checks...\n");
   egc_full_gc ();
   /* Dump again, to make sure nothing broke. */
   fprintf (stderr, "* Checking integrity again...\n");
   check (root1);
-  /* //dump (root1); */
+  //dump (root1);
 
   //egc_dump_generations ();
 

@@ -30,6 +30,25 @@
 /* Initialize and finalize: */
 void egc_initialize (void);
 
+/* Generation initialization and finalization. */
+struct egc_generation;
+typedef struct egc_generation* egc_generation_t;
+/* Allocate and return a generation array of generation_no elements. */
+egc_generation_t
+egc_make_generations (size_t generation_no)
+  __attribute__ ((cold, malloc));
+/* Each generation (as returned by egc_make_generations) must be
+   initialized exactly once. */
+void
+egc_initialize_semispace_generation (egc_generation_t generation,
+                                     int semispace_no, /* 1 or 2 */
+                                     size_t word_no)
+  __attribute__ ((cold));
+/* Generation data structures have to refer one another.  This has to
+   be called after initializing them all. */
+void egc_link_generations (egc_generation_t generations, size_t generation_no)
+  __attribute__ ((cold));
+
 /* Register an array of permanent roots: */
 void egc_register_roots (void **pointer_to_roots, size_t size_in_words);
 

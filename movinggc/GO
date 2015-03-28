@@ -37,7 +37,7 @@ OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -finline-functions -funroll-all-loops"
 
 # FIXME: LTO doesn't play well with global regiter variables, or
 # (more likely) I don't know how to use them together.  FIXME: ask.
-# OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -flto"
+OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -flto"
 
 DEBUGFLAGS="$DEBUGFLAGS -Wall"
 DEBUGFLAGS="$DEBUGFLAGS -g"
@@ -51,7 +51,7 @@ CFLAGS="$OPTIMIZATIONFLAGS $DEBUGFLAGS $PROFILEFLAGS"
 
 CFLAGS="$CFLAGS -DMOVINGGC_ARCHITECTURE_"`uname --machine | sed s/-/_/g`" "
 
-CFLAGS="$CFLAGS -save-temps"
+#CFLAGS="$CFLAGS -save-temps"
 
 echo COMPILING...
 gcc $CFLAGS -c movinggc.c

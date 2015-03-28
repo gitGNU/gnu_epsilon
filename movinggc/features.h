@@ -49,6 +49,7 @@
 //#define EGC_USE_REGISTER_POINTERS
 
 #ifdef EGC_USE_REGISTER_POINTERS
+#warning using global register pointers: it should be disabled now
 #if defined(EGC_ARCHITECTURE_i686) \
     || defined(EGC_ARCHITECTURE_i686_AT386 /* for the Hurd */)
 // x86: We can use %esi, %ebx and %edi
@@ -75,7 +76,7 @@
 #define EGC_REGISTER_5 "%30"
 #else
 #error Unknown architecture: can not use register pointers
-#endif // ... architecture-specific code
+#endif // #ifdef EGC_USE_REGISTER_POINTERS
 register void ** egc_fromspace_next_unallocated_word
 asm (EGC_REGISTER_1);
 register void ** egc_fromspace_after_payload_end

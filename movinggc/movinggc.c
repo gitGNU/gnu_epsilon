@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <limits.h>
 #include <time.h>
 #include <sys/times.h>
 
@@ -424,15 +425,15 @@ egc_dump_times (void)
   double now = egc_get_current_time ();
   double total_time = now - egc_initialization_time;
 
-  fprintf (stderr, "Total run time %.3fs:\n", total_time);
+  fprintf (stderr, "Total run time:       %8.3fs:\n", total_time);
   double total_gc_time = 0.0;
   egc_generation_t g;
   for (g = egc_generations; g != NULL; g = g->next_older)
     total_gc_time += g->gc_time;
   double total_mutator_time = total_time - total_gc_time;
-  fprintf (stderr, "  total mutator time %.3fs (%.1f%%)\n", total_mutator_time,
+  fprintf (stderr, "  total mutator time: %8.3fs (%.1f%%)\n", total_mutator_time,
            total_mutator_time / total_time * 100);
-  fprintf (stderr, "  total GC time      %.3fs (%.1f%%", total_gc_time,
+  fprintf (stderr, "  total GC time:      %8.3fs (%.1f%%", total_gc_time,
            total_gc_time / total_time * 100);
   if (total_gc_time > 0.0)
     {
@@ -449,7 +450,7 @@ egc_dump_times (void)
         } // for
       first = true;
       fprintf (stderr, ")\n");
-      fprintf (stderr, "                                    (absolute ");
+      fprintf (stderr, "                                       (absolute: ");
       for (g = egc_generations; g != NULL; g = g->next_older)
         {
           if (first)
@@ -956,11 +957,17 @@ void
 egc_initialize (void)
 {
 #if 1
-  int generation_no = 3;
+  /* int generation_no = 3; */
+  /* egc_generation_t generations = egc_make_generations (generation_no); */
+  /* egc_initialize_semispace_generation (generations + 0, 1, EGC_GENERATION_0_WORD_NO); */
+  /* egc_initialize_semispace_generation (generations + 1, 1, EGC_GENERATION_1_WORD_NO); */
+  /* egc_initialize_semispace_generation (generations + 2, 2, EGC_GENERATION_2_WORD_NO); */
+
+  int generation_no = 1;
   egc_generation_t generations = egc_make_generations (generation_no);
-  egc_initialize_semispace_generation (generations + 0, 1, EGC_GENERATION_0_WORD_NO);
-  egc_initialize_semispace_generation (generations + 1, 1, EGC_GENERATION_1_WORD_NO);
-  egc_initialize_semispace_generation (generations + 2, 2, EGC_GENERATION_2_WORD_NO);
+  //egc_initialize_semispace_generation (generations + 0, 2, EGC_GENERATION_2_WORD_NO);
+  egc_initialize_semispace_generation (generations + 0, 2, (long)(2.31435 * 1024 * 1024L / 8));
+
   /* int i; */
   /* for (i = 0; i < generation_no; i ++) */
   /*   egc_initialize_semispace_generation (generations + i, */
@@ -983,7 +990,8 @@ egc_initialize (void)
   egc_post_hook = NULL;
   egc_hook_argument = NULL;
 
-  egc_dump_generations ();
+  //fprintf (stderr, "This is a %i-bit architecture.\n", (int)(sizeof (void*) * CHAR_BIT));
+  //egc_dump_generations ();
 }
 
 struct egc_root

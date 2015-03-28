@@ -521,6 +521,10 @@ static void
 egc_initialize_generation (int generation_index,
                            egc_generation_t generation)
 {
+#ifdef EGC_DEBUG
+  /* Intentionally fill every field with invalid data. */
+  memset (generation, -1, sizeof (struct egc_generation));
+#endif // #ifdef EGC_DEBUG
   generation->generation_index = generation_index;
 
   generation->roots_from_older_generations.root_no = 0;
@@ -595,7 +599,6 @@ egc_initialize_semispace_generation (egc_generation_t generation,
       sprintf (name, "G%i-B", (int)generation->generation_index);
       generation->tospace = egc_make_semispace (word_no, name);
     }
-  //????
 }
 
 void egc_link_generations (egc_generation_t generations, size_t generation_no)

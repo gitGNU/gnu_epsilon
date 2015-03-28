@@ -28,7 +28,7 @@
 #define inline  /* nothing */
 #endif // #if 0
 
-//#define EGC_DEBUG
+#define EGC_DEBUG
 //#define EGC_VERBOSE
 //#define EGC_VERY_VERBOSE
 #define EGC_TIME

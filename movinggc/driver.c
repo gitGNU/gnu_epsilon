@@ -80,7 +80,7 @@ dump_or_check (void **list, int verbose)
       if (verbose)
         {
           fprintf (stderr, "%p (%s): ", untagged_list,
-                  egc_semispace_name_of (untagged_list));
+                  egc_heap_name_of (untagged_list));
           fprintf (stderr, "%li\n", (long) EGC_UNTAG_NONPOINTER (untagged_list[0]));
           //dump(EGC_UNTAG_POINTER((cons[1])));
         }

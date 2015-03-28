@@ -88,6 +88,24 @@ struct egc_semispace
 }; // struct
 typedef struct egc_semispace *egc_semispace_t;
 
+/* In a mark-sweep heap the allocation pointer, which is always
+   untagged, is NULL when the heap is full, or points to the first
+   word of the first free block otherwise.
+   For each block:
+   i)  the first word contains the block size in words (which includes
+   the first two words), tagged as nonforwarding with generation 0;
+   ii) the second word contains an untagged pointer to the next free
+   block, or NULL. */
+struct egc_marksweep_heap
+{
+  void **payload_beginning;
+  size_t payload_size_in_words;
+  void **allocation_pointer;
+  //size_t allocated_word_no; // FIXME: no, this is inefficient to keep updated.
+  char name[10];
+}; // struct
+typedef struct egc_marksweep_heap *egc_marksweep_heap_t;
+
 #ifdef EGC_TIME
 static double egc_ticks_per_second;
 double
@@ -123,6 +141,22 @@ egc_dump_semispace (egc_semispace_t semispace)
            semispace->name, (float)payload_words * sizeof (void*) / 1024.0,
            semispace->payload_beginning, semispace->after_payload_end,
            chars_free / 1024.0,words_free_percentage);
+}
+
+static void
+egc_dump_marksweep_heap (egc_marksweep_heap_t h)
+{
+  long payload_words = h->payload_size_in_words;
+  fprintf (stderr, "%s %.01fkiB [%p, %p)\n",
+           h->name, (float)payload_words * sizeof (void*) / 1024.0,
+           h->payload_beginning, h->payload_beginning + payload_words);
+}
+
+static void
+egc_dump_marksweep_heap_content (egc_marksweep_heap_t h)
+{
+  egc_dump_marksweep_heap (h);
+  fprintf (stderr, "(content dump unimplemented for mark-sweep heaps)\n");
 }
 
 struct egc_roots
@@ -194,7 +228,7 @@ typedef void (*egc_gc_generation_function_t)
 enum egc_generation_type
   {
     egc_generation_type_semispace,
-    egc_generation_type_mark_sweep,
+    egc_generation_type_marksweep,
     egc_generation_type_large,
   };
 typedef enum egc_generation_type
@@ -203,25 +237,44 @@ egc_generation_type_t;
 struct egc_generation
 {
   egc_generation_index_t generation_index;
+  egc_generation_t next_younger;
+  egc_generation_t next_older;
+
   egc_generation_type_t type;
+  union
+  {
+    struct /* type == egc_generation_type_semispace */
+    {
+      egc_semispace_t fromspace;
+      egc_semispace_t tospace; /* NULL if not used. */
+    };
+    struct /* type == egc_generation_type_marksweep */
+    {
+      egc_marksweep_heap_t marksweep_heap;
+    };
+  }; // union
+
+  /* Statistics. */
+  int gc_no;
+  double scavenged_words;
+  double gc_time;
 
   egc_allocate_chars_function_t allocate_chars;
   egc_allocate_chars_in_tospace_function_t allocate_chars_in_tospace;
   egc_gc_generation_function_t gc_generation;
   egc_gc_words_function_t words;
   egc_gc_free_words_function_t free_words;
-  egc_semispace_t fromspace;
-  egc_semispace_t tospace; /* NULL if not used. */
-  egc_generation_t next_younger;
-  egc_generation_t next_older;
+
   struct egc_roots roots_from_older_generations;
-  int gc_no;
-  double scavenged_words;
-  double gc_time;
 };
 
 static void*
 egc_allocate_chars_from_semispace_generation (egc_generation_t g,
+                                              size_t size_in_chars)
+  __attribute__ ((hot, malloc));
+
+static void*
+egc_allocate_chars_from_marksweep_generation (egc_generation_t g,
                                               size_t size_in_chars)
   __attribute__ ((hot, malloc));
 
@@ -239,6 +292,9 @@ static void
 egc_gc_semispace_generation (egc_generation_t g)
   __attribute__ ((cold, noinline));
 static void
+egc_gc_marksweep_generation (egc_generation_t g)
+  __attribute__ ((cold, noinline));
+static void
 egc_gc_generation (egc_generation_t g)
   __attribute__ ((cold, noinline));
 
@@ -247,6 +303,12 @@ egc_words_in_semispace_generation (egc_generation_t g);
 
 static size_t
 egc_free_words_in_semispace_generation (egc_generation_t g);
+
+static size_t
+egc_words_in_marksweep_generation (egc_generation_t g);
+
+static size_t
+egc_free_words_in_marksweep_generation (egc_generation_t g);
 
 /* ************************************************************* */
 
@@ -268,7 +330,7 @@ egc_dump_semispace_content (egc_semispace_t semispace)
                (long)*p & 1);
       if (EGC_IS_POINTER(*p))
         fprintf (stderr, "pointer to %s)\n",
-                 egc_semispace_name_of(EGC_UNTAG_POINTER(*p)));
+                 egc_heap_name_of(EGC_UNTAG_POINTER(*p)));
       else
         fprintf (stderr, "non-pointer)\n");
     } // for
@@ -290,11 +352,13 @@ static void egc_dump_older_generation_pointers (egc_generation_t g)
 }
 
 typedef void (*egc_semispace_function_t) (egc_semispace_t s);
+typedef void (*egc_marksweep_heap_function_t) (egc_marksweep_heap_t s);
 typedef void (*egc_generation_function_t) (egc_generation_t s);
 
 static void
 egc_call_on_generation (egc_generation_t g,
                         egc_semispace_function_t sf,
+                        egc_marksweep_heap_function_t mf,
                         egc_generation_function_t gf)
 {
   while (g != NULL)
@@ -311,12 +375,23 @@ egc_call_on_generation (egc_generation_t g,
         fprintf (stderr, ", %.9fs average", g->gc_time / g->gc_no);
 #endif // #ifdef EGC_TIME
       fprintf (stderr, "):\n");
-      fprintf (stderr, "  Fromspace: ");
-      sf (g->fromspace);
-      if (g->tospace)
+      switch (g->type)
         {
-          fprintf (stderr, "  Tospace:   ");
-          sf (g->tospace);
+        case egc_generation_type_semispace:
+          fprintf (stderr, "  Fromspace: ");
+          sf (g->fromspace);
+          if (g->tospace)
+            {
+              fprintf (stderr, "  Tospace:   ");
+              sf (g->tospace);
+            }
+          break;
+        case egc_generation_type_marksweep:
+          fprintf (stderr, "  Marksweep: ");
+          mf (g->marksweep_heap);
+          break;
+        default:
+          egc_fatal ("unknown generation type %i", (int)g->type);
         }
       if (gf != NULL)
         gf (g);
@@ -329,6 +404,7 @@ egc_dump_generations (void)
 {
   egc_call_on_generation (egc_generations,
                           egc_dump_semispace,
+                          egc_dump_marksweep_heap,
                           NULL);
 }
 
@@ -337,6 +413,7 @@ egc_dump_generation_contents (void)
 {
   egc_call_on_generation (egc_generations,
                           egc_dump_semispace_content,
+                          egc_dump_marksweep_heap_content,
                           egc_dump_older_generation_pointers);
 }
 
@@ -398,29 +475,58 @@ egc_is_in_semispace (const void * const untagged_pointer_as_void_star,
     && untagged_pointer < semispace->after_payload_end;
 }
 
-static egc_semispace_t
-egc_semispace_of (const void *untagged_pointer)
+static bool
+egc_is_in_marksweep_heap (const void * const untagged_pointer_as_void_star,
+                          const egc_marksweep_heap_t const marksweep_heap)
 {
-  egc_generation_t g = egc_generations;
-  while (g != NULL)
+  void **untagged_pointer = (void **) untagged_pointer_as_void_star;
+  return untagged_pointer >= marksweep_heap->payload_beginning
+    && untagged_pointer < marksweep_heap->payload_beginning
+                          + marksweep_heap->payload_size_in_words;
+}
+
+static egc_semispace_t
+egc_semispace_of_untagged (const void *untagged_pointer)
+{
+  egc_generation_t g;
+  for (g = egc_generations; g != NULL; g = g->next_older)
     {
+      if (g->type != egc_generation_type_semispace)
+        continue;
       if (egc_is_in_semispace (untagged_pointer, g->fromspace))
         return g->fromspace;
       else if (g->tospace != NULL
                && egc_is_in_semispace (untagged_pointer, g->tospace))
         return g->tospace;
-      g = g->next_older;
-    } // while
+    } // for
+  return NULL;
+}
+
+static egc_marksweep_heap_t
+egc_marksweep_heap_of_untagged (const void *untagged_pointer)
+{
+  egc_generation_t g;
+  for (g = egc_generations; g != NULL; g = g->next_older)
+    {
+      if (g->type != egc_generation_type_marksweep)
+        continue;
+      if (egc_is_in_marksweep_heap (untagged_pointer, g->marksweep_heap))
+        return g->marksweep_heap;
+    } // for
   return NULL;
 }
 
 const char *
-egc_semispace_name_of (const void *untagged_pointer_as_void_star)
+egc_heap_name_of (const void *untagged_pointer_as_void_star)
 {
   egc_semispace_t semispace =
-    egc_semispace_of (untagged_pointer_as_void_star);
+    egc_semispace_of_untagged (untagged_pointer_as_void_star);
   if (semispace != NULL)
     return semispace->name;
+  egc_marksweep_heap_t marksweep_heap =
+    egc_marksweep_heap_of_untagged (untagged_pointer_as_void_star);
+  if (marksweep_heap != NULL)
+    return marksweep_heap->name;
   else
     return "out-of-heap";
 }
@@ -557,7 +663,7 @@ egc_initialize_semispace (egc_semispace_t s, size_t word_no, char *name)
 {
   void **semispace_payload = (void **) malloc (word_no * sizeof(void*));
   if_unlikely (semispace_payload == NULL)
-    egc_fatal ("egc_make_semispace: couldn't allocate");
+    egc_fatal ("egc_initialize_semispace: couldn't allocate");
   s->next_unallocated_word = semispace_payload;
   s->payload_beginning = semispace_payload;
   s->after_payload_end = semispace_payload + word_no;
@@ -570,7 +676,7 @@ egc_make_semispace (size_t word_no, char *name)
 {
   egc_semispace_t res = (egc_semispace_t)malloc (sizeof (struct egc_semispace));
   if_unlikely (res == NULL)
-    egc_fatal ("couldn't make semispace");
+    egc_fatal ("couldn't allocate semispace");
   egc_initialize_semispace (res, word_no, name);
   return res;
 }
@@ -586,7 +692,10 @@ egc_initialize_semispace_generation (egc_generation_t generation,
   generation->words = egc_words_in_semispace_generation;
   generation->free_words = egc_free_words_in_semispace_generation;
   generation->allocate_chars = egc_allocate_chars_from_semispace_generation;
-  generation->allocate_chars_in_tospace = egc_allocate_chars_in_tospace_from_double_semispace_generation;
+  if (semispace_no == 1)
+    generation->allocate_chars_in_tospace = egc_allocate_chars_in_tospace_from_single_semispace_generation;
+  else
+    generation->allocate_chars_in_tospace = egc_allocate_chars_in_tospace_from_double_semispace_generation;
   generation->gc_generation = egc_gc_semispace_generation;
   char name[10];
   sprintf (name, "G%i%s", (int)generation->generation_index,
@@ -599,6 +708,143 @@ egc_initialize_semispace_generation (egc_generation_t generation,
       sprintf (name, "G%i-B", (int)generation->generation_index);
       generation->tospace = egc_make_semispace (word_no, name);
     }
+}
+
+static void
+egc_initialize_marksweep_heap (egc_marksweep_heap_t s, size_t word_no, char *name)
+{
+  void **marksweep_heap_payload = (void **) malloc (word_no * sizeof(void*));
+  if_unlikely (marksweep_heap_payload == NULL)
+    egc_fatal ("egc_initialize_marksweep_heap: couldn't allocate");
+  s->payload_beginning = marksweep_heap_payload;
+  s->payload_size_in_words = word_no;
+  strcpy (s->name, name);
+  s->allocation_pointer = marksweep_heap_payload;
+  /* At the beginning there is only one big slot in the free list, of size
+     word_no (in words). */
+  s->allocation_pointer[0] = EGC_NONFORWARDING_HEADER(word_no, 0);
+  s->allocation_pointer[1] = NULL;
+}
+
+static egc_marksweep_heap_t
+egc_make_marksweep_heap (size_t word_no, char *name)
+{
+  egc_marksweep_heap_t res = (egc_marksweep_heap_t)malloc (sizeof (struct egc_marksweep_heap));
+  if_unlikely (res == NULL)
+    egc_fatal ("couldn't allocate marksweep_heap");
+  egc_initialize_marksweep_heap (res, word_no, name);
+  return res;
+}
+
+static size_t
+egc_words_in_marksweep_generation (egc_generation_t g)
+{
+  egc_fatal ("egc_words_in_marksweep_generation: unimplemented");
+}
+
+static size_t
+egc_free_words_in_marksweep_generation (egc_generation_t g)
+{
+  egc_fatal ("egc_free_words_in_marksweep_generation: unimplemented");
+}
+
+/* This is a simple first-fit. */
+static void*
+egc_allocate_words_from_marksweep_generation (egc_generation_t g,
+                                              size_t size_in_words)
+{
+  bool did_we_gc = false;
+  do
+    {
+      egc_marksweep_heap_t h = g->marksweep_heap;
+      void **p;
+      for (p = h->allocation_pointer; p != NULL; p = (void**)p[1])
+        {
+          size_t block_size_in_words = EGC_NONFORWARDING_HEADER_TO_SIZE(*p);
+          if (size_in_words + 1 > block_size_in_words)
+            {
+              fprintf (stderr, "the block at %p is %i words long, and I need %i: trying next\n", p,
+                       (int)block_size_in_words, (int)size_in_words + 1);
+              continue;
+            }
+          size_t new_empty_block_size = block_size_in_words - size_in_words - 1;
+          switch (new_empty_block_size)
+            {
+            case 0:
+              /* We used the entire free block. */
+              h->allocation_pointer = (void**)p[1];
+              break;
+            case 1:
+              /* We used the entire free block minus one word.  That's
+                 not enough space to make a new block, so we just
+                 initialize the unused word to a non-pointer to avoid
+                 confusing the GC, and then forget about it. */
+              h->allocation_pointer = (void**)p[1];
+              p[size_in_words + 1] = EGC_TAG_NONPOINTER(0xf00f000);
+              break;
+            default:
+              {
+                /* Make a smaller block from the block we partially used. */
+#ifdef EGC_DEBUG
+                if_unlikely (new_empty_block_size < 2)
+                  egc_fatal ("wrong new empty block size");
+#endif // #ifdef EGC_DEBUG
+                void **new_empty_block = p + size_in_words + 1;
+                h->allocation_pointer = new_empty_block;
+                new_empty_block[1] = p[1];
+                new_empty_block[0] = EGC_NONFORWARDING_HEADER (new_empty_block_size, 0);
+              }
+            } // switch
+          //fprintf (stderr, "Allocated %p\n", p + 1);
+          p[0] = EGC_NONFORWARDING_HEADER (size_in_words * sizeof(void*),
+                                           g->generation_index);
+          return p + 1;
+        } // while
+      if (did_we_gc)
+        egc_fatal ("couldn't free up space after GC'ing");
+      else
+        {
+          egc_gc_marksweep_generation (g);
+          did_we_gc = true;
+        }
+    } while (true);
+}
+
+static void*
+egc_allocate_chars_from_marksweep_generation (egc_generation_t g,
+                                              size_t size_in_chars)
+{
+#ifdef EGC_DEBUG
+  if_unlikely (size_in_chars <= 0)
+    egc_fatal ("egc_allocate_chars_from_marksweep_generation: object size %li not positive",
+               (long)size_in_chars);
+  if_unlikely (size_in_chars % sizeof (void *) != 0)
+    egc_fatal
+    ("egc_allocate_chars_from_marksweep_generation: object size %li not a wordsize multiple",
+     (long)size_in_chars);
+#endif // #ifdef EGC_DEBUG
+  return egc_allocate_words_from_marksweep_generation (g, size_in_chars / sizeof(void*));
+}
+
+static void
+egc_gc_marksweep_generation (egc_generation_t g)
+{
+  egc_fatal ("egc_gc_marksweep_generation: unimplemented");
+}
+
+void
+egc_initialize_marksweep_generation (egc_generation_t generation,
+                                     size_t word_no)
+{
+  generation->type = egc_generation_type_marksweep;
+  generation->words = egc_words_in_marksweep_generation;
+  generation->free_words = egc_free_words_in_marksweep_generation;
+  generation->allocate_chars = egc_allocate_chars_from_marksweep_generation;
+  generation->allocate_chars_in_tospace = NULL; // FIXME: I might need this in the end.
+  generation->gc_generation = egc_gc_marksweep_generation;
+  char name[10];
+  sprintf (name, "G%i", (int)generation->generation_index);
+  generation->marksweep_heap = egc_make_marksweep_heap (word_no, name);
 }
 
 void egc_link_generations (egc_generation_t generations, size_t generation_no)
@@ -638,12 +884,19 @@ void egc_link_generations (egc_generation_t generations, size_t generation_no)
 void
 egc_initialize (void)
 {
+#if 0
   int generation_no = 3, i;
   egc_generation_t generations = egc_make_generations (generation_no);
   for (i = 0; i < generation_no; i ++)
     egc_initialize_semispace_generation (generations + i,
                                          (i == generation_no - 1) ? 2 : 1,
                                          1024 * 4 * (1 << i)*(1 << i)*(1 << i)*(1 << i)*(1 << i));
+#else
+  int generation_no = 1, i;
+  egc_generation_t generations = egc_make_generations (generation_no);
+  for (i = 0; i < generation_no; i ++)
+    egc_initialize_marksweep_generation (generations + i, 0.5 * 1000 * 1024 * 1024L);
+#endif
   //egc_initialize_semispace_generation (generations + 0, 1, EGC_GENERATION_0_WORD_NO);
   //egc_initialize_semispace_generation (generations + 1, 1, EGC_GENERATION_1_WORD_NO);
   //egc_initialize_semispace_generation (generations + 2, 2, EGC_GENERATION_2_WORD_NO);
@@ -792,11 +1045,11 @@ egc_scavenge_pointer (egc_generation_t fromg,
 #ifdef EGC_DEBUG
   // This is now incorrect: a root can very well point to a semispace
   // not belonging to the 0-th generation.
-  /* if_unlikely (egc_semispace_of (untagged_pointer) != fromspace) */
+  /* if_unlikely (egc_semispace_of_untagged (untagged_pointer) != fromspace) */
   /*   { */
   /*     egc_dump_generation_contents (); */
   /*     egc_fatal ("%p (%s) is not in fromspace (%s)", untagged_pointer, */
-  /*                     egc_semispace_name_of (untagged_pointer), */
+  /*                     egc_heap_name_of (untagged_pointer), */
   /*                     fromspace->name); */
   /*   } */
 #endif // #ifdef EGC_DEBUG
@@ -809,9 +1062,9 @@ egc_scavenge_pointer (egc_generation_t fromg,
         EGC_FORWARDING_HEADER_TO_DESTINATION (tagged_header);
       egc_verbose_log ("%p (%s) forwards to %p (%s)\n",
                        untagged_pointer,
-                       egc_semispace_name_of (untagged_pointer),
+                       egc_heap_name_of (untagged_pointer),
                        untagged_forwarding_pointer,
-                       egc_semispace_name_of
+                       egc_heap_name_of
                        (untagged_forwarding_pointer));
       return EGC_TAG_POINTER (untagged_forwarding_pointer);
     } // if
@@ -858,9 +1111,9 @@ egc_scavenge_pointer (egc_generation_t fromg,
   egc_verbose_log ("* scavenging %p (%iB, %s) to %p (%s)\n",
                    untagged_pointer,
                    (int) size_in_chars,
-                   egc_semispace_name_of (untagged_pointer),
+                   egc_heap_name_of (untagged_pointer),
                    object_in_tospace,
-                   egc_semispace_name_of (object_in_tospace));
+                   egc_heap_name_of (object_in_tospace));
 
   /* Now we have to copy object fields into the new copy, and scavenge
      the new copy (or just push the pointers to the words to be changed
@@ -902,7 +1155,7 @@ egc_scavenge_pointer_to_candidate_pointer (egc_generation_t fromg,
         EGC_UNTAG_POINTER (tagged_candidate_pointer);
 #ifdef EGC_DEBUG
       egc_semispace_t semispace =
-        egc_semispace_of (untagged_pointer);
+        egc_semispace_of_untagged (untagged_pointer);
       if_unlikely (semispace == NULL)
         egc_fatal ("pointer %p (tagged %p) points out of the heap",
                    untagged_pointer, tagged_candidate_pointer);
@@ -1257,6 +1510,7 @@ egc_free_words_in_semispace_generation (egc_generation_t g)
 void egc_write_barrier (void **untagged_initial_pointer,
                         long offset_in_words)
 {
+  // FIXME: this is ridiculously inefficient.  Use my new strategy instead.
   egc_generation_index_t pointer_generation =
     EGC_NONFORWARDING_HEADER_TO_GENERATION(untagged_initial_pointer[-1]);
   if (pointer_generation != 0)
@@ -1268,7 +1522,7 @@ void egc_write_barrier (void **untagged_initial_pointer,
     } // if
 }
 
-void *
+static void *
 egc_allocate_chars_in_tospace_from_single_semispace_generation (egc_generation_t g,
                                                                 size_t size_in_chars)
 {
@@ -1321,11 +1575,11 @@ egc_allocate_chars_from_semispace_generation (egc_generation_t g,
 {
 #ifdef EGC_DEBUG
   if_unlikely (size_in_chars <= 0)
-    egc_fatal ("egc_allocate_chars: object size %li not positive",
+    egc_fatal ("egc_allocate_chars_from_semispace_generation: object size %li not positive",
                (long)size_in_chars);
   if_unlikely (size_in_chars % sizeof (void *) != 0)
     egc_fatal
-    ("egc_allocate_chars: object size %li not a wordsize multiple",
+    ("egc_allocate_chars_from_semispace_generation: object size %li not a wordsize multiple",
      (long)size_in_chars);
 #endif // #ifdef EGC_DEBUG
 
@@ -1345,11 +1599,11 @@ egc_allocate_chars_from_semispace_generation (egc_generation_t g,
 
   egc_verbose_log ("...Allocated %p(%li) (%liB, %s)\n",
                    res, (long) res, size_in_chars,
-                   egc_semispace_name_of (res));
+                   egc_heap_name_of (res));
 #ifdef EGC_DEBUG
-  if_unlikely (egc_semispace_of (res) != fromspace)
+  if_unlikely (egc_semispace_of_untagged (res) != fromspace)
     egc_fatal ("%p allocated from %s instead of fromspace (%s)", res,
-               egc_semispace_name_of (res), fromspace->name);
+               egc_heap_name_of_untagged (res), fromspace->name);
 #endif // #ifdef EGC_DEBUG
   return res;
 }

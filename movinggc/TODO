@@ -16,6 +16,11 @@ You should have received a copy of the GNU General Public License
 along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
+egc_semispace_of, egc_marksweep_heap_of: optimize by only looking at
+the appropriate generation.  This might speed things up.
+
+Finalize GC (this is distinct from object finalization).
+
 Remove non-GC allocation and destruction from epsilon's primitives in
 C.  They are not used and they would make a huge mess with the moving
 collector.

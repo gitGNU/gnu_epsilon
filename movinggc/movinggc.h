@@ -125,7 +125,7 @@ void egc_full_gc (void) __attribute__ ((noinline, cold));
 
 /* Statistics and debugging: */
 float egc_fill_ratio (void);
-const char *egc_semispace_name_of (const void *untagged_pointer);
+const char *egc_heap_name_of (const void *untagged_pointer);
 long egc_gc_no (void); // how many times did we GC?
 double egc_allocated_bytes (void); // how many times bytes did we allocate since the beginning?
 void egc_dump_generations (void);

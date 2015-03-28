@@ -729,7 +729,8 @@ egc_initialize_marksweep_heap (egc_marksweep_heap_t s, size_t word_no, char *nam
 static egc_marksweep_heap_t
 egc_make_marksweep_heap (size_t word_no, char *name)
 {
-  egc_marksweep_heap_t res = (egc_marksweep_heap_t)malloc (sizeof (struct egc_marksweep_heap));
+  egc_marksweep_heap_t res = (egc_marksweep_heap_t)
+    malloc (sizeof (struct egc_marksweep_heap));
   if_unlikely (res == NULL)
     egc_fatal ("couldn't allocate marksweep_heap");
   egc_initialize_marksweep_heap (res, word_no, name);
@@ -813,6 +814,10 @@ egc_allocate_words_from_marksweep_generation (egc_generation_t g,
 static void*
 egc_allocate_chars_from_marksweep_generation (egc_generation_t g,
                                               size_t size_in_chars)
+  __attribute__((hot, malloc));
+static void*
+egc_allocate_chars_from_marksweep_generation (egc_generation_t g,
+                                              size_t size_in_chars)
 {
 #ifdef EGC_DEBUG
   if_unlikely (size_in_chars <= 0)
@@ -830,6 +835,72 @@ static void
 egc_gc_marksweep_generation (egc_generation_t g)
 {
   egc_fatal ("egc_gc_marksweep_generation: unimplemented");
+/* #ifdef EGC_TIME */
+/*   double time_before = egc_get_current_time (); */
+/* #endif // #ifdef EGC_TIME */
+
+/*   egc_marksweep_heap_t const heap = g->marksweep_heap; */
+/* #ifdef EGC_VERBOSE */
+/*   egc_log ("[%i-GC %s->%s: BEGIN...\n", (int)g->generation_index, heap->name); */
+/*   /\* egc_dump_generations (); *\/ */
+/*   /\* egc_log ("]\n"); *\/ */
+/* #endif // #ifdef EGC_VERBOSE */
+
+/*   /\* Any generation younger than the one we are collecting is */
+/*      effectively a set of roots.  Scan them. */
+/*      [FIXME: What shall I do about inter-generational pointers? */
+/*      I'm not sure the current solution is correct.] *\/ */
+/*   egc_scan_previous_generations (g, tog, tospace); */
+
+/*   egc_scavenge_roots (g, tog, tospace); */
+
+/*   egc_two_fingers (g, tog, initial_left_finger, fromspace, tospace); */
+
+/*   if (g->tospace != NULL) */
+/*     egc_flip_spaces (g); */
+/*   else */
+/*     fromspace->next_unallocated_word = fromspace->payload_beginning; */
+
+/*   /\* Clear inter-generational pointers for all generations younger */
+/*      than this one. *\/ */
+/*   egc_generation_t younger_g; */
+/*   for (younger_g = g->next_younger; */
+/*        younger_g != NULL; */
+/*        younger_g = younger_g->next_younger) */
+/*     { */
+/* #ifdef EGC_DEBUG */
+/*       /\* if_unlikely (egc_free_words_in_generation (younger_g) *\/ */
+/*       /\*              < egc_words_in_generation (younger_g)) *\/ */
+/*       /\*   egc_fatal ("generation %i is not empty after %i-GC: I fear it should be", *\/ */
+/*       /\*                   (int)younger_g->generation_index, (int)g->generation_index); *\/ */
+/* #endif // #ifdef EGC_DEBUG */
+/*       egc_clear_roots (& younger_g->roots_from_older_generations); */
+/*     } // for */
+
+/*   long scavenged_words = tospace->next_unallocated_word - initial_left_finger; */
+
+/*   g->gc_no ++; */
+/*   g->scavenged_words += scavenged_words; */
+
+/* #ifdef EGC_TIME */
+/*   double elapsed_time = egc_get_current_time () - time_before; */
+/*   g->gc_time += elapsed_time; */
+/* #endif // #ifdef EGC_TIME */
+
+/* #ifdef EGC_VERBOSE */
+/*   /\* egc_log ("[\n"); *\/ */
+/*   egc_dump_generations (); */
+/*   egc_log ("...%i-GC %s->%s: END (scavenged %.02fKiB", */
+/*            (int)g->generation_index, */
+/*            fromspace->name, tospace->name, */
+/*            (float)scavenged_words * sizeof(void*) / 1024.0); */
+/* #ifdef EGC_TIME */
+/*   egc_log (" in %.9fs", elapsed_time); */
+/* #endif // #ifdef EGC_TIME */
+/*   egc_log (")]\n"); */
+/* #endif // #ifdef EGC_VERBOSE */
+/*   /\* egc_dump_generation_contents (); *\/ */
+/*   /\* fprintf (stderr, "-----------------\nAFTER GC]\n\n"); *\/ */
 }
 
 void
@@ -1235,6 +1306,18 @@ egc_run_hook (egc_hook_t hook)
                    name, (int) egc_roots_no);
 }
 
+typedef void (*egc_scavenge_pointer_to_candidate_pointer_function_t)
+(egc_generation_t fromg,
+ egc_generation_t tog,
+ egc_semispace_t tospace,
+ void **p);
+
+static void
+egc_scavenge_roots (egc_generation_t fromg,
+                    egc_generation_t tog,
+                    egc_semispace_t tospace)
+  __attribute__((hot, flatten));
+
 static void
 egc_scavenge_roots (egc_generation_t fromg,
                     egc_generation_t tog,
@@ -1249,13 +1332,6 @@ egc_scavenge_roots (egc_generation_t fromg,
 #ifdef EGC_VERY_VERBOSE
   egc_dump_generations ();
 #endif // #ifdef EGC_VERY_VERBOSE
-
-#ifdef EGC_DEBUG
-  // No longer correct with multiple generations.
-  /* if_unlikely (tospace != NULL */
-  /*              && egc_fill_ratio_of(tospace, 0) != 0.0) */
-  /*   egc_fatal ("tospace (%s) is not empty", tospace->name); */
-#endif // #ifdef EGC_DEBUG
 
   /* Scavenge static and dynamic roots. */
   int root_index;

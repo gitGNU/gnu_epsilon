@@ -330,7 +330,7 @@ egc_dump_semispace_content (egc_semispace_t semispace)
                (long)*p & 1);
       if (EGC_IS_POINTER(*p))
         fprintf (stderr, "pointer to %s)\n",
-                 egc_heap_name_of(EGC_UNTAG_POINTER(*p)));
+                 egc_heap_name_of (EGC_UNTAG_POINTER(*p)));
       else
         fprintf (stderr, "non-pointer)\n");
     } // for
@@ -852,7 +852,7 @@ egc_gc_marksweep_generation (egc_generation_t g)
 /*      I'm not sure the current solution is correct.] *\/ */
 /*   egc_scan_previous_generations (g, tog, tospace); */
 
-/*   egc_scavenge_roots (g, tog, tospace); */
+/*   egc_scavenge_semispace_roots (g, tog, tospace); */
 
 /*   egc_two_fingers (g, tog, initial_left_finger, fromspace, tospace); */
 
@@ -955,22 +955,23 @@ void egc_link_generations (egc_generation_t generations, size_t generation_no)
 void
 egc_initialize (void)
 {
-#if 0
-  int generation_no = 3, i;
+#if 1
+  int generation_no = 3;
   egc_generation_t generations = egc_make_generations (generation_no);
-  for (i = 0; i < generation_no; i ++)
-    egc_initialize_semispace_generation (generations + i,
-                                         (i == generation_no - 1) ? 2 : 1,
-                                         1024 * 4 * (1 << i)*(1 << i)*(1 << i)*(1 << i)*(1 << i));
+  egc_initialize_semispace_generation (generations + 0, 1, EGC_GENERATION_0_WORD_NO);
+  egc_initialize_semispace_generation (generations + 1, 1, EGC_GENERATION_1_WORD_NO);
+  egc_initialize_semispace_generation (generations + 2, 2, EGC_GENERATION_2_WORD_NO);
+  /* int i; */
+  /* for (i = 0; i < generation_no; i ++) */
+  /*   egc_initialize_semispace_generation (generations + i, */
+  /*                                        (i == generation_no - 1) ? 2 : 1, */
+  /*                                        1024 * 4 * (1 << i)*(1 << i)*(1 << i)*(1 << i)*(1 << i)); */
 #else
   int generation_no = 1, i;
   egc_generation_t generations = egc_make_generations (generation_no);
   for (i = 0; i < generation_no; i ++)
     egc_initialize_marksweep_generation (generations + i, 0.5 * 1000 * 1024 * 1024L);
 #endif
-  //egc_initialize_semispace_generation (generations + 0, 1, EGC_GENERATION_0_WORD_NO);
-  //egc_initialize_semispace_generation (generations + 1, 1, EGC_GENERATION_1_WORD_NO);
-  //egc_initialize_semispace_generation (generations + 2, 2, EGC_GENERATION_2_WORD_NO);
   egc_link_generations (generations, generation_no);
 
 #ifdef EGC_TIME
@@ -1306,22 +1307,16 @@ egc_run_hook (egc_hook_t hook)
                    name, (int) egc_roots_no);
 }
 
-typedef void (*egc_scavenge_pointer_to_candidate_pointer_function_t)
-(egc_generation_t fromg,
- egc_generation_t tog,
- egc_semispace_t tospace,
- void **p);
-
 static void
-egc_scavenge_roots (egc_generation_t fromg,
-                    egc_generation_t tog,
-                    egc_semispace_t tospace)
+egc_scavenge_semispace_roots (egc_generation_t fromg,
+                              egc_generation_t tog,
+                              egc_semispace_t tospace)
   __attribute__((hot, flatten));
 
 static void
-egc_scavenge_roots (egc_generation_t fromg,
-                    egc_generation_t tog,
-                    egc_semispace_t tospace)
+egc_scavenge_semispace_roots (egc_generation_t fromg,
+                              egc_generation_t tog,
+                              egc_semispace_t tospace)
 {
 #ifdef EGC_DEBUG
   size_t static_root_no = egc_roots_no;
@@ -1428,41 +1423,29 @@ egc_gc_generation (egc_generation_t g)
   g->gc_generation (g);
 }
 
-void
-egc_gc_semispace_generation (egc_generation_t g)
+static void
+egc_gc_semispace_generation_to_semispace (egc_generation_t fromg,
+                                          egc_semispace_t fromspace,
+                                          egc_generation_t tog, // possibly == fromg
+                                          egc_semispace_t tospace, // in tog
+                                          size_t *scavenged_words)
 {
-#ifdef EGC_TIME
-  double time_before = egc_get_current_time ();
-#endif // #ifdef EGC_TIME
-
-  /* Collecting this generation might promote objects into the next
-     older one, so we first have to make sure the older generation has
-     enough room. */
-  egc_generation_t next_older = g->next_older;
-  if (next_older != NULL
-      && egc_free_words_in_generation (next_older)
-      < egc_used_words_in_generation (g))
+  if (fromg != tog && egc_free_words_in_generation (tog)
+                      < egc_used_words_in_generation (fromg))
     {
-      egc_log ("Not enough room in generation %i to collect generation %i\n",
-               (int)next_older->generation_index, (int)g->generation_index);
-      egc_gc_generation (next_older);
-      if_unlikely (egc_free_words_in_generation (next_older)
-                   < egc_used_words_in_generation (g))
-        egc_fatal ("Not enough room in generation %i to collect generation %i, after GC\n",
-                   (int)next_older->generation_index, (int)g->generation_index);
+      egc_log ("Not enough room in generation %i to promote generation %i\n",
+               (int)fromg->next_older->generation_index, (int)fromg->generation_index);
+      egc_gc_generation (fromg->next_older);
+      if_unlikely (egc_free_words_in_generation (tog)
+                   < egc_used_words_in_generation (fromg))
+        egc_fatal ("Not enough room in generation %i to promote generation %i, after GC\n",
+                   (int)tog->generation_index, (int)fromg->generation_index);
     }
 
-  egc_semispace_t const fromspace = g->fromspace;
-  egc_semispace_t const tospace
-    = g->tospace ? g->tospace : g->next_older->fromspace;
 #ifdef EGC_VERBOSE
-  egc_log ("[%i-GC %s->%s: BEGIN...\n", (int)g->generation_index,
+  egc_log ("[%i-GC %s->%s: BEGIN...\n", (int)fromg->generation_index,
            fromspace->name, tospace->name);
-  /* egc_dump_generations (); */
-  /* egc_log ("]\n"); */
 #endif // #ifdef EGC_VERBOSE
-
-  egc_generation_t tog = g->tospace ? g : g->next_older;
 
   /* Remember where the part to scavenge in tospace begins, before
      touching roots. */
@@ -1472,25 +1455,21 @@ egc_gc_semispace_generation (egc_generation_t g)
      effectively a set of roots.  Scan them.
      [FIXME: What shall I do about inter-generational pointers?
      I'm not sure the current solution is correct.] */
-  egc_scan_previous_generations (g, tog, tospace);
+  egc_scan_previous_generations (fromg, tog, tospace);
 
-  egc_scavenge_roots (g, tog, tospace);
+  egc_scavenge_semispace_roots (fromg, tog, tospace);
 
-  /* fprintf (stderr, "\n-----------------\nBEFORE TWO-FINGERS: BEGIN\n"); */
-  /* egc_dump_generation_contents (); */
-  /* fprintf (stderr, "BEFORE TWO-FINGERS: END\n-----------------\n\n"); */
+  egc_two_fingers (fromg, tog, initial_left_finger, fromspace, tospace);
 
-  egc_two_fingers (g, tog, initial_left_finger, fromspace, tospace);
-
-  if (g->tospace != NULL)
-    egc_flip_spaces (g);
+  if (fromg->tospace != NULL)
+    egc_flip_spaces (fromg);
   else
     fromspace->next_unallocated_word = fromspace->payload_beginning;
 
   /* Clear inter-generational pointers for all generations younger
      than this one. */
   egc_generation_t younger_g;
-  for (younger_g = g->next_younger;
+  for (younger_g = fromg->next_younger;
        younger_g != NULL;
        younger_g = younger_g->next_younger)
     {
@@ -1503,10 +1482,60 @@ egc_gc_semispace_generation (egc_generation_t g)
       egc_clear_roots (& younger_g->roots_from_older_generations);
     } // for
 
-  long scavenged_words = tospace->next_unallocated_word - initial_left_finger;
+  *scavenged_words =
+    (size_t)(tospace->next_unallocated_word - initial_left_finger);
 
-  g->gc_no ++;
-  g->scavenged_words += scavenged_words;
+  fromg->gc_no ++;
+  fromg->scavenged_words += *scavenged_words;
+}
+
+static void
+egc_gc_semispace_generation_to_marksweep (egc_generation_t fromg,
+                                          egc_semispace_t fromspace,
+                                          egc_generation_t tog)
+{
+  egc_fatal ("egc_gc_semispace_generation_to_marksweep: unimplemented");
+}
+
+void
+egc_gc_semispace_generation (egc_generation_t g)
+{
+#ifdef EGC_TIME
+  double time_before = egc_get_current_time ();
+#endif // #ifdef EGC_TIME
+
+  /* Collecting this generation might promote objects into the next
+     older one, so we first have to make sure the older generation has
+     enough room. */
+  egc_generation_t next_older = g->next_older;
+  egc_generation_type_t totype __attribute__ ((unused));
+  egc_semispace_t tospace __attribute__ ((unused));
+  size_t scavenged_words;
+  if (next_older == NULL)
+    {
+      totype = egc_generation_type_semispace;
+      egc_gc_semispace_generation_to_semispace (g, g->fromspace, g,
+                                                tospace = g->tospace,
+                                                &scavenged_words);
+    }
+  else
+    switch (next_older->type)
+      {
+      case egc_generation_type_semispace:
+        {
+          egc_generation_t tog = g->tospace ? g : g->next_older;
+          tospace = g->tospace ? g->tospace : next_older->fromspace;
+          egc_gc_semispace_generation_to_semispace (g, g->fromspace, tog, tospace,
+                                                    &scavenged_words);
+          break;
+        }
+      case egc_generation_type_marksweep:
+        egc_gc_semispace_generation_to_marksweep (g, g->fromspace, g->next_older);
+        break;
+      default:
+        egc_fatal ("egc_gc_semispace_generation: unknown generation type %i",
+                   next_older->type);
+      } // switch
 
 #ifdef EGC_TIME
   double elapsed_time = egc_get_current_time () - time_before;
@@ -1516,17 +1545,20 @@ egc_gc_semispace_generation (egc_generation_t g)
 #ifdef EGC_VERBOSE
   /* egc_log ("[\n"); */
   egc_dump_generations ();
-  egc_log ("...%i-GC %s->%s: END (scavenged %.02fKiB",
-           (int)g->generation_index,
-           fromspace->name, tospace->name,
-           (float)scavenged_words * sizeof(void*) / 1024.0);
+  if (totype == egc_generation_type_semispace)
+    egc_log ("...%i-GC %s->%s: END (scavenged %.02fKiB",
+             (int)g->generation_index,
+             g->fromspace->name, tospace->name,
+             (float)scavenged_words * sizeof(void*) / 1024.0);
+  else
+    egc_log ("...%i-GC: END (scavenged %.02fKiB",
+             (int)g->generation_index,
+             (float)scavenged_words * sizeof(void*) / 1024.0);
 #ifdef EGC_TIME
   egc_log (" in %.9fs", elapsed_time);
 #endif // #ifdef EGC_TIME
   egc_log (")]\n");
 #endif // #ifdef EGC_VERBOSE
-  /* egc_dump_generation_contents (); */
-  /* fprintf (stderr, "-----------------\nAFTER GC]\n\n"); */
 }
 
 void
@@ -1679,7 +1711,7 @@ egc_allocate_chars_from_semispace_generation (egc_generation_t g,
 #ifdef EGC_DEBUG
   if_unlikely (egc_semispace_of_untagged (res) != fromspace)
     egc_fatal ("%p allocated from %s instead of fromspace (%s)", res,
-               egc_heap_name_of_untagged (res), fromspace->name);
+               egc_heap_name_of (res), fromspace->name);
 #endif // #ifdef EGC_DEBUG
   return res;
 }

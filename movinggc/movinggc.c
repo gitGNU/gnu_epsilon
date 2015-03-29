@@ -778,7 +778,7 @@ egc_mark_if_needed (egc_generation_t g, void *untagged_pointer)
   if_unlikely (object_size_in_chars < sizeof(void*)
                || object_size_in_chars % sizeof (void*) != 0)
     egc_fatal ("the object at %p is %i bytes long", untagged_pointer,
-               object_size_in_chars);
+               (int)object_size_in_chars);
 #endif // #ifdef EGC_DEBUG
 
   //fprintf (stderr, "OK-A 400\n");
@@ -1215,7 +1215,7 @@ egc_initialize (void)
   int generation_no = 1, i;
   egc_generation_t generations = egc_make_generations (generation_no);
   //size_t size = 10 * 2.3 * 1024L * 1024L / sizeof (void*);
-  size_t size = 10 * 2.3 * 1024L * 1024L / sizeof (void*);
+  size_t size = 10 * 2.5 * 1024L * 1024L / 8.0;
   for (i = 0; i < generation_no; i ++)
     {
   egc_initialize_marksweep_generation (generations + i, size);

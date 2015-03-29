@@ -52,7 +52,7 @@ CFLAGS="$OPTIMIZATIONFLAGS $DEBUGFLAGS $PROFILEFLAGS"
 CFLAGS="$CFLAGS -DEGC_ARCHITECTURE_"`uname --machine | sed s/-/_/g`" "
 
 if [[ `hostname` == "sussman" ]]; then
-    CFLAGS="$CFLAGS -march=loongson2f -mtune=loongson2f -mlong64"
+    CFLAGS="$CFLAGS -march=loongson2f -mtune=loongson2f"
 fi
 
 #CFLAGS="$CFLAGS -save-temps"

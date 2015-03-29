@@ -104,8 +104,71 @@ struct egc_marksweep_heap
   void **allocation_pointer;
   //size_t allocated_word_no; // FIXME: no, this is inefficient to keep updated.
   char name[10];
+  char *mark_bytes;
 }; // struct
 typedef struct egc_marksweep_heap *egc_marksweep_heap_t;
+
+struct egc_roots
+{
+  size_t root_no;
+  size_t allocated_root_no;
+  void ***roots;
+};
+
+typedef struct egc_roots*
+egc_roots_t;
+
+struct egc_root
+{
+  /* The address of the candidate pointer *must* be indirect, as we're
+     gonna move it at collection time in case of semispace collection. */
+  void **pointer_to_roots;
+  size_t size_in_words;
+};                              // struct
+
+struct egc_root *egc_roots = NULL;
+size_t egc_roots_allocated_size = 0;
+size_t egc_roots_no = 0;
+
+void
+egc_initialize_roots (egc_roots_t roots)
+{
+  roots->allocated_root_no = EGC_INITIAL_ALLOCATED_ROOT_NO;
+  roots->root_no = 0;
+  roots->roots = (void***)
+    malloc (sizeof (void**) * EGC_INITIAL_ALLOCATED_ROOT_NO);
+  if_unlikely (roots->roots == NULL)
+    egc_fatal ("couldn't initialize roots");
+}
+
+void
+egc_finalize_roots (egc_roots_t roots)
+{
+  free (roots->roots);
+  roots->root_no = 0;
+  roots->allocated_root_no = 0;
+  roots->roots = NULL;
+}
+
+void
+egc_push_root (egc_roots_t roots, void **new_root)
+{
+  if_unlikely (roots->root_no == roots->allocated_root_no)
+    {
+      roots->allocated_root_no *= 2;
+      roots->roots = (void***)
+        realloc (roots->roots, sizeof (void**) * roots->allocated_root_no);
+      if_unlikely (roots->roots == NULL)
+        egc_fatal ("couldn't resize roots");
+    }
+  roots->roots[roots->root_no ++] = new_root;
+}
+
+void
+egc_clear_roots (egc_roots_t roots)
+{
+  roots->root_no = 0;
+}
 
 #ifdef EGC_TIME
 static double egc_ticks_per_second;
@@ -160,56 +223,6 @@ egc_dump_marksweep_heap_content (egc_marksweep_heap_t h)
   fprintf (stderr, "(content dump unimplemented for mark-sweep heaps)\n");
 }
 
-struct egc_roots
-{
-  size_t root_no;
-  size_t allocated_root_no;
-  void ***roots;
-};
-
-typedef struct egc_roots*
-egc_roots_t;
-
-void
-egc_initialize_roots (egc_roots_t roots)
-{
-  roots->allocated_root_no = EGC_INITIAL_ALLOCATED_ROOT_NO;
-  roots->root_no = 0;
-  roots->roots = (void***)
-    malloc (sizeof (void**) * EGC_INITIAL_ALLOCATED_ROOT_NO);
-  if_unlikely (roots->roots == NULL)
-    egc_fatal ("couldn't initialize roots");
-}
-
-void
-egc_finalize_roots (egc_roots_t roots)
-{
-  free (roots->roots);
-  roots->root_no = 0;
-  roots->allocated_root_no = 0;
-  roots->roots = NULL;
-}
-
-void
-egc_push_root (egc_roots_t roots, void **new_root)
-{
-  if_unlikely (roots->root_no == roots->allocated_root_no)
-    {
-      roots->allocated_root_no *= 2;
-      roots->roots = (void***)
-        realloc (roots->roots, sizeof (void**) * roots->allocated_root_no);
-      if_unlikely (roots->roots == NULL)
-        egc_fatal ("couldn't resize roots");
-    }
-  roots->roots[roots->root_no ++] = new_root;
-}
-
-void
-egc_clear_roots (egc_roots_t roots)
-{
-  roots->root_no = 0;
-}
-
 typedef void* (*egc_allocate_chars_function_t)
   (egc_generation_t g, size_t char_no);
 
@@ -252,6 +265,8 @@ struct egc_generation
     struct /* type == egc_generation_type_marksweep */
     {
       egc_marksweep_heap_t marksweep_heap;
+      void **mark_stack; // pointers are untagged
+      void **mark_stack_overtop;
     };
   }; // union
 
@@ -526,6 +541,7 @@ egc_heap_name_of (const void *untagged_pointer_as_void_star)
     return semispace->name;
   egc_marksweep_heap_t marksweep_heap =
     egc_marksweep_heap_of_untagged (untagged_pointer_as_void_star);
+
   if (marksweep_heap != NULL)
     return marksweep_heap->name;
   else
@@ -712,11 +728,181 @@ egc_initialize_semispace_generation (egc_generation_t generation,
 }
 
 static void
+egc_clear_marksweep_heap_marks (egc_marksweep_heap_t s)
+{
+  memset (s->mark_bytes, 0, s->payload_size_in_words);
+}
+
+static void
+egc_mark_if_needed (egc_generation_t g, void *untagged_pointer_in_s)
+  __attribute__ ((hot, flatten, unused));
+static void
+egc_mark_if_needed (egc_generation_t g, void *untagged_pointer)
+{
+#ifdef EGC_DEBUG
+  if_unlikely (g->type != egc_generation_type_marksweep)
+    egc_fatal ("generation %i is not mark-sweep", (int)g->generation_index);
+#endif // #ifdef EGC_DEBUG
+  egc_marksweep_heap_t s = g->marksweep_heap;
+
+  //egc_dump_generations ();
+  //fprintf (stderr, "untagged_pointer is %p\n", untagged_pointer);
+  //fprintf (stderr, "OK-A 100\n");
+  /* Do nothing if the pointer doesn't belong to the generation we
+     care about. */ // FIXME: this check can be omitted when
+                    // untagged_pointer comes from the stack.
+  if_unlikely (! egc_is_in_marksweep_heap (untagged_pointer, s))
+    return;
+
+  //fprintf (stderr, "OK-A 200\n");
+  void *header = ((void**)untagged_pointer)[-1];
+#ifdef EGC_DEBUG
+  if_unlikely (! EGC_IS_NONFORWARDING(header))
+    egc_fatal ("%p: %p or %li is not a non-forwarding header", untagged_pointer,
+               *(void**)untagged_pointer, *(long*)untagged_pointer);
+#endif // #ifdef EGC_DEBUG
+  size_t object_size_in_chars = EGC_NONFORWARDING_HEADER_TO_SIZE(header);
+  //fprintf (stderr, "OK-A 300: header is %p or %li\n", header, (long)header);
+#ifdef EGC_DEBUG
+  if_unlikely (object_size_in_chars < sizeof(void*)
+               || object_size_in_chars % sizeof (void*) != 0)
+    egc_fatal ("the object at %p is %i bytes long", untagged_pointer,
+               object_size_in_chars);
+#endif // #ifdef EGC_DEBUG
+
+  //fprintf (stderr, "OK-A 400\n");
+  /* Do nothing if the object is already marked. */
+  int index = ((void**)untagged_pointer) - s->payload_beginning;
+  if_unlikely (s->mark_bytes[index])
+    {
+      fprintf (stderr, "OK-A 401: is %p already marked? %s\n", untagged_pointer, s->mark_bytes[index] ? "yes" : "no");
+      return;
+    }
+
+  //fprintf (stderr, "OK-A 500\n");
+  /* The object is not marked.  Mark the header and every field; if
+     some fields are pointers belonging to the generation we are
+     interested in, push them as well. */
+  s->mark_bytes[index - 1] = 1;
+  size_t object_size_in_words = object_size_in_chars / sizeof (void*);
+  //fprintf (stderr, "OK-A 500: object_size_in_chars is %i\n", (int)object_size_in_chars);
+  //fprintf (stderr, "OK-A 500: object_size_in_words is %i\n", (int)object_size_in_words);
+  int i;
+  for (i = 0; i < object_size_in_words; i ++)
+    {
+      //fprintf (stderr, "OK-A 501: examining field %i of %i\n", i, (int)object_size_in_words);
+      s->mark_bytes[index + i] = 1;
+      void *tagged_field = *((void**)untagged_pointer + i);
+      if (! EGC_IS_POINTER(tagged_field))
+        continue;
+      //fprintf (stderr, "  + OK-A 503: field %i is %p or %li\n", i, tagged_field, (long)tagged_field);
+      void *untagged_field = EGC_UNTAG_POINTER(tagged_field);
+      //fprintf (stderr, "    OK-A 600: shall we push %p (field %i of %i in %p) onto the stack?  ", untagged_field, i, (int)object_size_in_words, untagged_pointer);
+      if_likely (egc_is_in_marksweep_heap (untagged_field, s))
+      {
+        //fprintf (stderr, "yes\n");
+        *(g->mark_stack_overtop ++) = untagged_field;
+      }
+      else
+        ;//fprintf (stderr, "no\n");
+    } // for
+}
+
+static void
+egc_mark_from_stack (egc_generation_t g)
+  __attribute__ ((hot, flatten, unused));
+static void
+egc_mark_from_stack (egc_generation_t g)
+{
+#ifdef EGC_DEBUG
+  if_unlikely (g->type != egc_generation_type_marksweep)
+    egc_fatal ("generation %i is not mark-sweep", (int)g->generation_index);
+#endif // #ifdef EGC_DEBUG
+  //egc_marksweep_heap_t s = g->marksweep_heap;
+  void ** const bottom  = g->mark_stack;
+  // We assume that only pointers belonging to the right generation
+  // are ever pushed to the stack.
+  while (g->mark_stack_overtop != bottom)
+    {
+      void *untagged_top = *(-- g->mark_stack_overtop);
+      egc_mark_if_needed (g, untagged_top);
+    } // while
+}
+
+static void
+egc_run_hook (egc_hook_t hook);
+extern size_t egc_roots_no;
+
+static void
+egc_mark_roots (egc_generation_t g)
+  __attribute__ ((hot, flatten, unused));
+static void
+egc_mark_roots (egc_generation_t g)
+{
+#ifdef EGC_DEBUG
+  size_t static_root_no = egc_roots_no;
+#endif // #ifdef EGC_DEBUG
+
+  fprintf (stderr, "Running pre hook\n");
+  egc_run_hook (egc_pre_hook);
+
+#ifdef EGC_VERY_VERBOSE
+  egc_dump_generations ();
+#endif // #ifdef EGC_VERY_VERBOSE
+
+  /* Mark static and dynamic roots. */
+  int root_index;
+#ifdef EGC_VERBOSE
+  long marked_root_pointer_no = 0;
+#endif // #ifdef EGC_VERBOSE
+  for (root_index = 0; root_index < egc_roots_no; root_index++)
+    {
+      fprintf (stderr, "Marking root %i of %i\n", (int)root_index, (int)egc_roots_no);
+      void **candidate_pointers = (void **)
+        egc_roots[root_index].pointer_to_roots;
+      const int word_no = egc_roots[root_index].size_in_words;
+      int word_index;
+      for (word_index = 0; word_index < word_no; word_index++)
+        {
+          void *tagged_word = candidate_pointers[word_index];
+          if (EGC_IS_POINTER(tagged_word))
+            egc_mark_if_needed (g, EGC_UNTAG_POINTER(tagged_word));
+        }
+#ifdef EGC_VERBOSE
+      marked_root_pointer_no ++;
+#endif // #ifdef EGC_VERBOSE
+    } // for
+  fprintf (stderr, "Done marking roots\n");
+#ifdef EGC_VERBOSE
+  egc_log ("Marked %li candidate root pointers\n", marked_root_pointer_no);
+#endif // #ifdef EGC_VERBOSE
+
+  egc_run_hook (egc_post_hook);
+  fprintf (stderr, "Done with post hook\n");
+
+#ifdef EGC_DEBUG
+  if_unlikely (static_root_no != egc_roots_no)
+    egc_fatal ("hooks disagree about dynamic root number");
+#endif // #ifdef EGC_DEBUG
+
+  /* Mark inter-generational pointers. */
+  void ***roots = g->roots_from_older_generations.roots;
+  const size_t root_no = g->roots_from_older_generations.root_no;
+  int i;
+  for (i = 0; i < root_no; i ++)
+    {
+      void *tagged_word = * roots[i];
+      if (EGC_IS_POINTER(tagged_word))
+        egc_mark_if_needed (g, EGC_UNTAG_POINTER(tagged_word));
+    } // for
+}
+
+static void
 egc_initialize_marksweep_heap (egc_marksweep_heap_t s, size_t word_no, char *name)
 {
   void **marksweep_heap_payload = (void **) malloc (word_no * sizeof(void*));
   if_unlikely (marksweep_heap_payload == NULL)
-    egc_fatal ("egc_initialize_marksweep_heap: couldn't allocate");
+    egc_fatal ("couldn't allocate marksweep payload");
   s->payload_beginning = marksweep_heap_payload;
   s->payload_size_in_words = word_no;
   strcpy (s->name, name);
@@ -725,6 +911,12 @@ egc_initialize_marksweep_heap (egc_marksweep_heap_t s, size_t word_no, char *nam
      word_no (in words). */
   s->allocation_pointer[0] = EGC_NONFORWARDING_HEADER(word_no, 0);
   s->allocation_pointer[1] = NULL;
+  /* FIXME: I can try and conditionally use mark bits.  Since I don't
+     plan to mark in parallel it could be faster. */
+  s->mark_bytes = (char*)malloc (word_no);
+  if_unlikely (s->mark_bytes == NULL)
+    egc_fatal ("couldn't allocate mark bytes");
+  egc_clear_marksweep_heap_marks (s);
 }
 
 static egc_marksweep_heap_t
@@ -754,6 +946,10 @@ egc_free_words_in_marksweep_generation (egc_generation_t g)
 static void*
 egc_allocate_words_from_marksweep_generation (egc_generation_t g,
                                               size_t size_in_words)
+  __attribute__((hot, malloc));
+static void*
+egc_allocate_words_from_marksweep_generation (egc_generation_t g,
+                                              size_t size_in_words)
 {
   bool did_we_gc = false;
   do
@@ -762,7 +958,8 @@ egc_allocate_words_from_marksweep_generation (egc_generation_t g,
       void **p;
       for (p = h->allocation_pointer; p != NULL; p = (void**)p[1])
         {
-          size_t block_size_in_words = EGC_NONFORWARDING_HEADER_TO_SIZE(*p);
+          size_t block_size_in_words
+            = EGC_NONFORWARDING_HEADER_TO_SIZE(*p);
           if (size_in_words + 1 > block_size_in_words)
             {
               fprintf (stderr, "the block at %p is %i words long, and I need %i: trying next\n", p,
@@ -833,75 +1030,48 @@ egc_allocate_chars_from_marksweep_generation (egc_generation_t g,
 }
 
 static void
+egc_sweep (egc_generation_t g)
+{
+#ifdef EGC_DEBUG
+  if_unlikely (g->type != egc_generation_type_marksweep)
+    egc_fatal ("generation %i is not mark-sweep", (int)g->generation_index);
+#endif // #ifdef EGC_DEBUG
+  fprintf (stderr, "pretending to sweep\n");
+}
+
+static void
 egc_gc_marksweep_generation (egc_generation_t g)
 {
-  egc_fatal ("egc_gc_marksweep_generation: unimplemented");
-/* #ifdef EGC_TIME */
-/*   double time_before = egc_get_current_time (); */
-/* #endif // #ifdef EGC_TIME */
-
-/*   egc_marksweep_heap_t const heap = g->marksweep_heap; */
-/* #ifdef EGC_VERBOSE */
-/*   egc_log ("[%i-GC %s->%s: BEGIN...\n", (int)g->generation_index, heap->name); */
-/*   /\* egc_dump_generations (); *\/ */
-/*   /\* egc_log ("]\n"); *\/ */
-/* #endif // #ifdef EGC_VERBOSE */
-
-/*   /\* Any generation younger than the one we are collecting is */
-/*      effectively a set of roots.  Scan them. */
-/*      [FIXME: What shall I do about inter-generational pointers? */
-/*      I'm not sure the current solution is correct.] *\/ */
-/*   egc_scan_previous_generations (g, tog, tospace); */
-
-/*   egc_scavenge_semispace_roots (g, tog, tospace); */
-
-/*   egc_two_fingers (g, tog, initial_left_finger, fromspace, tospace); */
-
-/*   if (g->tospace != NULL) */
-/*     egc_flip_spaces (g); */
-/*   else */
-/*     fromspace->next_unallocated_word = fromspace->payload_beginning; */
-
-/*   /\* Clear inter-generational pointers for all generations younger */
-/*      than this one. *\/ */
-/*   egc_generation_t younger_g; */
-/*   for (younger_g = g->next_younger; */
-/*        younger_g != NULL; */
-/*        younger_g = younger_g->next_younger) */
-/*     { */
-/* #ifdef EGC_DEBUG */
-/*       /\* if_unlikely (egc_free_words_in_generation (younger_g) *\/ */
-/*       /\*              < egc_words_in_generation (younger_g)) *\/ */
-/*       /\*   egc_fatal ("generation %i is not empty after %i-GC: I fear it should be", *\/ */
-/*       /\*                   (int)younger_g->generation_index, (int)g->generation_index); *\/ */
-/* #endif // #ifdef EGC_DEBUG */
-/*       egc_clear_roots (& younger_g->roots_from_older_generations); */
-/*     } // for */
-
-/*   long scavenged_words = tospace->next_unallocated_word - initial_left_finger; */
-
-/*   g->gc_no ++; */
-/*   g->scavenged_words += scavenged_words; */
-
-/* #ifdef EGC_TIME */
-/*   double elapsed_time = egc_get_current_time () - time_before; */
-/*   g->gc_time += elapsed_time; */
-/* #endif // #ifdef EGC_TIME */
-
-/* #ifdef EGC_VERBOSE */
-/*   /\* egc_log ("[\n"); *\/ */
-/*   egc_dump_generations (); */
-/*   egc_log ("...%i-GC %s->%s: END (scavenged %.02fKiB", */
-/*            (int)g->generation_index, */
-/*            fromspace->name, tospace->name, */
-/*            (float)scavenged_words * sizeof(void*) / 1024.0); */
-/* #ifdef EGC_TIME */
-/*   egc_log (" in %.9fs", elapsed_time); */
-/* #endif // #ifdef EGC_TIME */
-/*   egc_log (")]\n"); */
-/* #endif // #ifdef EGC_VERBOSE */
-/*   /\* egc_dump_generation_contents (); *\/ */
-/*   /\* fprintf (stderr, "-----------------\nAFTER GC]\n\n"); *\/ */
+  // FIXME: time
+#ifdef EGC_DEBUG
+  if_unlikely (g->type != egc_generation_type_marksweep)
+    egc_fatal ("generation %i is not mark-sweep", (int)g->generation_index);
+#endif // #ifdef EGC_DEBUG
+  fprintf (stderr, "Marking roots: BEGIN\n");
+  egc_mark_roots (g);
+  fprintf (stderr, "Marking roots: END\n");
+  fprintf (stderr, "Marking from the stack: BEGIN\n");
+  egc_mark_from_stack (g);
+  fprintf (stderr, "Marking from the stack: END\n");
+  fprintf (stderr, "Sweeping: BEGIN\n");
+  egc_sweep (g);
+  fprintf (stderr, "Sweeping: END\n");
+  /* { */
+  /*   egc_marksweep_heap_t h = g->marksweep_heap; */
+  /*   char *b = h->mark_bytes; */
+  /*   size_t s = h->payload_size_in_words; */
+  /*   int i; */
+  /*   for (i = 0; i < s; i ++) */
+  /*     { */
+  /*       if (i % 130 == 0) */
+  /*         fprintf (stderr, "\n%10i ", i); */
+  /*       fprintf (stderr, "%c", b[i] ? 'M' : '.'); */
+  /*     } */
+  /*   fprintf (stderr, "\n"); */
+  /* } */
+  fprintf (stderr, "Unmarking: BEGIN\n");
+  egc_clear_marksweep_heap_marks (g->marksweep_heap);
+  fprintf (stderr, "Unmarking: END\n");
 }
 
 void
@@ -917,6 +1087,13 @@ egc_initialize_marksweep_generation (egc_generation_t generation,
   char name[10];
   sprintf (name, "G%i", (int)generation->generation_index);
   generation->marksweep_heap = egc_make_marksweep_heap (word_no, name);
+
+  /* This is an upper bound on the number of objects. */
+  generation->mark_stack = (void**)
+    malloc (sizeof (void*) * word_no / 2);
+  generation->mark_stack_overtop = generation->mark_stack;
+  if_unlikely (generation->mark_stack == NULL)
+    egc_fatal ("couldn't allocate mark stack");
 }
 
 void egc_link_generations (egc_generation_t generations, size_t generation_no)
@@ -956,7 +1133,7 @@ void egc_link_generations (egc_generation_t generations, size_t generation_no)
 void
 egc_initialize (void)
 {
-#if 1
+#if 0
   /* int generation_no = 3; */
   /* egc_generation_t generations = egc_make_generations (generation_no); */
   /* egc_initialize_semispace_generation (generations + 0, 1, EGC_GENERATION_0_WORD_NO); */
@@ -965,8 +1142,8 @@ egc_initialize (void)
 
   int generation_no = 1;
   egc_generation_t generations = egc_make_generations (generation_no);
-  //egc_initialize_semispace_generation (generations + 0, 2, EGC_GENERATION_2_WORD_NO);
-  egc_initialize_semispace_generation (generations + 0, 2, (long)(2.31435 * 1024 * 1024L / 8));
+  egc_initialize_semispace_generation (generations + 0, 2, EGC_GENERATION_2_WORD_NO);
+  //egc_initialize_semispace_generation (generations + 0, 2, (long)(2.31435 * 1024 * 1024L / 8));
 
   /* int i; */
   /* for (i = 0; i < generation_no; i ++) */
@@ -994,17 +1171,6 @@ egc_initialize (void)
   //egc_dump_generations ();
 }
 
-struct egc_root
-{
-  /* The address of the candidate pointer *must* be indirect, as we're
-     gonna move it at collection time. */
-  void **pointer_to_roots;
-  size_t size_in_words;
-};                              // struct
-
-struct egc_root *egc_roots = NULL;
-size_t egc_roots_allocated_size = 0;
-size_t egc_roots_no = 0;
 void
 egc_register_roots (void **pointer_to_roots, size_t size_in_words)
 {

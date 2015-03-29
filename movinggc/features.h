@@ -31,6 +31,7 @@
 //#define EGC_DEBUG
 //#define EGC_VERBOSE
 //#define EGC_VERY_VERBOSE
+//#define EGC_MARK_BITS
 #define EGC_TIME
 #define EGC_USE_MEMCPY
 

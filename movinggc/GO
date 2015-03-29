@@ -24,7 +24,7 @@ set -e
 #OPTIMIZATIONFLAGS="-O3"
 OPTIMIZATIONFLAGS="-Ofast"
 #OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -fomit-frame-pointer"
-OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -finline-functions -funroll-all-loops"
+OPTIMIZATIONFLAGS="$OPTIMIZATIONFLAGS -finline-functions -funroll-all-loops -fstrict-aliasing"
 
 #OPTIMIZATIONFLAGS="-O2 -fno-inline-functions -D inline= -g"
 

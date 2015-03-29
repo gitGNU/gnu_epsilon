@@ -60,6 +60,8 @@ static void **egc_fromspace_after_payload_end = NULL;;
 #define EGC_INITIAL_ROOTS_ALLOCATED_SIZE 64
 #define EGC_INITIAL_ALLOCATED_ROOT_NO  1 // FIXME: increase
 
+#define WORD_BIT (sizeof (void*) * CHAR_BIT)
+
 #define if_likely(CONDITION)                    \
   if(__builtin_expect(CONDITION, true))
 #define if_unlikely(CONDITION)                  \
@@ -104,7 +106,12 @@ struct egc_marksweep_heap
   void **allocation_pointer;
   //size_t allocated_word_no; // FIXME: no, this is inefficient to keep updated.
   char name[10];
-  char *mark_bytes;
+#ifdef EGC_MARK_BITS
+  unsigned long *mark_bits;
+  size_t mark_bit_size_in_words;
+#else
+  char *mark_bytes; // size is payload_size_in_words
+#endif // #ifdef EGC_MARK_BITS
 }; // struct
 typedef struct egc_marksweep_heap *egc_marksweep_heap_t;
 
@@ -739,10 +746,49 @@ egc_initialize_semispace_generation (egc_generation_t generation,
 }
 
 static void
-egc_clear_marksweep_heap_marks (egc_marksweep_heap_t s)
+egc_clear_marks (egc_marksweep_heap_t s)
 {
+#ifdef EGC_MARK_BITS
+  memset (s->mark_bits, 0, s->mark_bit_size_in_words * sizeof (void*));
+#else
   memset (s->mark_bytes, 0, s->payload_size_in_words);
+#endif // #ifdef EGC_MARK_BITS
 }
+
+inline static bool
+egc_is_marked (const egc_marksweep_heap_t const h, int index)
+  __attribute__ ((hot, always_inline));
+inline static void
+egc_mark (egc_marksweep_heap_t const h, int index)
+  __attribute__ ((hot, always_inline));
+
+#ifdef EGC_MARK_BITS
+inline static bool
+egc_is_marked (const egc_marksweep_heap_t const h, int index)
+{
+  const unsigned long word_index = index / WORD_BIT;
+  const unsigned long word_offset = index % WORD_BIT;
+  return h->mark_bits[word_index] & (1LU << word_offset);
+}
+inline static void
+egc_mark (egc_marksweep_heap_t const h, int index)
+{
+  const unsigned long word_index = index / WORD_BIT;
+  const unsigned long word_offset = index % WORD_BIT;
+  h->mark_bits[word_index] |= (1LU << word_offset);
+}
+#else
+inline static bool
+egc_is_marked (const egc_marksweep_heap_t const h, int index)
+{
+  return h->mark_bytes[index];
+}
+inline static void
+egc_mark (egc_marksweep_heap_t const h, int index)
+{
+  h->mark_bytes[index] = 1;
+}
+#endif // #ifdef EGC_MARK_BITS
 
 static void
 egc_mark_if_needed (egc_generation_t g, void *untagged_pointer_in_s)
@@ -784,7 +830,7 @@ egc_mark_if_needed (egc_generation_t g, void *untagged_pointer)
   //fprintf (stderr, "OK-A 400\n");
   /* Do nothing if the object is already marked. */
   int index = ((void**)untagged_pointer) - s->payload_beginning;
-  if_unlikely (s->mark_bytes[index])
+  if_unlikely (egc_is_marked(s, index))
     {
       //fprintf (stderr, "OK-A 401: is %p already marked? %s\n", untagged_pointer, s->mark_bytes[index] ? "yes" : "no");
       return;
@@ -794,7 +840,7 @@ egc_mark_if_needed (egc_generation_t g, void *untagged_pointer)
   /* The object is not marked.  Mark the header and every field; if
      some fields are pointers belonging to the generation we are
      interested in, push them as well. */
-  s->mark_bytes[index - 1] = 1;
+  egc_mark(s, index - 1);
   size_t object_size_in_words = object_size_in_chars / sizeof (void*);
   //fprintf (stderr, "OK-A 500: object_size_in_chars is %i\n", (int)object_size_in_chars);
   //fprintf (stderr, "OK-A 500: object_size_in_words is %i\n", (int)object_size_in_words);
@@ -802,7 +848,7 @@ egc_mark_if_needed (egc_generation_t g, void *untagged_pointer)
   for (i = 0; i < object_size_in_words; i ++)
     {
       //fprintf (stderr, "OK-A 501: examining field %i of %i\n", i, (int)object_size_in_words);
-      s->mark_bytes[index + i] = 1;
+      egc_mark(s, index + i);
       void *tagged_field = *((void**)untagged_pointer + i);
       if (! EGC_IS_POINTER(tagged_field))
         continue;
@@ -924,10 +970,23 @@ egc_initialize_marksweep_heap (egc_marksweep_heap_t s, size_t word_no, char *nam
   s->allocation_pointer[1] = NULL;
   /* FIXME: I can try and conditionally use mark bits.  Since I don't
      plan to mark in parallel it could be faster. */
+#ifdef EGC_MARK_BITS
+  /* ceil (x / y) = (x + y - 1) / y */
+  s->mark_bit_size_in_words = (word_no + WORD_BIT - 1) / WORD_BIT;
+  fprintf (stderr, "Mark bits take %6.2fkB\n",
+           s->mark_bit_size_in_words * sizeof (void*) / 1024.0);
+  s->mark_bits =
+    (unsigned long*)malloc (sizeof(unsigned long) * s->mark_bit_size_in_words);
+  if_unlikely (s->mark_bits == NULL)
+    egc_fatal ("couldn't allocate mark bits");
+#else
   s->mark_bytes = (char*)malloc (word_no);
+  fprintf (stderr, "Mark bytes take %6.2fkB\n",
+           word_no / 1024.0);
   if_unlikely (s->mark_bytes == NULL)
     egc_fatal ("couldn't allocate mark bytes");
-  egc_clear_marksweep_heap_marks (s);
+#endif // #ifdef EGC_MARK_BITS
+  egc_clear_marks (s);
 }
 
 static egc_marksweep_heap_t
@@ -1050,7 +1109,6 @@ egc_sweep (egc_generation_t g, size_t *free_words_p)
 #endif // #ifdef EGC_DEBUG
 
   egc_marksweep_heap_t const h = g->marksweep_heap;
-  const char * const m = h->mark_bytes;
   void ** const payload = h->payload_beginning;
 
   /* Ignore the marked part, looking for and linking to one another all unmarked
@@ -1063,13 +1121,13 @@ egc_sweep (egc_generation_t g, size_t *free_words_p)
   while (i < past_array_end)
     {
       /* Look for the beginning of an unmarked block. */
-      for (; i < past_array_end && m[i]; i ++)
+      for (; i < past_array_end && egc_is_marked (h, i); i ++)
         ;
       if (i + 1 > past_array_end)
         break;
 
       /* If the unmarked block is only one word wide, ignore it. */
-      if (m[i + 1])
+      if (egc_is_marked (h, i + 1))
         {
           i ++;
           continue;
@@ -1078,7 +1136,7 @@ egc_sweep (egc_generation_t g, size_t *free_words_p)
       /* We found a suitable unmarked block.  See how large it is. */
       int past_block_end;
       for (past_block_end = i;
-           past_block_end < past_array_end && ! m[past_block_end];
+           past_block_end < past_array_end && !egc_is_marked(h, past_block_end);
            past_block_end ++)
         ;
       size_t size_in_words = past_block_end - i;
@@ -1126,7 +1184,7 @@ egc_gc_marksweep_generation (egc_generation_t g)
   egc_sweep (g, &free_words);
   //fprintf (stderr, "Sweeping freed %3.2f%% space: %li of %li\n", 100.0 * free_words / g->marksweep_heap->payload_size_in_words, (long)free_words, (long)g->marksweep_heap->payload_size_in_words);
   /* fprintf (stderr, "Unmarking: BEGIN\n"); */
-  egc_clear_marksweep_heap_marks (g->marksweep_heap);
+  egc_clear_marks (g->marksweep_heap);
   /* fprintf (stderr, "Unmarking: END\n"); */
   //fprintf (stderr, ".");
 

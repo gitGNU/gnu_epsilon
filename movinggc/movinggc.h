@@ -36,7 +36,7 @@ typedef struct egc_generation* egc_generation_t;
 /* Allocate and return a generation array of generation_no elements. */
 egc_generation_t
 egc_make_generations (size_t generation_no)
-  __attribute__ ((cold, malloc));
+  __attribute__ ((cold, malloc, returns_nonnull));
 /* Each generation (as returned by egc_make_generations) must be
    initialized exactly once. */
 void
@@ -97,18 +97,18 @@ void egc_set_hook_argument (void *argument);
    is complicated to completely initialize a buffer before allocating
    another. */
 void *egc_allocate_chars (size_t size_in_chars)
-  __attribute__ ((hot, malloc));
+  __attribute__ ((hot, malloc, returns_nonnull));
 void *egc_allocate_words (size_t size_in_words)
-  __attribute__ ((hot, malloc, flatten));
+  __attribute__ ((hot, malloc, flatten, returns_nonnull));
 void *egc_allocate_chars_inizializing (size_t size_in_chars)
-  __attribute__ ((hot, malloc, flatten));
+  __attribute__ ((hot, malloc, flatten, returns_nonnull));
 void *egc_allocate_words_inizializing (size_t size_in_chars)
-  __attribute__ ((hot, malloc, flatten));
+  __attribute__ ((hot, malloc, flatten, returns_nonnull));
 
 // FIXME: remove, or add more cases.
 void *
 egc_allocate_cons (void)
-  __attribute__ ((hot, malloc, flatten));
+  __attribute__ ((hot, malloc, flatten, returns_nonnull));
 
 /* This has to be called on a slot before it's overwritten with a
    (tagged) pointer.
@@ -117,7 +117,7 @@ egc_allocate_cons (void)
    a) when the write operation is an initialization;
    b) when the new value being written is a non-pointer. */
 void egc_write_barrier (void **untagged_initial_pointer,
-                             long offset_in_words);
+                        long offset_in_words);
 
 
 /* Explicit full GC.  Also execute the pre- and post-GC hooks, if any. */

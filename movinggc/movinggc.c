@@ -272,7 +272,7 @@ struct egc_generation
 
   /* Statistics. */
   int gc_no;
-  double scavenged_words;
+  double alive_words;
   double gc_time;
 
   egc_allocate_chars_function_t allocate_chars;
@@ -287,22 +287,22 @@ struct egc_generation
 static void*
 egc_allocate_chars_from_semispace_generation (egc_generation_t g,
                                               size_t size_in_chars)
-  __attribute__ ((hot, malloc));
+  __attribute__ ((hot, malloc, returns_nonnull));
 
 static void*
 egc_allocate_chars_from_marksweep_generation (egc_generation_t g,
                                               size_t size_in_chars)
-  __attribute__ ((hot, malloc));
+  __attribute__ ((hot, malloc, returns_nonnull));
 
 static void*
 egc_allocate_chars_in_tospace_from_single_semispace_generation (egc_generation_t g,
                                                                 size_t size_in_chars)
-  __attribute__ ((hot, malloc, unused));
+  __attribute__ ((hot, malloc, returns_nonnull));
 
 static void*
 egc_allocate_chars_in_tospace_from_double_semispace_generation (egc_generation_t g,
                                                                 size_t size_in_chars)
-  __attribute__ ((hot, malloc));
+  __attribute__ ((hot, malloc, returns_nonnull));
 
 static void
 egc_gc_semispace_generation (egc_generation_t g)
@@ -379,13 +379,24 @@ egc_call_on_generation (egc_generation_t g,
 {
   while (g != NULL)
     {
-      long word_no =
-        g->fromspace->after_payload_end - g->fromspace->payload_beginning;
+      long word_no;
+      switch (g->type)
+        {
+        case egc_generation_type_semispace:
+          word_no
+            = g->fromspace->after_payload_end - g->fromspace->payload_beginning;
+          break;
+        case egc_generation_type_marksweep:
+          word_no = g->marksweep_heap->payload_size_in_words;
+          break;
+        default:
+          egc_fatal ("unknown generation type %i", (int)g->type);
+        } // switch
       fprintf (stderr, "Generation %i (collected %12i times",
                (int)g->generation_index, (int)g->gc_no);
       if (g->gc_no != 0)
         fprintf (stderr, ", %5.01f%% survival",
-                 g->scavenged_words / word_no / g->gc_no * 100);
+                 g->alive_words / word_no / g->gc_no * 100);
 #ifdef EGC_TIME
       if (g->gc_no != 0)
         fprintf (stderr, ", %.9fs average", g->gc_time / g->gc_no);
@@ -655,7 +666,7 @@ egc_initialize_generation (int generation_index,
   generation->roots_from_older_generations.roots = NULL;
 
   generation->gc_no = 0;
-  generation->scavenged_words = 0;
+  generation->alive_words = 0;
   generation->gc_time = 0;
 }
 
@@ -775,7 +786,7 @@ egc_mark_if_needed (egc_generation_t g, void *untagged_pointer)
   int index = ((void**)untagged_pointer) - s->payload_beginning;
   if_unlikely (s->mark_bytes[index])
     {
-      fprintf (stderr, "OK-A 401: is %p already marked? %s\n", untagged_pointer, s->mark_bytes[index] ? "yes" : "no");
+      //fprintf (stderr, "OK-A 401: is %p already marked? %s\n", untagged_pointer, s->mark_bytes[index] ? "yes" : "no");
       return;
     }
 
@@ -843,7 +854,7 @@ egc_mark_roots (egc_generation_t g)
   size_t static_root_no = egc_roots_no;
 #endif // #ifdef EGC_DEBUG
 
-  fprintf (stderr, "Running pre hook\n");
+  //fprintf (stderr, "Running pre hook\n");
   egc_run_hook (egc_pre_hook);
 
 #ifdef EGC_VERY_VERBOSE
@@ -857,7 +868,7 @@ egc_mark_roots (egc_generation_t g)
 #endif // #ifdef EGC_VERBOSE
   for (root_index = 0; root_index < egc_roots_no; root_index++)
     {
-      fprintf (stderr, "Marking root %i of %i\n", (int)root_index, (int)egc_roots_no);
+      //fprintf (stderr, "Marking root %i of %i\n", (int)root_index, (int)egc_roots_no);
       void **candidate_pointers = (void **)
         egc_roots[root_index].pointer_to_roots;
       const int word_no = egc_roots[root_index].size_in_words;
@@ -872,13 +883,13 @@ egc_mark_roots (egc_generation_t g)
       marked_root_pointer_no ++;
 #endif // #ifdef EGC_VERBOSE
     } // for
-  fprintf (stderr, "Done marking roots\n");
+  //fprintf (stderr, "Done marking roots\n");
 #ifdef EGC_VERBOSE
   egc_log ("Marked %li candidate root pointers\n", marked_root_pointer_no);
 #endif // #ifdef EGC_VERBOSE
 
   egc_run_hook (egc_post_hook);
-  fprintf (stderr, "Done with post hook\n");
+  //fprintf (stderr, "Done with post hook\n");
 
 #ifdef EGC_DEBUG
   if_unlikely (static_root_no != egc_roots_no)
@@ -946,28 +957,29 @@ egc_free_words_in_marksweep_generation (egc_generation_t g)
 static void*
 egc_allocate_words_from_marksweep_generation (egc_generation_t g,
                                               size_t size_in_words)
-  __attribute__((hot, malloc));
+  __attribute__((hot, malloc, returns_nonnull));
 static void*
 egc_allocate_words_from_marksweep_generation (egc_generation_t g,
                                               size_t size_in_words)
 {
   bool did_we_gc = false;
+  egc_marksweep_heap_t const h = g->marksweep_heap;
   do
     {
-      egc_marksweep_heap_t h = g->marksweep_heap;
       void **p;
-      for (p = h->allocation_pointer; p != NULL; p = (void**)p[1])
+      for (p = h->allocation_pointer;
+           __builtin_expect (p != NULL, 1);
+           p = (void**)p[1])
         {
           size_t block_size_in_words
             = EGC_NONFORWARDING_HEADER_TO_SIZE(*p);
-          if (size_in_words + 1 > block_size_in_words)
+          if_unlikely (size_in_words + 1 > block_size_in_words)
             {
-              fprintf (stderr, "the block at %p is %i words long, and I need %i: trying next\n", p,
-                       (int)block_size_in_words, (int)size_in_words + 1);
+              //fprintf (stderr, "the block at %p is %i words long, and I need %i: trying next\n", p,(int)block_size_in_words, (int)size_in_words + 1);
               continue;
             }
           size_t new_empty_block_size = block_size_in_words - size_in_words - 1;
-          switch (new_empty_block_size)
+          switch (__builtin_expect (new_empty_block_size, 10))
             {
             case 0:
               /* We used the entire free block. */
@@ -999,7 +1011,7 @@ egc_allocate_words_from_marksweep_generation (egc_generation_t g,
                                            g->generation_index);
           return p + 1;
         } // while
-      if (did_we_gc)
+      if_unlikely (did_we_gc)
         egc_fatal ("couldn't free up space after GC'ing");
       else
         {
@@ -1012,7 +1024,7 @@ egc_allocate_words_from_marksweep_generation (egc_generation_t g,
 static void*
 egc_allocate_chars_from_marksweep_generation (egc_generation_t g,
                                               size_t size_in_chars)
-  __attribute__((hot, malloc));
+  __attribute__((hot, malloc, returns_nonnull));
 static void*
 egc_allocate_chars_from_marksweep_generation (egc_generation_t g,
                                               size_t size_in_chars)
@@ -1030,48 +1042,97 @@ egc_allocate_chars_from_marksweep_generation (egc_generation_t g,
 }
 
 static void
-egc_sweep (egc_generation_t g)
+egc_sweep (egc_generation_t g, size_t *free_words_p)
 {
 #ifdef EGC_DEBUG
   if_unlikely (g->type != egc_generation_type_marksweep)
     egc_fatal ("generation %i is not mark-sweep", (int)g->generation_index);
 #endif // #ifdef EGC_DEBUG
-  fprintf (stderr, "pretending to sweep\n");
+
+  egc_marksweep_heap_t const h = g->marksweep_heap;
+  const char * const m = h->mark_bytes;
+  void ** const payload = h->payload_beginning;
+
+  /* Ignore the marked part, looking for and linking to one another all unmarked
+     blocks which are at least two words wide.  This ensures that free blocks
+     are ordered by address, which should make locality better. */
+  int i = 0;
+  const int past_array_end = h->payload_size_in_words;
+  void ***next_pointer = & h->allocation_pointer;
+  size_t free_words = 0;
+  while (i < past_array_end)
+    {
+      /* Look for the beginning of an unmarked block. */
+      for (; i < past_array_end && m[i]; i ++)
+        ;
+      if (i + 1 > past_array_end)
+        break;
+
+      /* If the unmarked block is only one word wide, ignore it. */
+      if (m[i + 1])
+        {
+          i ++;
+          continue;
+        }
+
+      /* We found a suitable unmarked block.  See how large it is. */
+      int past_block_end;
+      for (past_block_end = i;
+           past_block_end < past_array_end && ! m[past_block_end];
+           past_block_end ++)
+        ;
+      size_t size_in_words = past_block_end - i;
+      free_words += size_in_words;
+      //fprintf (stderr, "Found a %i-word block\n", (int)size_in_words);
+
+      /* Link the previous block to this one, store the block size in the first
+         word, and remember to store the next link in the second word. */
+      *next_pointer = payload + i;
+      payload[i] = EGC_NONFORWARDING_HEADER(size_in_words, 0);
+      next_pointer = (void***) (payload + i + 1);
+
+      i = past_block_end;
+    } // while
+  *next_pointer = NULL;
+  *free_words_p = free_words;
 }
 
 static void
 egc_gc_marksweep_generation (egc_generation_t g)
 {
+#ifdef EGC_TIME
+  double time_before = egc_get_current_time ();
+#endif // #ifdef EGC_TIME
   // FIXME: time
 #ifdef EGC_DEBUG
   if_unlikely (g->type != egc_generation_type_marksweep)
     egc_fatal ("generation %i is not mark-sweep", (int)g->generation_index);
 #endif // #ifdef EGC_DEBUG
-  fprintf (stderr, "Marking roots: BEGIN\n");
+  /* fprintf (stderr, "Marking roots: BEGIN\n"); */
   egc_mark_roots (g);
-  fprintf (stderr, "Marking roots: END\n");
-  fprintf (stderr, "Marking from the stack: BEGIN\n");
+  /* fprintf (stderr, "Marking roots: END\n"); */
+  /* fprintf (stderr, "Marking from the stack: BEGIN\n"); */
   egc_mark_from_stack (g);
-  fprintf (stderr, "Marking from the stack: END\n");
-  fprintf (stderr, "Sweeping: BEGIN\n");
-  egc_sweep (g);
-  fprintf (stderr, "Sweeping: END\n");
-  /* { */
-  /*   egc_marksweep_heap_t h = g->marksweep_heap; */
-  /*   char *b = h->mark_bytes; */
-  /*   size_t s = h->payload_size_in_words; */
-  /*   int i; */
-  /*   for (i = 0; i < s; i ++) */
-  /*     { */
-  /*       if (i % 130 == 0) */
-  /*         fprintf (stderr, "\n%10i ", i); */
-  /*       fprintf (stderr, "%c", b[i] ? 'M' : '.'); */
-  /*     } */
-  /*   fprintf (stderr, "\n"); */
-  /* } */
-  fprintf (stderr, "Unmarking: BEGIN\n");
+  /* fprintf (stderr, "Marking from the stack: END\n"); */
+  /* fprintf (stderr, "Sweeping: BEGIN\n"); */
+  size_t free_words;
+  egc_sweep (g, &free_words);
+  //fprintf (stderr, "Sweeping freed %3.2f%% space: %li of %li\n", 100.0 * free_words / g->marksweep_heap->payload_size_in_words, (long)free_words, (long)g->marksweep_heap->payload_size_in_words);
+  /* fprintf (stderr, "Unmarking: BEGIN\n"); */
   egc_clear_marksweep_heap_marks (g->marksweep_heap);
-  fprintf (stderr, "Unmarking: END\n");
+  /* fprintf (stderr, "Unmarking: END\n"); */
+  //fprintf (stderr, ".");
+
+  /* The alive word counter ignores 1-word blocks lost to fragmentation. */
+  g->alive_words += (g->marksweep_heap->payload_size_in_words - free_words);
+  g->gc_no ++;
+
+#ifdef EGC_TIME
+  double elapsed_time = egc_get_current_time () - time_before;
+  g->gc_time += elapsed_time;
+#else
+  fprintf (stderr, "(Timing not configured in.)\n");
+#endif // #ifdef EGC_TIME
 }
 
 void
@@ -1153,8 +1214,13 @@ egc_initialize (void)
 #else
   int generation_no = 1, i;
   egc_generation_t generations = egc_make_generations (generation_no);
+  //size_t size = 10 * 2.3 * 1024L * 1024L / sizeof (void*);
+  size_t size = 10 * 2.3 * 1024L * 1024L / sizeof (void*);
   for (i = 0; i < generation_no; i ++)
-    egc_initialize_marksweep_generation (generations + i, 0.5 * 1000 * 1024 * 1024L);
+    {
+  egc_initialize_marksweep_generation (generations + i, size);
+  //egc_initialize_semispace_generation (generations + i, 2, size);
+    }
 #endif
   egc_link_generations (generations, generation_no);
 
@@ -1602,7 +1668,7 @@ egc_gc_semispace_generation_to_semispace (egc_generation_t fromg,
                                           egc_semispace_t fromspace,
                                           egc_generation_t tog, // possibly == fromg
                                           egc_semispace_t tospace, // in tog
-                                          size_t *scavenged_words)
+                                          size_t *alive_words)
 {
   if (fromg != tog && egc_free_words_in_generation (tog)
                       < egc_used_words_in_generation (fromg))
@@ -1656,11 +1722,11 @@ egc_gc_semispace_generation_to_semispace (egc_generation_t fromg,
       egc_clear_roots (& younger_g->roots_from_older_generations);
     } // for
 
-  *scavenged_words =
+  *alive_words =
     (size_t)(tospace->next_unallocated_word - initial_left_finger);
 
   fromg->gc_no ++;
-  fromg->scavenged_words += *scavenged_words;
+  fromg->alive_words += *alive_words;
 }
 
 static void
@@ -1684,13 +1750,13 @@ egc_gc_semispace_generation (egc_generation_t g)
   egc_generation_t next_older = g->next_older;
   egc_generation_type_t totype __attribute__ ((unused));
   egc_semispace_t tospace __attribute__ ((unused));
-  size_t scavenged_words;
+  size_t alive_words;
   if (next_older == NULL)
     {
       totype = egc_generation_type_semispace;
       egc_gc_semispace_generation_to_semispace (g, g->fromspace, g,
                                                 tospace = g->tospace,
-                                                &scavenged_words);
+                                                &alive_words);
     }
   else
     switch (next_older->type)
@@ -1700,7 +1766,7 @@ egc_gc_semispace_generation (egc_generation_t g)
           egc_generation_t tog = g->tospace ? g : g->next_older;
           tospace = g->tospace ? g->tospace : next_older->fromspace;
           egc_gc_semispace_generation_to_semispace (g, g->fromspace, tog, tospace,
-                                                    &scavenged_words);
+                                                    &alive_words);
           break;
         }
       case egc_generation_type_marksweep:
@@ -1723,11 +1789,11 @@ egc_gc_semispace_generation (egc_generation_t g)
     egc_log ("...%i-GC %s->%s: END (scavenged %.02fKiB",
              (int)g->generation_index,
              g->fromspace->name, tospace->name,
-             (float)scavenged_words * sizeof(void*) / 1024.0);
+             (float)alive_words * sizeof(void*) / 1024.0);
   else
     egc_log ("...%i-GC: END (scavenged %.02fKiB",
              (int)g->generation_index,
-             (float)scavenged_words * sizeof(void*) / 1024.0);
+             (float)alive_words * sizeof(void*) / 1024.0);
 #ifdef EGC_TIME
   egc_log (" in %.9fs", elapsed_time);
 #endif // #ifdef EGC_TIME

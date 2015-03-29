@@ -145,8 +145,8 @@ main (void)
       for (i = 0; i < INNER_LOOP_LENGTH ; i++)
         {
           void *new_cons = cons (i, root1);
-          //if (i % 10 == 0)
-          if (random_from_0_to_1 () <= ADD_PROBABILITY)
+          if (i % 10 == 0)
+          //if (random_from_0_to_1 () <= ADD_PROBABILITY)
             {                   //(rand() % 100 >= 95){
               //if(rand() % 200 <= 1){
               root1 = new_cons;

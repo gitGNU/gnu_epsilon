@@ -1120,14 +1120,18 @@ egc_sweep (egc_generation_t g, size_t *free_words_p)
   size_t free_words = 0;
   while (i < past_array_end)
     {
-      /* Look for the beginning of an unmarked block. */
+      /* Skip the first unmarked block. */
       for (; i < past_array_end && egc_is_marked (h, i); i ++)
         ;
-      if (i + 1 > past_array_end)
-        break;
 
-      /* If the unmarked block is only one word wide, ignore it. */
-      if (egc_is_marked (h, i + 1))
+      /* Now i is at the beginning of the first free block, or out of the heap
+         (notice that we also catch the out-of-heap condition by checking if i +
+         1 is out).  If the second block word is not free or if the block begins
+         too close to the end to allow for two words, we can't use it (and in
+         the second case the while guard will be false at the next iteration; I
+         didn't add a different condition for break hoping that the code might
+         be more compact like this). */
+      if_unlikely (i + 1 > past_array_end || egc_is_marked (h, i + 1))
         {
           i ++;
           continue;
@@ -1158,6 +1162,7 @@ egc_sweep (egc_generation_t g, size_t *free_words_p)
 
       i = past_block_end;
     } // while
+
   *next_pointer = NULL;
   *free_words_p = free_words;
 }

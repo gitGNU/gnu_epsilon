@@ -1091,6 +1091,13 @@ egc_sweep (egc_generation_t g, size_t *free_words_p)
       payload[i] = EGC_NONFORWARDING_HEADER(size_in_words, 0);
       next_pointer = (void***) (payload + i + 1);
 
+#ifdef EGC_DEBUG
+      /* Overwrite the block we freed. */
+      int k;
+      for (k = i + 2; k < size_in_words; k ++)
+        payload[k] = (void*)(long)0xdead000;
+#endif // #ifdef EGC_DEBUG
+
       i = past_block_end;
     } // while
   *next_pointer = NULL;
@@ -1214,8 +1221,8 @@ egc_initialize (void)
 #else
   int generation_no = 1, i;
   egc_generation_t generations = egc_make_generations (generation_no);
-  //size_t size = 10 * 2.3 * 1024L * 1024L / sizeof (void*);
-  size_t size = 10 * 2.5 * 1024L * 1024L / 8.0;
+  //size_t size = 10 * 2.3 * 1024L * 1024L / 8.0;
+  size_t size = 103000 * 3;
   for (i = 0; i < generation_no; i ++)
     {
   egc_initialize_marksweep_generation (generations + i, size);

@@ -44,6 +44,10 @@ egc_initialize_semispace_generation (egc_generation_t generation,
                                      int semispace_no, /* 1 or 2 */
                                      size_t word_no)
   __attribute__ ((cold));
+void
+egc_initialize_marksweep_generation (egc_generation_t generation,
+                                     size_t word_no)
+  __attribute__ ((cold));
 /* Generation data structures have to refer one another.  This has to
    be called after initializing them all. */
 void egc_link_generations (egc_generation_t generations, size_t generation_no)
@@ -130,6 +134,9 @@ long egc_gc_no (void); // how many times did we GC?
 double egc_allocated_bytes (void); // how many times bytes did we allocate since the beginning?
 void egc_dump_generations (void);
 void egc_dump_generation_contents (void);
+void
+egc_print_marks (egc_generation_t g)
+  __attribute__ ((cold));
 void
 egc_dump_times (void);
 

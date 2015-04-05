@@ -248,6 +248,7 @@ typedef void (*egc_gc_generation_function_t)
 
 enum egc_generation_type
   {
+    egc_generation_type_uninitialized,
     egc_generation_type_semispace,
     egc_generation_type_marksweep,
     egc_generation_type_large,
@@ -666,6 +667,7 @@ egc_initialize_generation (int generation_index,
   /* Intentionally fill every field with invalid data. */
   memset (generation, -1, sizeof (struct egc_generation));
 #endif // #ifdef EGC_DEBUG
+  generation->type = egc_generation_type_uninitialized;
   generation->generation_index = generation_index;
 
   generation->roots_from_older_generations.root_no = 0;
@@ -790,6 +792,22 @@ egc_mark (egc_marksweep_heap_t const h, int index)
 }
 #endif // #ifdef EGC_MARK_BITS
 
+void
+egc_print_marks (egc_generation_t g)
+{
+  if (g->type != egc_generation_type_marksweep)
+    egc_fatal ("egc_print_marks on non-marksweep generation");
+  egc_marksweep_heap_t const h = g->marksweep_heap;
+  const int past_array_end = h->payload_size_in_words;
+  int i;
+  for (i = 0; i < past_array_end; i ++)
+    {
+      if (i % 100 == 0)
+        fprintf(stderr, "\n0x%-12p ", h->payload_beginning + i);
+      fprintf(stderr, "%c", egc_is_marked (h, i) ? 'M' : '.');
+    }
+  fprintf(stderr, "\n");
+}
 static void
 egc_mark_if_needed (egc_generation_t g, void *untagged_pointer_in_s)
   __attribute__ ((hot, flatten, unused));
@@ -1192,6 +1210,7 @@ egc_gc_marksweep_generation (egc_generation_t g)
   /* fprintf (stderr, "Sweeping: BEGIN\n"); */
   size_t free_words;
   egc_sweep (g, &free_words);
+  //egc_print_marks (g);
   //fprintf (stderr, "Sweeping freed %3.2f%% space: %li of %li\n", 100.0 * free_words / g->marksweep_heap->payload_size_in_words, (long)free_words, (long)g->marksweep_heap->payload_size_in_words);
   /* fprintf (stderr, "Unmarking: BEGIN\n"); */
   egc_clear_marks (g->marksweep_heap);
@@ -1239,6 +1258,9 @@ void egc_link_generations (egc_generation_t generations, size_t generation_no)
   int i; egc_generation_t g;
   for (i = 0, g = generations; i < generation_no; i ++, g ++)
     {
+      if (g->type == egc_generation_type_uninitialized)
+        egc_fatal ("generation %i (of %i) uninitialized",
+                   i, (int)generation_no);
       if (i == 0)
         g->next_younger = NULL;
       else
@@ -1310,7 +1332,8 @@ egc_initialize (void)
   int generation_no = 1, i;
   egc_generation_t generations = egc_make_generations (generation_no);
   //size_t size = 10 * 2.3 * 1024L * 1024L / 8.0;
-  size_t size = 103000 * 3;
+  //size_t size = 103000 * 3;
+  size_t size = 3100000;
   for (i = 0; i < generation_no; i ++)
     {
   egc_initialize_marksweep_generation (generations + i, size);

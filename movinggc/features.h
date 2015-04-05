@@ -34,7 +34,11 @@
 #define EGC_TIME
 #define EGC_USE_MEMCPY
 
-//#define EGC_MARK_BITS
+// Mark bits are only faster on MIPS, at least with my configuration.
+#if defined(EGC_ARCHITECTURE_mips) || defined(EGC_ARCHITECTURE_mips64)
+#define EGC_MARK_BITS
+#endif // MIPS
+
 #define HAS_CLOCK_GETTIME
 
 //#define EGC_USE_GLOBAL_POINTERS

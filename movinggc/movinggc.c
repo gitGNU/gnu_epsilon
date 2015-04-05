@@ -1255,6 +1255,8 @@ egc_initialize_marksweep_generation (egc_generation_t generation,
 
 void egc_link_generations (egc_generation_t generations, size_t generation_no)
 {
+  if (generation_no == 0)
+    egc_fatal ("zero generations");
   int i; egc_generation_t g;
   for (i = 0, g = generations; i < generation_no; i ++, g ++)
     {

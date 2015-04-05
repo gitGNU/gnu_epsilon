@@ -1227,6 +1227,8 @@ egc_initialize_marksweep_generation (egc_generation_t generation,
   /* This is an upper bound on the number of objects. */
   generation->mark_stack = (void**)
     malloc (sizeof (void*) * word_no / 2);
+  fprintf (stderr, "The mark stack takes %6.2fkB\n",
+           word_no / 2.0 / 1024.0);
   generation->mark_stack_overtop = generation->mark_stack;
   if_unlikely (generation->mark_stack == NULL)
     egc_fatal ("couldn't allocate mark stack");

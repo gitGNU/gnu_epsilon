@@ -113,27 +113,13 @@ float random_from_0_to_1 (void)
   return r;
 }
 
-int
-main (void)
+void *root1;
+void *root2;
+
+void
+main_loop1 (void)
 {
-  /* int j; */
-  /* int *p = &j; */
-  /* egc_verbose_log("p = %p\n", p); */
-  /* egc_verbose_log("%p\n", EGC_TAG_POINTER(p)); */
-  /* return 0; */
-  //srand(time(NULL));
-  srand (0); // I want deterministic results
-  egc_initialize ();
   int i, j;
-  void *root1;
-  egc_register_roots (&root1, 1);
-
-  egc_set_pre_hook (pre_gc_hook);
-  egc_set_post_hook (post_gc_hook);
-  egc_set_hook_argument (&temporary_roots);
-
-  fprintf (stderr, "* Start main loop\n");
-
 #define OUTER_LOOP_LENGTH      100
 #define INNER_LOOP_LENGTH      1000000
 #define EXPECTED_LENGTH        100000
@@ -155,6 +141,50 @@ main (void)
             }
         }                       // inner for
     }
+}
+
+void
+main_loop2 (void)
+{
+  long i, j;
+#undef OUTER_LOOP_LENGTH
+#undef INNER_LOOP_LENGTH
+#undef EXPECTED_LENGTH
+#undef ADD_PROBABILITY
+#define LIST_SIZE              100
+#define OUTER_LOOP_LENGTH      (100000000L / LIST_SIZE)
+  //root1 = EGC_TAG_NONPOINTER (NULL); /* yes, the empty list is a non-pointer */
+  for (j = 0; j < OUTER_LOOP_LENGTH; j++)
+    {
+      root1 = EGC_TAG_NONPOINTER (NULL);
+      for (i = 0; i < LIST_SIZE ; i++)
+        root1 = cons (i, root1);
+    }
+}
+
+int
+main (void)
+{
+  /* int j; */
+  /* int *p = &j; */
+  /* egc_verbose_log("p = %p\n", p); */
+  /* egc_verbose_log("%p\n", EGC_TAG_POINTER(p)); */
+  /* return 0; */
+  //srand(time(NULL));
+  srand (0); // I want deterministic results
+  egc_initialize ();
+  egc_register_roots (&root1, 1);
+  egc_register_roots (&root2, 1);
+  root1 = EGC_TAG_NONPOINTER (NULL);
+  root2 = EGC_TAG_NONPOINTER (NULL);
+
+  egc_set_pre_hook (pre_gc_hook);
+  egc_set_post_hook (post_gc_hook);
+  egc_set_hook_argument (&temporary_roots);
+
+  fprintf (stderr, "* Start main loop\n");
+  main_loop1 ();
+  //main_loop2 ();
   fprintf (stderr, "* End main loop\n");
   //printf("\n");
   /* Remove hooks.  This is absolutely essential if I want to call a

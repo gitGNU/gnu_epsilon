@@ -28,21 +28,12 @@
 #define inline  /* nothing */
 #endif // #if 0
 
-#define EGC_DEBUG
+//#define EGC_DEBUG
 //#define EGC_VERBOSE
 //#define EGC_VERY_VERBOSE
 //#define EGC_MARK_BITS
 #define EGC_TIME
 #define EGC_USE_MEMCPY
-
-#define EGC_GENERATION_0_WORD_NO \
-  (20 * 1024L / sizeof(void*))//(1 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
-#define EGC_GENERATION_1_WORD_NO \
-  (10 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
-#define EGC_GENERATION_2_WORD_NO \
-  (20 * 1024 * 1024L / sizeof(void*)) //(32 * 1024 * 1024L / sizeof (void*))
-
-
 
 #define HAS_CLOCK_GETTIME
 

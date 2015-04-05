@@ -859,6 +859,11 @@ egc_mark_if_needed (egc_generation_t g, void *untagged_pointer)
       {
         //fprintf (stderr, "yes\n");
         *(g->mark_stack_overtop ++) = untagged_field;
+#ifdef EGC_DEBUG
+        if_unlikely (g->mark_stack_overtop
+                     > g->mark_stack + g->marksweep_heap->payload_size_in_words)
+          egc_fatal ("mark stack overflow");
+#endif // #ifdef EGC_DEBUG
       }
       else
         ;//fprintf (stderr, "no\n");
@@ -1239,10 +1244,14 @@ void egc_link_generations (egc_generation_t generations, size_t generation_no)
       if (i != generation_no - 1)
         {
           g->next_older = g + 1;
+          /* Only the last generation can be mark-sweep. */
+          if (g->type == egc_generation_type_marksweep)
+            egc_fatal ("generation %i (of %i) is mark-sweep",
+                       i, (int)generation_no);
           /* A semispace generation which is not the last one can only
-             have one semispaces, since we do immediate promotion. */
-          if (g->type == egc_generation_type_semispace
-              && g->tospace != NULL)
+             have one semispace, since we do immediate promotion. */
+          else if (g->type == egc_generation_type_semispace
+                   && g->tospace != NULL)
             egc_fatal ("generation %i (of %i) has two semispaces",
                        i, (int)generation_no);
         }
@@ -1265,22 +1274,36 @@ void
 egc_initialize (void)
 {
 #if 0
-  /* int generation_no = 3; */
-  /* egc_generation_t generations = egc_make_generations (generation_no); */
-  /* egc_initialize_semispace_generation (generations + 0, 1, EGC_GENERATION_0_WORD_NO); */
-  /* egc_initialize_semispace_generation (generations + 1, 1, EGC_GENERATION_1_WORD_NO); */
-  /* egc_initialize_semispace_generation (generations + 2, 2, EGC_GENERATION_2_WORD_NO); */
-
-  int generation_no = 1;
+  int generation_no = 3;
   egc_generation_t generations = egc_make_generations (generation_no);
-  egc_initialize_semispace_generation (generations + 0, 2, EGC_GENERATION_2_WORD_NO);
-  //egc_initialize_semispace_generation (generations + 0, 2, (long)(2.31435 * 1024 * 1024L / 8));
-
-  /* int i; */
-  /* for (i = 0; i < generation_no; i ++) */
-  /*   egc_initialize_semispace_generation (generations + i, */
-  /*                                        (i == generation_no - 1) ? 2 : 1, */
-  /*                                        1024 * 4 * (1 << i)*(1 << i)*(1 << i)*(1 << i)*(1 << i)); */
+  int i;
+  for (i = 0; i < generation_no; i ++)
+    {
+      size_t g_size;
+      switch (i)
+        {
+        case 0:
+          g_size = 1024L * 24 / sizeof(void*);
+          break;
+        case 1:
+          g_size = 1024L * 1024 / sizeof(void*);
+          break;
+        case 2:
+          g_size = 1024L * 1024 * 8 / sizeof(void*);
+          break;
+        default:
+          egc_fatal ("initialize switch");
+        }; // switch
+      fprintf (stderr, "G%i size is %.2fkW or %.2fkB\n", i,
+               (double)g_size / 1024.0, (double)g_size * sizeof (void*) / 1024.0);
+      if (false) //i == generation_no - 1)
+        egc_initialize_marksweep_generation (generations + i,
+                                             g_size);
+      else
+        egc_initialize_semispace_generation (generations + i,
+                                             (i == generation_no - 1) ? 2 : 1,
+                                             g_size);
+    }
 #else
   int generation_no = 1, i;
   egc_generation_t generations = egc_make_generations (generation_no);
@@ -1800,16 +1823,38 @@ egc_gc_semispace_generation_to_semispace (egc_generation_t fromg,
 }
 
 static void
+egc_print_gc (egc_generation_t g)
+{
+  return;
+  switch (g->generation_index)
+    {
+    case 0:
+      fprintf (stderr, " ");
+      break;
+    case 1:
+      fprintf (stderr, "-");
+      break;
+    case 2:
+      fprintf (stderr, "[!]");
+      break;
+    default:
+      fprintf (stderr, "%i", (int)g->generation_index);
+    } // switch
+}
+
+static void
 egc_gc_semispace_generation_to_marksweep (egc_generation_t fromg,
                                           egc_semispace_t fromspace,
                                           egc_generation_t tog)
 {
+  egc_print_gc (fromg);
   egc_fatal ("egc_gc_semispace_generation_to_marksweep: unimplemented");
 }
 
 void
 egc_gc_semispace_generation (egc_generation_t g)
 {
+  egc_print_gc (g);
 #ifdef EGC_TIME
   double time_before = egc_get_current_time ();
 #endif // #ifdef EGC_TIME

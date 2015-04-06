@@ -1154,7 +1154,7 @@ egc_sweep (egc_generation_t g, size_t *free_words_p)
          the second case the while guard will be false at the next iteration; I
          didn't add a different condition for break hoping that the code might
          be more compact like this). */
-      if_unlikely (i + 1 > past_array_end || egc_is_marked (h, i + 1))
+      if_unlikely (i + 1 >= past_array_end || egc_is_marked (h, i + 1))
         {
           i ++;
           continue;
@@ -1172,6 +1172,7 @@ egc_sweep (egc_generation_t g, size_t *free_words_p)
 
       /* Link the previous block to this one, store the block size in the first
          word, and remember to store the next link in the second word. */
+      // FIXME: the following two stores should bypass the cache.
       *next_pointer = payload + i;
       payload[i] = EGC_NONFORWARDING_HEADER(size_in_words, 0);
       next_pointer = (void***) (payload + i + 1);
@@ -1186,6 +1187,11 @@ egc_sweep (egc_generation_t g, size_t *free_words_p)
       i = past_block_end;
     } // while
 
+#ifdef EGC_DEBUG
+  if_unlikely ((void**)next_pointer >
+               h->payload_beginning + h->payload_size_in_words)
+    egc_fatal ("next_pointer is out of bounds");
+#endif // #ifdef EGC_DEBUG
   *next_pointer = NULL;
   *free_words_p = free_words;
 }
@@ -1335,11 +1341,12 @@ egc_initialize (void)
   egc_generation_t generations = egc_make_generations (generation_no);
   //size_t size = 10 * 2.3 * 1024L * 1024L / 8.0;
   //size_t size = 103000 * 3;
-  size_t size = 3100000;
+  //size_t size = 3100000;
+  size_t size = 310000;
   for (i = 0; i < generation_no; i ++)
     {
-  egc_initialize_marksweep_generation (generations + i, size);
-  //egc_initialize_semispace_generation (generations + i, 2, size);
+  //egc_initialize_marksweep_generation (generations + i, size);
+  egc_initialize_semispace_generation (generations + i, 2, size);
     }
 #endif
   egc_link_generations (generations, generation_no);

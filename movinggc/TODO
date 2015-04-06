@@ -16,6 +16,33 @@ You should have received a copy of the GNU General Public License
 along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
+GCC's profile-driven feedback optimization works spectacularly well on semispace
+generations -- I guess it's because there are a lot of conditionals.  Make sure
+to use it in production, via automake.  On x86_64 it changes
+  real 9.01
+  user 9.01
+  sys 0.00
+to
+  real 3.22
+  user 3.22
+  sys 0.00
+On MIPS is changes
+  real 111.03
+  user 107.33
+  sys 0.69
+to
+  real 90.01
+  user 86.92
+  sys 0.64
+.
+.  I've already written automake rules using that, but I should suggest the
+automake guys to make this more automatic.
+[luca@sussman /net/moore/home/luca/repos/epsilon/movinggc]$ gcc -static -Ofast -flto -Wall -g -Werror -DEGC_ARCHITECTURE_mips64 movinggc.c driver.c -o a.out-mips-no-profile
+[luca@sussman /net/moore/home/luca/repos/epsilon/movinggc]$ time gcc -DEGC_ARCHITECTURE_mips64 -static -Ofast -flto -fprofile-generate movinggc.c driver.c -o a.out-mips-profile && time ./a.out-mips-profile &> /dev/null && time gcc -DEGC_ARCHITECTURE_mips64 -static -Ofast -flto -fprofile-use movinggc.c driver.c -o a.out-mips-profile
+
+marking: I can probably optimize substantially by avoiding repeated
+checks after stack popping.
+
 egc_semispace_of, egc_marksweep_heap_of: optimize by only looking at
 the appropriate generation.  This might speed things up.
 

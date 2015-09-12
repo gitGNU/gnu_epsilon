@@ -218,6 +218,7 @@ epsilon\subscript\
 @c Main menu
 @menu
 * This manual is incomplete::  Please come back later -- unless you're curious
+* A declaration of intent::    Why we need this new programming language
 @c * Introduction::               What epsilon is
 @c * Library::                    sdf..sad.sa.d.saed
 @c * Something::                  sdf..sad.sa.d.saed
@@ -289,6 +290,22 @@ Thanks.
 @flushright
 --- Luca Saiu
 @end flushright
+
+@c ==============================================================
+@node A declaration of intent
+@chapter A declaration of intent
+
+@todo{``Current software is shameful''.  Cite Chuck Moore.}
+
+@todo{Development along different axes: expressivity first.  Safety as
+well, under the control of the developer.  Compatibility not
+paramount.}
+
+@todo{Briefly introduce reductionism in design, before articulating
+the idea in a new chapter}
+
+@fill
+
 
 @c ==============================================================
 @node Compilers

@@ -359,6 +359,14 @@ bin_epsilon_test_utility_LDADD = \
   lib/libepsilonutility.a
 #bin_epsilon_test_utility_CPPFLAGS = -DEPSILON_RUNTIME_UNTAGGED
 
+# A temporary utility for testing and developing threaded code.
+bin_PROGRAMS += \
+  bin/epsilon-test-threaded
+bin_epsilon_test_threaded_SOURCES = \
+  runtime/test-threaded.c
+bin_epsilon_test_threaded_LDADD = \
+  lib/libepsilonutility.a
+
 # Currently disabled
 bin_PROGRAMS += \
   bin/epsilon-svm

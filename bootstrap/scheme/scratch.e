@@ -63,20 +63,117 @@
 ;;; this facility, which is efficient, for recursion analysis and
 ;;; inlining.
 
-;;; Given an expression an a set-as-list of its local variables update
-;;; the given hashes of globals, pointer literals and procedures it
-;;; refers, itself of by its statically reachable callees.
-(e1:define (e0:scan-expression-for-globals-literals-procedures! e vars gs bs ps)
-  (e1:let ((wl (box:make list:nil)))
-    (e0:scan-expression-for-globals-literals-procedures!-wl e vars gs bs ps wl)
-    (e0:scan-worklist-for-globals-literals-procedures! gs bs ps wl)))
+;; ;;; Given an expression an a set-as-list of its local variables update
+;; ;;; the given hashes of globals, pointer literals and procedures it
+;; ;;; refers, itself of by its statically reachable callees.
+;; (e1:define (e0:scan-expression-for-globals-literals-procedures! e vars gs bs ps)
+;;   (e1:let ((wl (box:make list:nil)))
+;;     (e0:scan-expression-for-globals-literals-procedures!-wl e vars gs bs ps wl)
+;;     (e0:scan-worklist-for-globals-literals-procedures! gs bs ps wl)))
 
-;;; Given the name of a procedure update the globals, pointer literals
-;;; and procedures it refers, itself or via its statically reachable callees.
-(e1:define (e0:scan-procedure-for-globals-literals-procedures! name gs bs ps)
-  (e0:scan-worklist-for-globals-literals-procedures! gs bs ps (box:make (list:list name))))
+;; ;;; Given the name of a procedure update the globals, pointer literals
+;; ;;; and procedures it refers, itself or via its statically reachable callees.
+;; (e1:define (e0:scan-procedure-for-globals-literals-procedures! name gs bs ps)
+;;   (e0:scan-worklist-for-globals-literals-procedures! gs bs ps (box:make (list:list name))))
 
-(e1:define (e0:scan-expression-for-globals-literals-procedures!-wl e vars gs bs ps wl)
+;; (e1:define (e0:scan-expression-for-globals-literals-procedures!-wl e vars gs bs ps wl)
+;;   ;; (fio:write "wl size: " (i (list:length (box:get wl))) "; expression: " (e e) "\n")
+;;   (e1:match e
+;;     ((e0:expression-variable _ name)
+;;      (e1:unless (set-as-list:has? vars name)
+;;        (unboxed-hash:set! gs name #f)))
+;;     ((e0:expression-value _ content)
+;;      (e1:when (boxedness:buffer? content)
+;;        (unboxed-hash:set! bs content #f)))
+;;     ((e0:expression-bundle _ items)
+;;      (e1:dolist (i items)
+;;        (e0:scan-expression-for-globals-literals-procedures!-wl i vars gs bs ps wl)))
+;;     ((e0:expression-primitive _ _ actuals)
+;;      (e1:dolist (a actuals)
+;;        (e0:scan-expression-for-globals-literals-procedures!-wl a vars gs bs ps wl)))
+;;     ((e0:expression-let _ bound-variables bound-expression body)
+;;      (e0:scan-expression-for-globals-literals-procedures!-wl bound-expression vars gs bs ps wl)
+;;      (e1:let ((new-vars (set-as-list:union bound-variables vars)))
+;;        (e0:scan-expression-for-globals-literals-procedures!-wl body new-vars gs bs ps wl)))
+;;     ((or (e0:expression-call _ procedure-name actuals)
+;;          (e0:expression-fork _ procedure-name actuals))
+;;      (e0:scan-expression-for-globals-literals-procedures!-add-procedure! procedure-name gs bs ps wl)
+;;      (e1:dolist (a actuals)
+;;        (e0:scan-expression-for-globals-literals-procedures!-wl a vars gs bs ps wl)))
+;;     ((e0:expression-call-indirect _ procedure-expression actuals)
+;;      (e1:dolist (a (list:cons procedure-expression actuals))
+;;        (e0:scan-expression-for-globals-literals-procedures!-wl a vars gs bs ps wl)))
+;;     ((e0:expression-if-in _ discriminand _ then-branch else-branch)
+;;      (e0:scan-expression-for-globals-literals-procedures!-wl discriminand vars gs bs ps wl)
+;;      (e0:scan-expression-for-globals-literals-procedures!-wl then-branch vars gs bs ps wl)
+;;      (e0:scan-expression-for-globals-literals-procedures!-wl else-branch vars gs bs ps wl))
+;;     ((e0:expression-join _ future)
+;;      (e0:scan-expression-for-globals-literals-procedures!-wl future vars gs bs ps wl))
+;;     (else
+;;      (e1:error "not an epsilon0 expression"))))
+
+;; (e1:define (e0:scan-expression-for-globals-literals-procedures!-add-procedure! name gs bs ps wl)
+;;   (e1:unless (unboxed-hash:has? ps name)
+;;     (box:set! wl (cons:make name (box:get wl)))
+;;     (unboxed-hash:set! ps name #f)))
+
+;; (e1:define (e0:scan-worklist-for-globals-literals-procedures! gs bs ps wl)
+;;   (e1:unless (list:null? (box:get wl))
+;;     (e1:let* ((name (list:head (box:get wl)))
+;;               (formals (state:procedure-get-formals name))
+;;               (body (state:procedure-get-body name)))
+;;       (box:set! wl (list:tail (box:get wl)))
+;;       (unboxed-hash:set! ps name #f)
+;;       (e0:scan-expression-for-globals-literals-procedures!-wl body formals gs bs ps wl))
+;;     (e0:scan-worklist-for-globals-literals-procedures! gs bs ps wl)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define-record e0:global-scan-result ;; fields are unboxed hashes.
+  procedures
+  globals
+  literals
+  buffers)
+
+(e1:define-record e0:global-scan-worklist ;; fields are lists.
+  procedures
+  buffers)
+
+(e1:define (e0:global-scan-no-procedures? w)
+  (list:null? (e0:global-scan-worklist-get-procedures w)))
+(e1:define (e0:global-scan-pop-procedure! w)
+  (e1:let* ((procedures e0:global-scan-worklist-get-procedures w)
+            (first (list:head procedures))
+            (rest (list:tail procedures)))
+    (e0:global-scan-worklist-set-procedures! w rest)
+    first))
+(e1:define (e0:global-scan-add-procedure! r w name)
+  (e1:let ((h (e0:global-scan-result-get-procedures r)))
+    (e1:unless (unboxed-hash:has? h name)
+      (unboxed-hash:set! h name #f)
+      (e0:global-scan-worklist-set-procedures!
+         w
+         (list:cons name
+                    (e0:global-scan-worklist-get-procedures w))))))
+
+(e1:define (e0:global-scan-no-buffers? w)
+  (list:null? (e0:global-scan-worklist-get-buffers w)))
+(e1:define (e0:global-scan-pop-buffer! w)
+  (e1:let* ((buffers e0:global-scan-worklist-get-buffers w)
+            (first (list:head buffers))
+            (rest (list:tail buffers)))
+    (e0:global-scan-worklist-set-buffers! w rest)
+    first))
+(e1:define (e0:global-scan-add-buffer! r w buffer)
+  (e1:let ((h (e0:global-scan-result-get-buffers r)))
+    (e1:unless (unboxed-hash:has? h buffer)
+      (unboxed-hash:set! h buffer #f)
+      (e0:global-scan-worklist-set-buffers!
+         w
+         (list:cons buffer
+                    (e0:global-scan-worklist-get-buffers w))))))
+
+(e1:define (e0:global-scan-scan-expression! e vars r w)
   ;; (fio:write "wl size: " (i (list:length (box:get wl))) "; expression: " (e e) "\n")
   (e1:match e
     ((e0:expression-variable _ name)
@@ -111,21 +208,6 @@
      (e0:scan-expression-for-globals-literals-procedures!-wl future vars gs bs ps wl))
     (else
      (e1:error "not an epsilon0 expression"))))
-
-(e1:define (e0:scan-expression-for-globals-literals-procedures!-add-procedure! name gs bs ps wl)
-  (e1:unless (unboxed-hash:has? ps name)
-    (box:set! wl (cons:make name (box:get wl)))
-    (unboxed-hash:set! ps name #f)))
-
-(e1:define (e0:scan-worklist-for-globals-literals-procedures! gs bs ps wl)
-  (e1:unless (list:null? (box:get wl))
-    (e1:let* ((name (list:head (box:get wl)))
-              (formals (state:procedure-get-formals name))
-              (body (state:procedure-get-body name)))
-      (box:set! wl (list:tail (box:get wl)))
-      (unboxed-hash:set! ps name #f)
-      (e0:scan-expression-for-globals-literals-procedures!-wl body formals gs bs ps wl))
-    (e0:scan-worklist-for-globals-literals-procedures! gs bs ps wl)))
 
 
 ;;;;; Scratch

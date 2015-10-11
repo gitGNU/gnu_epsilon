@@ -257,7 +257,7 @@ static void epsilon_primitive_io_close_file(epsilon_value *stack){
   fclose(file_star);
 }
 static void epsilon_primitive_io_eof_p(epsilon_value *stack){
-  FILE *file_star = EPSILON_EPSILON_INT_TO_EPSILON_WORD(epsilon_value_to_epsilon_int(stack[0]));
+  FILE *file_star = epsilon_value_to_foreign_pointer (stack[0]);
   /* Read a character (and then unread it), just to have feof return
      the result we want: */
   //int c = getc(file_star);

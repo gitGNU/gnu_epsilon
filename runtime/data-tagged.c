@@ -20,6 +20,9 @@
    along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>. */
 
 
+#include <limits.h>
+#include "config.h"
+
 /* We reserve the righmost bit to discriminate between fixnums and pointers:
    - fixnum payload is shifted left by one bit
    - pointers refer at least word-aligned objects, so we need no shift: the
@@ -118,13 +121,52 @@ epsilon_thread epsilon_value_to_thread(epsilon_value value){
 epsilon_value epsilon_thread_to_epsilon_value(epsilon_thread thread){
   return EPSILON_TAG_POINTER(thread); // FIXME: test and ensure this is correct
 }
+void epsilon_print_in_binary (FILE *f, unsigned long n, int remaining_bit_no)
+{
+  if (remaining_bit_no > 1)
+    epsilon_print_in_binary (f, n >> 1, remaining_bit_no - 1);
+  if (remaining_bit_no % 8 == 1)
+    fprintf (f, " ");
+  fprintf (f, "%c", (n & 1) ? '1' : '0');
+}
 inline epsilon_value epsilon_foreign_pointer_to_epsilon_value(void *p){
-  // FIXME: tag without shifhing; make it clear that the pointed value must be aligned
-  return epsilon_int_to_epsilon_value((epsilon_int)p);
+  // Tag as a non-pointer, without shifting.
+  epsilon_unsigned up = (epsilon_unsigned)p;
+#ifdef ENABLE_DEBUG
+  if (EPSILON_UNLIKELY(up & 1u))
+    {
+      epsilon_print_in_binary (stderr, up, SIZEOF_VOID_P * CHAR_BIT);
+      epsilon_fatal ("%s: unaligned pointer %p", __func__, p);
+    }
+#endif // #ifdef ENABLE_DEBUG
+#ifdef EPSILON_1_FOR_POINTERS
+  return (epsilon_value)(up & ~1ul);
+#else
+  return (epsilon_value)(up | 1ul);
+#endif // #ifdef EPSILON_1_FOR_POINTERS
 }
 inline void* epsilon_value_to_foreign_pointer(epsilon_value value){
-  // FIXME: untag without shifhing; make it clear that the pointed value must be aligned
-  return (void*)(epsilon_value_to_epsilon_int(value));
+  // Untag as a non-pointer, without shifting.
+  epsilon_unsigned u = (epsilon_unsigned)value;
+#ifdef EPSILON_1_FOR_POINTERS
+#ifdef ENABLE_DEBUG
+  if (EPSILON_UNLIKELY(u & 1u))
+    {
+      epsilon_print_in_binary (stderr, u, SIZEOF_VOID_P * CHAR_BIT);
+      epsilon_fatal ("%s: foreign pointer with lsb set: %p", __func__, value);
+    }
+#endif // #ifdef ENABLE_DEBUG
+  return (void*)u;
+#else
+#ifdef ENABLE_DEBUG
+  if (EPSILON_UNLIKELY(! (u & 1ul)))
+    {
+      epsilon_print_in_binary (stderr, u, SIZEOF_VOID_P * CHAR_BIT);
+      epsilon_fatal ("%s: foreign pointer with lsb unset: %p", __func__, value);
+    }
+#endif // #ifdef ENABLE_DEBUG
+  return (void)(u & ~1ul);
+#endif // #ifdef EPSILON_1_FOR_POINTERS
 }
 
 inline bool epsilon_value_eq(epsilon_value value1, epsilon_value value2){

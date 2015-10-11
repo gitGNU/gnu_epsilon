@@ -70,8 +70,10 @@ ejit_run_code (ejit_code_t code, ejit_thread_state_t state);
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #include <assert.h>
 
+#include "../utility/utility.h"
 #include "runtime.h"
 #include "config.h"
 
@@ -82,6 +84,31 @@ struct ejit_thread_state
   epsilon_word *return_stack_overtop;
   epsilon_word *return_stack_bottom;
 };
+
+#define STACK_ELEMENT_NO        10000
+#define RETURN_STACK_ELEMENT_NO 5000
+
+ejit_thread_state_t
+ejit_make_thread_state (void)
+{
+  ejit_thread_state_t res = epsilon_xmalloc (sizeof (struct ejit_thread_state));
+  res->stack_bottom
+    = res->stack_overtop
+    = epsilon_xmalloc (STACK_ELEMENT_NO * sizeof (epsilon_word));
+  res->return_stack_bottom
+    = res->return_stack_overtop
+    = epsilon_xmalloc (RETURN_STACK_ELEMENT_NO * sizeof (epsilon_word));
+  return res;
+}
+
+void
+ejit_destroy_thread_state (const ejit_thread_state_t s)
+{
+  free (s->stack_bottom);
+  free (s->return_stack_bottom);
+  free (s);
+}
+
 
 enum ejit_opcode_enum
   {
@@ -117,23 +144,61 @@ typedef union ejit_instruction ejit_instruction_t;
 
 struct ejit_code
 {
-  /* An array of instructions or instruction arguments, sequentially allocated
-     in the C heap. */
+  /* An array of instructions or literal instruction arguments, sequentially
+     allocated in the C heap. */
   ejit_instruction_t* instructions;
   size_t instruction_no;
 
-  /* An epsilon buffer holding the epsilon constants referred in the code.  The
+  /* An epsilon buffer holding the epsilon literals referred in the code.  The
      constants aren't directly embedded within the instruction because that
      would interfere with moving GCs; hence instructions needing epsilon
      literals as parameters only refer them thru *indices* of elements in this
-     array. */
-  epsilon_word referred_constants; // FIXME: make this a GC root
-  size_t referred_constant_no;
+     array.  Non-epsilon literals (offsets or other integers, foreign pointers)
+     aren't here: they're included within instructions for efficiency. */
+  epsilon_word literals; // FIXME: make this a GC root
+  size_t literal_no;
 
   /* Only used for debugging (FIXME: but so cheap that I might alway keep it
      enabled). */
   int initialized;
 };
+
+/* The internal temporary state of the compiler. */
+struct ejit_compiler_state
+{
+  struct epsilon_stack instructions;
+  struct epsilon_stack literals;
+};
+typedef struct ejit_compiler_state* ejit_compiler_state_t;
+
+static void
+ejit_initialize_compiler_state (ejit_compiler_state_t s)
+{
+  epsilon_stack_initialize (& s->instructions);
+  epsilon_stack_initialize (& s->literals);
+}
+/* static void */
+/* ejit_finalize_compiler_state (ejit_compiler_state_t s) */
+/* { */
+/*   epsilon_stack_finalize (& s->instructions); */
+/*   epsilon_stack_finalize (& s->literals); */
+/* } */
+
+/* The push functions return the index of the pushed element. */
+static int
+ejit_push_instruction (ejit_compiler_state_t s, long n)
+{
+  int res = s->instructions.element_no;
+  epsilon_stack_push (& s->instructions, (epsilon_word) (long) n);
+  return res;
+}
+static int
+ejit_push_literal (ejit_compiler_state_t s, epsilon_word literal)
+{
+  int res = s->instructions.element_no;
+  epsilon_stack_push (& s->literals, literal);
+  return res;
+}
 
 #define CASE_SET_LABEL(name, arity) \
   case ejit_opcode_ ## name:           \
@@ -353,25 +418,54 @@ ejit_run_code (ejit_code_t code, ejit_thread_state_t state)
   ejit_initialize_or_run_code (0, code, state);
 }
 
+static void
+ejit_compiler_stub (ejit_compiler_state_t s)
+{
+  ejit_push_instruction (s, ejit_opcode_lit);
+  ejit_push_instruction (s, 20);
+  ejit_push_instruction (s, ejit_opcode_lit);
+  ejit_push_instruction (s, 22);
+  ejit_push_instruction (s, ejit_opcode_plus);
+  ejit_push_instruction (s, ejit_opcode_print);
+  ejit_push_instruction (s, ejit_opcode_cr);
+  ejit_push_instruction (s, ejit_opcode_end);
+}
+
 ejit_code_t
 ejit_compile (epsilon_value expression, epsilon_value formal_list)
 {
-  /*
-  ejit_instruction_t* instructions;
-  size_t instruction_no;
-
-  epsilon_word referred_constants;
-  size_t referred_constant_no;
-
-  int initialized;
-*/
-  ejit_code_t res =
-    epsilon_xmalloc (sizeof (struct ejit_code));
+  ejit_code_t res = epsilon_xmalloc (sizeof (struct ejit_code));
   res->initialized = 0;
-  epsilon_fatal ("FIXME: compile...");
-  // FIXME: set res->instructions, res->instruction_no, res->referred_constants
-  // and referred_constant_no after first building a resizable vector.
+  struct ejit_compiler_state s;
+  ejit_initialize_compiler_state (& s);
+
+  /* FIXME: actually compile, pushing on s. */
+  ejit_compiler_stub (&s);
+
+  /* Instead of copying from the two stacks and then finalizing them, just steal
+     their buffers and use them as the buffers pointed by res.  This saves a
+     copy, which may be important if JITting and run time.  Yes, call me a
+     horrible person if you want. */
+  if (sizeof (ejit_instruction_t) != sizeof (epsilon_word))
+    epsilon_fatal ("this compiler represents unions in an impossibly stupid way");
+  res->instruction_no = s.instructions.element_no;
+  res->instructions = s.instructions.buffer;
+  /* size_t instruction_size = res->instruction_no * sizeof (ejit_instruction_t); */
+  /* res->instructions = epsilon_xmalloc (instruction_size); */
+  /* memcpy (res->instructions, s.instructions.buffer, instruction_size); */
+
+  res->literal_no = s.literals.element_no;
+  // FIXME: res->literals should be GC-allocated, and should be made a root
+  res->literals = s.literals.buffer;
+  /* size_t literal_size = res->literal_no * sizeof (epsilon_word); */
+  /* res->literals = epsilon_xmalloc (literal_size); */
+  /* memcpy (res->literals, s.literals.buffer, literal_size); */
+
+  /* ejit_finalize_compiler_state (& s); */ // No!
+
+  /* Convert opcodes to labels: */
   ejit_initialize_code (res);
+
   return res;
 }
 
@@ -379,8 +473,9 @@ void
 ejit_destroy_code (const ejit_code_t c)
 {
   free (c->instructions);
-  // FIXME: remove referred_constants from GC roots.
-  // No need to touch referred_constants, which are GC-allocated.
+  // FIXME: remove c->literals from GC roots.  No need to deallocate it if it's
+  // GC-allocated as it should.
+  free (c->literals);
   free (c);
 }
 
@@ -392,60 +487,12 @@ ejit_destroy_code (const ejit_code_t c)
 int
 main (void)
 {
-  ejit_instruction_t the_instructions[N];
-  struct ejit_code the_code;
-  the_code.instructions = the_instructions;
-  int i = 0;
-
-  the_code.instructions[i ++].opcode = ejit_opcode_lit;
-  the_code.instructions[i ++].literal = (epsilon_word)(long)10000000;
-  the_code.instructions[i ++].opcode = ejit_opcode_for;
-
-  the_code.instructions[i ++].opcode = ejit_opcode_lit;
-  the_code.instructions[i ++].literal = (epsilon_word)(long)10;
-  the_code.instructions[i ++].opcode = ejit_opcode_for;
-
-  the_code.instructions[i ++].opcode = ejit_opcode_lit;
-  the_code.instructions[i ++].literal = (epsilon_word)(long)10;
-  the_code.instructions[i ++].opcode = ejit_opcode_for;
-  the_code.instructions[i ++].opcode = ejit_opcode_lit;
-  the_code.instructions[i ++].literal = (epsilon_word)(long)10;
-  the_code.instructions[i ++].opcode = ejit_opcode_i;
-  the_code.instructions[i ++].opcode = ejit_opcode_minus;
-  the_code.instructions[i ++].opcode = ejit_opcode_drop;
-  /* the_code.instructions[i ++].opcode = ejit_opcode_print; */
-  /* the_code.instructions[i ++].opcode = ejit_opcode_j; */
-  /* the_code.instructions[i ++].opcode = ejit_opcode_print; */
-  the_code.instructions[i ++].opcode = ejit_opcode_next;
-
-  /* the_code.instructions[i ++].opcode = ejit_opcode_cr; */
-
-  the_code.instructions[i ++].opcode = ejit_opcode_next;
-
-  /* the_code.instructions[i ++].opcode = ejit_opcode_cr; */
-
-  the_code.instructions[i ++].opcode = ejit_opcode_next;
-
-  the_code.instructions[i ++].opcode = ejit_opcode_end;
-  the_code.instruction_no = i;
-
-  printf ("%i instructions (%i bytes)\n", (int)the_code.instruction_no,
-          (int)(the_code.instruction_no * sizeof (ejit_instruction_t)));
-
-  ejit_initialize_code (&the_code);
-
-  struct ejit_thread_state the_state;
-  epsilon_word the_stack[N];
-  epsilon_word the_return_stack[N];
-  the_state.stack_bottom = the_stack;
-  the_state.stack_overtop = the_stack;
-  the_state.return_stack_bottom = the_return_stack;
-  the_state.return_stack_overtop = the_return_stack;
-
-  /* for (i = 0; i < 100000000; i ++) */
-    {
-      //printf ("%i\n", i);
-      ejit_run_code (&the_code, &the_state);
-    }
+  ejit_thread_state_t s = ejit_make_thread_state ();
+  ejit_code_t c = ejit_compile (NULL, NULL);
+  fprintf (stderr, "OK-A 1000\n");
+  ejit_run_code (c, s);
+  fprintf (stderr, "OK-A 2000\n");
+  ejit_destroy_code (c);
+  fprintf (stderr, "OK-A 3000\n");
   return EXIT_SUCCESS;
 }

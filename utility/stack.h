@@ -1,7 +1,8 @@
 /* A simple dynamically-growing stack implementation.
 
    Copyright (C) 2012 Université Paris 13
-   Copyright (C) 2012 Luca Saiu [written during his few weeks with no employment]
+   Copyright (C) 2012 Luca Saiu
+   Updated in 2015 by Luca Saiu
    Written by Luca Saiu
 
    This file is part of GNU epsilon.
@@ -32,6 +33,11 @@ struct epsilon_stack{
   epsilon_word *buffer;
 };
 typedef struct epsilon_stack* epsilon_stack_t;
+
+void
+epsilon_stack_initialize (epsilon_stack_t s);
+void
+epsilon_stack_finalize (epsilon_stack_t s);
 
 epsilon_stack_t epsilon_stack_make(void);
 void epsilon_stack_destroy(epsilon_stack_t epsilon_stack);

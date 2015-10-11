@@ -1,7 +1,7 @@
 /* A simple dynamically-growing stack implementation.
 
    Copyright (C) 2012 Université Paris 13
-   Copyright (C) 2012 Luca Saiu [written during his few weeks with no employment]
+   Copyright (C) 2012, 2015  Luca Saiu
    Written by Luca Saiu
 
    This file is part of GNU epsilon.
@@ -26,17 +26,35 @@
 
 #define EPSILON_STACK_INITIAL_SIZE 64
 
-epsilon_stack_t epsilon_stack_make(void){
-  epsilon_stack_t result = (epsilon_stack_t)epsilon_xmalloc(sizeof(struct epsilon_stack));
-  result->buffer = (epsilon_word*)epsilon_xmalloc(sizeof(epsilon_word) * EPSILON_STACK_INITIAL_SIZE);
-  result->element_no = 0;
-  result->allocated_element_no = EPSILON_STACK_INITIAL_SIZE;
-  return result;
+void
+epsilon_stack_initialize (epsilon_stack_t stack)
+{
+  stack->buffer =
+    (epsilon_word*)
+    epsilon_xmalloc (sizeof (epsilon_word) * EPSILON_STACK_INITIAL_SIZE);
+  stack->element_no = 0;
+  stack->allocated_element_no = EPSILON_STACK_INITIAL_SIZE;
 }
 
-void epsilon_stack_destroy(epsilon_stack_t stack){
-  free(stack->buffer);
-  free(stack);
+void
+epsilon_stack_finalize (epsilon_stack_t stack)
+{
+  free (stack->buffer);
+}
+
+epsilon_stack_t
+epsilon_stack_make (void){
+  epsilon_stack_t res
+    = (epsilon_stack_t) epsilon_xmalloc (sizeof (struct epsilon_stack));
+  epsilon_stack_initialize (res);
+  return res;
+}
+
+void
+epsilon_stack_destroy (epsilon_stack_t stack)
+{
+  epsilon_stack_finalize (stack);
+  free (stack);
 }
 
 bool epsilon_stack_has(epsilon_stack_t stack, epsilon_word element){

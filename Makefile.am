@@ -284,6 +284,7 @@ RUNTIME_SOURCES = \
   runtime/epsilon0-interpreter.c runtime/epsilon0-interpreter.h \
   runtime/thread-context.c runtime/thread-context.h \
   runtime/runtime.c runtime/runtime.h \
+  runtime/jit.c runtime/jit.h \
   config.h
 
 lib_LIBRARIES += lib/libepsilonruntime-untagged.a
@@ -361,10 +362,10 @@ bin_epsilon_test_utility_LDADD = \
 
 # A temporary utility for testing and developing threaded code.
 bin_PROGRAMS += \
-  bin/epsilon-test-threaded
-bin_epsilon_test_threaded_SOURCES = \
-  runtime/test-threaded.c
-bin_epsilon_test_threaded_LDADD = \
+  bin/epsilon-test-jit
+bin_epsilon_test_jit_SOURCES = \
+  runtime/test-jit.c
+bin_epsilon_test_jit_LDADD = \
   lib/libepsilonutility.a
 
 # Currently disabled

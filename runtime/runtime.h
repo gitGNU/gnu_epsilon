@@ -32,6 +32,8 @@
 #include "c-primitives.h"
 #include "epsilon0-interpreter.h"
 #include "thread-context.h"
+#include "jit.h"
+
 
 /* Initialize all runtime subsystems: */
 void epsilon_runtime_initialize(void);

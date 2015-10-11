@@ -602,7 +602,18 @@ else
 fi
 POSITRON_COMMAND_LINE_ENABLE([svm-threading], [SVM_THREADING],
                              [$SVM_THREADING_DEFAULT],
-                             [use threading in the SVM; this only works with GCC])
+                             [use threading in the SVM thru GCC computed gotos])
+
+# The threaded code JIT optionally supports threading dispatch by using the GCC
+# computed goto extension. Threading is on by default, but only if using GCC.
+if [[ "$GCC" == "yes" ]]; then
+  JIT_THREADING_DEFAULT=yes
+else
+  JIT_THREADING_DEFAULT=no
+fi
+POSITRON_COMMAND_LINE_ENABLE([jit-threading], [JIT_THREADING],
+                             [$JIT_THREADING_DEFAULT],
+                             [use threading in the JIT thru GCC computed gotos])
 
 # Let make output be verbose by default.  FIXME: do I want this?  Not sure.
 AM_SILENT_RULES([no])

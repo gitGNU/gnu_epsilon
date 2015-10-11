@@ -528,10 +528,10 @@ dnl POSITRON_COMMAND_LINE_ENABLE([frob-foos], [FROB_FOOS],
 dnl                              [no],
 dnl                              [frob every single existing foo])
 
-dnl # Enable *very* verbose debug prints:
-dnl POSITRON_COMMAND_LINE_ENABLE([verbose-debug], [VERBOSE_DEBUG],
-dnl                              [no],
-dnl                              [print a lot of debugging information at runtime])
+# Enable *very* verbose debug prints:
+POSITRON_COMMAND_LINE_ENABLE([verbose-debug], [VERBOSE_DEBUG],
+                             [no],
+                             [print a lot of debugging information at runtime])
 
 dnl # Prevent the collector to trace free-list pointers by clobbering them:
 dnl POSITRON_COMMAND_LINE_ENABLE([conceal-free-list], [CONCEAL_FREE_LIST],

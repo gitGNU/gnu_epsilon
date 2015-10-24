@@ -165,7 +165,7 @@ inline void* epsilon_value_to_foreign_pointer(epsilon_value value){
       epsilon_fatal ("%s: foreign pointer with lsb unset: %p", __func__, value);
     }
 #endif // #ifdef ENABLE_DEBUG
-  return (void)(u & ~1ul);
+  return (void*)(u & ~1ul);
 #endif // #ifdef EPSILON_1_FOR_POINTERS
 }
 

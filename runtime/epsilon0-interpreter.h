@@ -1,6 +1,6 @@
 /* epsilon0 interpreter in C.
 
-   Copyright (C) 2012 Luca Saiu [written during his few weeks with no employment]
+   Copyright (C) 2012, 2015 Luca Saiu
    Copyright (C) 2012 Université Paris 13
    Written by Luca Saiu
 
@@ -24,6 +24,19 @@
 #define __EPSILON_EPSILON0_INTERPRETER_H_
 
 #include "data.h"
+
+enum epsilon_opcode {
+  e0_variable_opcode = 0,//1000,
+  e0_value_opcode,
+  e0_bundle_opcode,
+  e0_primitive_opcode,
+  e0_let_opcode,
+  e0_call_opcode,
+  e0_call_indirect_opcode,
+  e0_if_in_opcode,
+  e0_fork_opcode,
+  e0_join_opcode,
+};
 
 /* Return the list of results. */
 epsilon_value epsilon_e0_eval_making_stacks(epsilon_value expression,

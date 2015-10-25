@@ -1,7 +1,7 @@
 /* epsilon0 interpreter in C.
 
    Copyright (C) 2012 Université Paris 13
-   Copyright (C) 2012 Luca Saiu
+   Copyright (C) 2012, 2015 Luca Saiu
    Written by Luca Saiu
    Updated in 2013, 2014 and 2015 by Luca Saiu
 
@@ -97,19 +97,6 @@ static bool epsilon_belongs_to(epsilon_value x, epsilon_value list){
   else
     return epsilon_belongs_to(x, epsilon_value_cdr(list));
 }
-
-enum epsilon_opcode {
-  e0_variable_opcode = 0,//1000,
-  e0_value_opcode,
-  e0_bundle_opcode,
-  e0_primitive_opcode,
-  e0_let_opcode,
-  e0_call_opcode,
-  e0_call_indirect_opcode,
-  e0_if_in_opcode,
-  e0_fork_opcode,
-  e0_join_opcode,
-};
 
 static void epsilon_print_e0_symbol(epsilon_value name_as_whatever){
   printf("About the symbol\n");

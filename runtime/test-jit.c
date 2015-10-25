@@ -374,14 +374,14 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
 #endif // #ifndef ENABLE_JIT_THREADING
 
   LABEL(copy); // Parameters: from_slot, to_slot
-  fprintf (stderr, "## Copying %li or %p from slot%li to slot%li\n",
-           (long)state.frame_bottom[(long)((ip + 1)->literal)],
-           state.frame_bottom[(long)((ip + 1)->literal)],
-           (long)((ip + 1)->literal),
-           (long)((ip + 2)->literal));
+  /* fprintf (stderr, "## Copying %li or %p from slot%li to slot%li\n", */
+  /*          (long)state.frame_bottom[(long)((ip + 1)->literal)], */
+  /*          state.frame_bottom[(long)((ip + 1)->literal)], */
+  /*          (long)((ip + 1)->literal), */
+  /*          (long)((ip + 2)->literal)); */
   state.frame_bottom[(long)((ip + 2)->literal)]
     = state.frame_bottom[(long)((ip + 1)->literal)];
-  fprintf (stderr, "after copy:\n"); print_values (& state);
+  /* fprintf (stderr, "after copy:\n"); print_values (& state); */
   ip += 2;
   NEXT;
 
@@ -389,24 +389,24 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   GOTO (instructions + (long)((ip + 1)->literal));
 
   LABEL(jump_if_equal); // Parameters: from_slot, literal_index, instruction_index
-  fprintf (stderr, "jump_if_equal: discriminand is %li %p\n",
-           (long)state.frame_bottom[(long)((ip + 1)->literal)],
-           state.frame_bottom[(long)((ip + 1)->literal)]);
-  fprintf (stderr, "jump_if_equal: immediate is %li %p\n",
-           (long)epsilon_load_with_epsilon_int_offset (code->literals,
-                                                       (long)((ip + 2)->literal)),
-           epsilon_load_with_epsilon_int_offset (code->literals,
-                                                 (long)((ip + 2)->literal)));
-  fprintf (stderr, "jump_if_equal: instruction_index is %li\n", (long)((ip + 3)->literal));
+  /* fprintf (stderr, "jump_if_equal: discriminand is %li %p\n", */
+  /*          (long)state.frame_bottom[(long)((ip + 1)->literal)], */
+  /*          state.frame_bottom[(long)((ip + 1)->literal)]); */
+  /* fprintf (stderr, "jump_if_equal: immediate is %li %p\n", */
+  /*          (long)epsilon_load_with_epsilon_int_offset (code->literals, */
+  /*                                                      (long)((ip + 2)->literal)), */
+  /*          epsilon_load_with_epsilon_int_offset (code->literals, */
+  /*                                                (long)((ip + 2)->literal))); */
+  /* fprintf (stderr, "jump_if_equal: instruction_index is %li\n", (long)((ip + 3)->literal)); */
   if (epsilon_load_with_epsilon_int_offset (code->literals,
                                             (long)((ip + 2)->literal))
       == state.frame_bottom[(long)((ip + 1)->literal)])
     {
-      fprintf (stderr, "JUMP!\n");
+      /* fprintf (stderr, "JUMP!\n"); */
       GOTO (instructions + (long)((ip + 3)->literal));
     }
-  else
-    fprintf (stderr, "DON'T jump!\n");
+  /* else */
+  /*   fprintf (stderr, "DON'T jump!\n"); */
   ip += 3;
   NEXT;
 
@@ -415,7 +415,7 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
     = epsilon_load_with_epsilon_int_offset (code->literals,
                                             (long)((ip + 1)->literal));
   ip += 2;
-  fprintf (stderr, "after literal pushing:\n"); print_values (& state);
+  /* fprintf (stderr, "after literal pushing:\n"); print_values (& state); */
   NEXT;
 
   /* LABEL(procedure_prolog); // Parameters: first_parameter_slot */
@@ -432,9 +432,9 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   memcpy (state.frame_bottom,
           state.stack_bottom + (long)(ip[1].literal),
           (long)(ip[2].literal) * sizeof (epsilon_value));
-  fprintf (stderr, "at return: copied %li words from slot%li (to slot0, as always)\n",
-           (long)(ip[2].literal),
-           (long)(ip[1].literal));
+  /* fprintf (stderr, "at return: copied %li words from slot%li (to slot0, as always)\n", */
+  /*          (long)(ip[2].literal), */
+  /*          (long)(ip[1].literal)); */
   // FIXME: this is only for debugging: trash the now-usued part of the stack
   {
     epsilon_value minus1 = epsilon_int_to_epsilon_value (-1);
@@ -443,14 +443,14 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
       state.frame_bottom[(long)ip[2].literal + i] = minus1;
   }
   ip += 2;
-  fprintf (stderr, "at return, before altering pointers:\n"); print_values (& state);
+  /* fprintf (stderr, "at return, before altering pointers:\n"); print_values (& state); */
   state.return_stack_overtop -= 2;
   /* // Set the stack overtop to make place for results. */
   /* state.stack_overtop = state.frame_bottom + ((long)(ip[1].literal)); */
   // Restore the saved frame bottom.
   state.frame_bottom = state.return_stack_overtop[0];
-  fprintf (stderr, "at return, before jumping:\n"); print_values (& state);
-  fprintf (stderr, "at return: jumping.\n");
+  /* fprintf (stderr, "at return, before jumping:\n"); print_values (& state); */
+  /* fprintf (stderr, "at return: jumping.\n"); */
   GOTO (state.return_stack_overtop[1]);
 
 
@@ -715,6 +715,7 @@ ejit_compile_expression (ejit_compiler_state_t s,
     case e0_value_opcode:
       {
         // FIXME: optimizable: in the tail case directly write to slot 0
+        fprintf (stderr, "compiling value\n");
         epsilon_value literal
           = epsilon_load_with_epsilon_int_offset (expression, 2);
         ejit_push_instruction (s, ejit_opcode_literal);
@@ -728,6 +729,15 @@ ejit_compile_expression (ejit_compiler_state_t s,
         fprintf (stderr, "compiling bundle\n");
         epsilon_value items = epsilon_load_with_epsilon_int_offset (expression, 2);
         long i, item_no = epsilon_value_length (items);
+        if (item_no == 1)
+          {
+            ejit_compile_expression (s,
+                                     epsilon_value_car (items),
+                                     formal_no, nonformal_local_no, result_no,
+                                     target_slot,
+                                     tail);
+            break;
+          }
         fprintf (stderr, "  items are %li\n", item_no);
         epsilon_value more_items;
         for (more_items = items, i = 0;
@@ -1157,7 +1167,9 @@ int
 main (void)
 {
   epsilon_value epsilon_null = epsilon_int_to_epsilon_value (0);
-  epsilon_value formals = make_variables_2 (5, 6);
+  epsilon_value formals
+    //= make_variables_2 (5, 6);
+    = make_variables_1 (5);
   epsilon_value expression_variable_5 = make_e0_variable (5);
   epsilon_value expression_variable_6 = make_e0_variable (6);
   epsilon_value expression_variable_10 = make_e0_variable (10);
@@ -1184,7 +1196,7 @@ main (void)
     = make_e0_let_1(10,
                     make_e0_if_in_3 (make_e0_variable (5),
                                      epsilon_int_to_epsilon_value (100),
-                                     epsilon_int_to_epsilon_value (420),
+                                     epsilon_int_to_epsilon_value (42),
                                      epsilon_int_to_epsilon_value (102),
                                      make_e0_value (epsilon_int_to_epsilon_value (200)),
                                      make_e0_value (epsilon_int_to_epsilon_value (300))),
@@ -1197,28 +1209,29 @@ main (void)
   //ejit_push_on_thread_state (s, epsilon_int_to_epsilon_value (300));
 
   //ejit_push_instruction (s, ejit_opcode_end);
-  /* int i; */
-  /* for (i = 0; i < 1; i ++) */
-  /*   { */
+  fprintf (stderr, "Running...\n");
+  int i;
+  for (i = 0; i < 1; i ++)
+    {
   s->frame_bottom =
     //s->stack_overtop =
     s->stack_bottom;
   s->return_stack_overtop = s->return_stack_bottom;
-  fprintf (stderr, "OK-A 3000: simulating call...\n");
+  /* fprintf (stderr, "OK-A 3000: simulating call...\n"); */
   //ejit_push_on_thread_state (s, epsilon_int_to_epsilon_value (42));
   s->stack_bottom[0] = epsilon_int_to_epsilon_value (42);
-  s->stack_bottom[1] = epsilon_int_to_epsilon_value (43);
+  //s->stack_bottom[1] = epsilon_int_to_epsilon_value (43);
   s->return_stack_overtop[0] = s->frame_bottom;
   s->return_stack_overtop[1] = c->instructions + (c->instruction_no - 1);
   s->return_stack_overtop += 2;
 
-  fprintf (stderr, "Actuals:\n");
-  print_values (s);
-  fprintf (stderr, "Running...\n");
+  /* fprintf (stderr, "Actuals:\n"); */
+  /* print_values (s); */
+  /* fprintf (stderr, "Running...\n"); */
   ejit_run_code (c, s);
-  fprintf (stderr, "...Done.  Results:\n");
+    }
+  fprintf (stderr, "...Done %i times.  Results:\n", i);
   print_values (s);
-    /* } */
   ejit_destroy_code (c);
   /* fprintf (stderr, "OK-A 5000\n"); */
   ejit_destroy_thread_state (s);

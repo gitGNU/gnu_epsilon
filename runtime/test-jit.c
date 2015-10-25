@@ -154,6 +154,8 @@ print_values (ejit_thread_state_t s)
 enum ejit_opcode_enum
   {
     ejit_opcode_copy,
+    ejit_opcode_jump,
+    ejit_opcode_jump_if_equal,
     ejit_opcode_literal,
     //ejit_opcode_procedure_prolog,
     ejit_opcode_return,
@@ -258,7 +260,7 @@ ejit_push_epsilon_literal (ejit_compiler_state_t s, epsilon_value literal)
 
 #define CASE_SET_LABEL(name, arity) \
   case ejit_opcode_ ## name:           \
-    printf("Initializing: %i. %s\n", (int)(p - instructions), #name);  \
+    printf("Initializing: %3i. %s\n", (int)(p - instructions), #name);  \
     p->label = && label_ ## name; \
     p += (arity) + 1;             \
     break
@@ -319,6 +321,8 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
           switch (p->opcode)
             {
               CASE_SET_LABEL(copy, 2);
+              CASE_SET_LABEL(jump, 1);
+              CASE_SET_LABEL(jump_if_equal, 3);
               CASE_SET_LABEL(literal, 2);
               //CASE_SET_LABEL(procedure_prolog, 1);
               CASE_SET_LABEL(return, 2);
@@ -379,6 +383,31 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
     = state.frame_bottom[(long)((ip + 1)->literal)];
   fprintf (stderr, "after copy:\n"); print_values (& state);
   ip += 2;
+  NEXT;
+
+  LABEL(jump); // Parameters: instruction_index
+  GOTO (instructions + (long)((ip + 1)->literal));
+
+  LABEL(jump_if_equal); // Parameters: from_slot, literal_index, instruction_index
+  fprintf (stderr, "jump_if_equal: discriminand is %li %p\n",
+           (long)state.frame_bottom[(long)((ip + 1)->literal)],
+           state.frame_bottom[(long)((ip + 1)->literal)]);
+  fprintf (stderr, "jump_if_equal: immediate is %li %p\n",
+           (long)epsilon_load_with_epsilon_int_offset (code->literals,
+                                                       (long)((ip + 2)->literal)),
+           epsilon_load_with_epsilon_int_offset (code->literals,
+                                                 (long)((ip + 2)->literal)));
+  fprintf (stderr, "jump_if_equal: instruction_index is %li\n", (long)((ip + 3)->literal));
+  if (epsilon_load_with_epsilon_int_offset (code->literals,
+                                            (long)((ip + 2)->literal))
+      == state.frame_bottom[(long)((ip + 1)->literal)])
+    {
+      fprintf (stderr, "JUMP!\n");
+      GOTO (instructions + (long)((ip + 3)->literal));
+    }
+  else
+    fprintf (stderr, "DON'T jump!\n");
+  ip += 3;
   NEXT;
 
   LABEL(literal); // Parameters: literal_index, to_slot
@@ -548,7 +577,7 @@ epsilon_max_nonformal_local_no_in (epsilon_value expressions)
   long res = 0;
   epsilon_value rest;
   for (rest = expressions;
-       ! epsilon_value_is_null(rest);
+       ! epsilon_value_is_null (rest);
        rest = epsilon_value_cdr (rest))
     res = epsilon_max_long (res, epsilon_max_nonformal_local_no (epsilon_value_car (rest)));
   return res;
@@ -580,8 +609,9 @@ epsilon_max_nonformal_local_no (epsilon_value expression)
       return epsilon_max_long (epsilon_max_nonformal_local_no (epsilon_load_with_epsilon_int_offset (expression, 2)),
                                epsilon_max_nonformal_local_no_in (epsilon_load_with_epsilon_int_offset (expression, 3)));
     case e0_if_in_opcode:
-      return epsilon_max_long (epsilon_max_nonformal_local_no (epsilon_load_with_epsilon_int_offset (expression, 3)),
-                               epsilon_max_nonformal_local_no (epsilon_load_with_epsilon_int_offset (expression, 4)));
+      return epsilon_max_long (epsilon_max_nonformal_local_no (epsilon_load_with_epsilon_int_offset (expression, 2)),
+                               epsilon_max_long (epsilon_max_nonformal_local_no (epsilon_load_with_epsilon_int_offset (expression, 4)),
+                                                 epsilon_max_nonformal_local_no (epsilon_load_with_epsilon_int_offset (expression, 5))));
     case e0_join_opcode:
       return epsilon_max_nonformal_local_no (epsilon_load_with_epsilon_int_offset (expression, 2));
     default:
@@ -624,9 +654,9 @@ epsilon_result_no (epsilon_value expression)
     case e0_if_in_opcode:
       {
         epsilon_value then_branch
-          = epsilon_load_with_epsilon_int_offset (expression, 3);
-        epsilon_value else_branch
           = epsilon_load_with_epsilon_int_offset (expression, 4);
+        epsilon_value else_branch
+          = epsilon_load_with_epsilon_int_offset (expression, 5);
         return epsilon_max_long (epsilon_result_no (then_branch),
                                  epsilon_result_no (else_branch));
       }
@@ -665,6 +695,7 @@ ejit_compile_expression (ejit_compiler_state_t s,
     {
     case e0_variable_opcode:
       {
+        // FIXME: optimizable: in the tail case directly write to slot 0
         fprintf (stderr, "compiling variable\n");
         epsilon_value name = epsilon_load_with_epsilon_int_offset (expression, 2);
         long local_index = epsilon_stack_search_last (& s->locals, name);
@@ -683,6 +714,7 @@ ejit_compile_expression (ejit_compiler_state_t s,
       }
     case e0_value_opcode:
       {
+        // FIXME: optimizable: in the tail case directly write to slot 0
         epsilon_value literal
           = epsilon_load_with_epsilon_int_offset (expression, 2);
         ejit_push_instruction (s, ejit_opcode_literal);
@@ -736,7 +768,7 @@ ejit_compile_expression (ejit_compiler_state_t s,
             epsilon_stack_push (& s->locals, variable);
             long local_index = epsilon_stack_search_last (& s->locals, variable);
             // FIXME: this is optimizable.  If the variables are more than one,
-            // I could generate a simple copy_multiple instruction.
+            // I could generate a single copy_multiple instruction.
             ejit_push_instruction (s, ejit_opcode_copy);
             ejit_push_instruction (s, target_slot + i);
             ejit_push_instruction (s, local_index);
@@ -755,7 +787,59 @@ ejit_compile_expression (ejit_compiler_state_t s,
     case e0_call_indirect_opcode:
       epsilon_fatal ("unimplemented in the compiler: call-indirect");
     case e0_if_in_opcode:
-      epsilon_fatal ("unimplemented in the compiler: if-in");
+      {
+        fprintf (stderr, "compiling if-in\n");
+        epsilon_value discriminand = epsilon_load_with_epsilon_int_offset (expression, 2);
+        epsilon_value literals = epsilon_load_with_epsilon_int_offset (expression, 3);
+        epsilon_value then_branch = epsilon_load_with_epsilon_int_offset (expression, 4);
+        epsilon_value else_branch = epsilon_load_with_epsilon_int_offset (expression, 5);
+        ejit_compile_expression (s,
+                                 discriminand,
+                                 formal_no, nonformal_local_no, result_no,
+                                 target_slot,
+                                 false);
+        struct epsilon_stack indices_to_backpatch;
+        epsilon_stack_initialize (& indices_to_backpatch);
+        epsilon_value more_literals;
+        for (more_literals = literals;
+             ! epsilon_value_is_null (more_literals);
+             more_literals = epsilon_value_cdr (more_literals))
+          {
+            epsilon_value literal = epsilon_value_car (more_literals);
+            ejit_push_instruction (s, ejit_opcode_jump_if_equal);
+            ejit_push_instruction (s, target_slot);
+            ejit_push_epsilon_literal (s, literal);
+            epsilon_stack_push (& indices_to_backpatch,
+                                (epsilon_word)(long)(s->instructions.element_no));
+            ejit_push_instruction (s, -1); // to backpatch later
+          }
+        ejit_compile_expression (s,
+                                 else_branch,
+                                 formal_no, nonformal_local_no, result_no,
+                                 target_slot,
+                                 tail);
+        long after_then_source;
+        if (! tail)
+          {
+            ejit_push_instruction (s, ejit_opcode_jump);
+            after_then_source = s->instructions.element_no;
+            ejit_push_instruction (s, -1); // to backpatch later
+          }
+        long i, then_target = s->instructions.element_no;
+        while (! epsilon_stack_empty (& indices_to_backpatch))
+          s->instructions.buffer[(long)epsilon_stack_pop (& indices_to_backpatch)]
+            = (epsilon_word)then_target;
+        ejit_compile_expression (s,
+                                 then_branch,
+                                 formal_no, nonformal_local_no, result_no,
+                                 target_slot,
+                                 tail);
+        long after_then_target = s->instructions.element_no;
+        if (! tail)
+          s->instructions.buffer[after_then_source] = after_then_target;
+        epsilon_stack_finalize (& indices_to_backpatch);
+        break;
+      }
     case e0_fork_opcode:
       epsilon_fatal ("unimplemented in the compiler: fork");
     case e0_join_opcode:
@@ -793,6 +877,7 @@ e0_literal_no (epsilon_value expression)
              + e0_literal_no_in (epsilon_load_with_epsilon_int_offset (expression, 3));
     case e0_if_in_opcode:
       return e0_literal_no (epsilon_load_with_epsilon_int_offset (expression, 2))
+             + epsilon_value_length (epsilon_load_with_epsilon_int_offset (expression, 3))
              + e0_literal_no (epsilon_load_with_epsilon_int_offset (expression, 4))
              + e0_literal_no (epsilon_load_with_epsilon_int_offset (expression, 5));
     case e0_join_opcode:
@@ -845,7 +930,7 @@ ejit_compile (epsilon_value formal_list, epsilon_value expression)
 
   epsilon_value more_formals;
   for (more_formals = formal_list;
-       ! epsilon_value_is_null(more_formals);
+       ! epsilon_value_is_null (more_formals);
        more_formals = epsilon_value_cdr (more_formals))
     epsilon_stack_push (& s.locals, epsilon_value_car (more_formals));
   ejit_compile_expression (&s, expression,
@@ -1022,6 +1107,52 @@ make_e0_let_3 (long x1, long x2, long x3, epsilon_value bound_exp, epsilon_value
   return res;
 }
 
+epsilon_value
+make_e0_if_in_1 (epsilon_value discriminand,
+                 epsilon_value v1,
+                 epsilon_value then_branch,
+                 epsilon_value else_branch)
+{
+  epsilon_value res = epsilon_gc_allocate_with_epsilon_int_length (6);
+  epsilon_store_with_epsilon_int_offset (res, 0, epsilon_int_to_epsilon_value (e0_if_in_opcode));
+  epsilon_store_with_epsilon_int_offset (res, 2, discriminand);
+  epsilon_store_with_epsilon_int_offset (res, 3, make_list_1 (v1));
+  epsilon_store_with_epsilon_int_offset (res, 4, then_branch);
+  epsilon_store_with_epsilon_int_offset (res, 5, else_branch);
+  return res;
+}
+epsilon_value
+make_e0_if_in_2 (epsilon_value discriminand,
+                 epsilon_value v1,
+                 epsilon_value v2,
+                 epsilon_value then_branch,
+                 epsilon_value else_branch)
+{
+  epsilon_value res = epsilon_gc_allocate_with_epsilon_int_length (6);
+  epsilon_store_with_epsilon_int_offset (res, 0, epsilon_int_to_epsilon_value (e0_if_in_opcode));
+  epsilon_store_with_epsilon_int_offset (res, 2, discriminand);
+  epsilon_store_with_epsilon_int_offset (res, 3, make_list_2 (v1, v2));
+  epsilon_store_with_epsilon_int_offset (res, 4, then_branch);
+  epsilon_store_with_epsilon_int_offset (res, 5, else_branch);
+  return res;
+}
+epsilon_value
+make_e0_if_in_3 (epsilon_value discriminand,
+                 epsilon_value v1,
+                 epsilon_value v2,
+                 epsilon_value v3,
+                 epsilon_value then_branch,
+                 epsilon_value else_branch)
+{
+  epsilon_value res = epsilon_gc_allocate_with_epsilon_int_length (6);
+  epsilon_store_with_epsilon_int_offset (res, 0, epsilon_int_to_epsilon_value (e0_if_in_opcode));
+  epsilon_store_with_epsilon_int_offset (res, 2, discriminand);
+  epsilon_store_with_epsilon_int_offset (res, 3, make_list_3 (v1, v2, v3));
+  epsilon_store_with_epsilon_int_offset (res, 4, then_branch);
+  epsilon_store_with_epsilon_int_offset (res, 5, else_branch);
+  return res;
+}
+
 int
 main (void)
 {
@@ -1043,13 +1174,21 @@ main (void)
     /* = make_e0_let_2 (10, 11, */
     /*                  make_e0_bundle_2 (expression_variable_6, expression_variable_5), */
     /*                  make_e0_variable (10)); */
-    = make_e0_let_2 (10, 11,
-                     make_e0_bundle_3 (make_e0_variable (6),
-                                       make_e0_value (epsilon_int_to_epsilon_value (20)),
-                                       make_e0_value (epsilon_int_to_epsilon_value (30))),
-                     make_e0_bundle_3 (expression_value_57,
-                                       expression_variable_10,
-                                       expression_value_57));
+    /* = make_e0_let_2 (10, 11, */
+    /*                  make_e0_bundle_3 (make_e0_variable (6), */
+    /*                                    make_e0_value (epsilon_int_to_epsilon_value (20)), */
+    /*                                    make_e0_value (epsilon_int_to_epsilon_value (30))), */
+    /*                  make_e0_bundle_3 (expression_value_57, */
+    /*                                    expression_variable_10, */
+    /*                                    expression_value_57)); */
+    = make_e0_let_1(10,
+                    make_e0_if_in_3 (make_e0_variable (5),
+                                     epsilon_int_to_epsilon_value (100),
+                                     epsilon_int_to_epsilon_value (420),
+                                     epsilon_int_to_epsilon_value (102),
+                                     make_e0_value (epsilon_int_to_epsilon_value (200)),
+                                     make_e0_value (epsilon_int_to_epsilon_value (300))),
+                    make_e0_variable (10));
   fprintf (stderr, "OK-A 1000\n");
   ejit_thread_state_t s = ejit_make_thread_state ();
   fprintf (stderr, "OK-A 2000: compiling...\n");

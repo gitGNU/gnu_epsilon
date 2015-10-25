@@ -22,6 +22,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
+#include <stdbool.h>
 #include <assert.h>
 
 #include "runtime.h"
@@ -47,6 +49,9 @@ ejit_make_thread_state (void)
 
 void
 ejit_destroy_thread_state (const ejit_thread_state_t s);
+
+void
+ejit_push_on_thread_state (const ejit_thread_state_t s, epsilon_value v);
 
 /* The generated code, which is allocated on the C heap and manually freed.
    Again, the structure is intentionally opaque. */
@@ -79,8 +84,9 @@ ejit_run_code (ejit_code_t code, ejit_thread_state_t state);
 
 struct ejit_thread_state
 {
-  epsilon_word *stack_overtop;
-  epsilon_word *stack_bottom;
+  epsilon_value *stack_overtop;
+  epsilon_value *stack_bottom;
+  epsilon_value *frame_bottom;
   epsilon_word *return_stack_overtop;
   epsilon_word *return_stack_bottom;
 };
@@ -92,12 +98,24 @@ ejit_thread_state_t
 ejit_make_thread_state (void)
 {
   ejit_thread_state_t res = epsilon_xmalloc (sizeof (struct ejit_thread_state));
-  res->stack_bottom
+  res->frame_bottom
+    = res->stack_bottom
     = res->stack_overtop
     = epsilon_xmalloc (STACK_ELEMENT_NO * sizeof (epsilon_word));
   res->return_stack_bottom
     = res->return_stack_overtop
     = epsilon_xmalloc (RETURN_STACK_ELEMENT_NO * sizeof (epsilon_word));
+
+  /* Fill the stack with epsilon 0 values, so that it can be safely scanned by
+     the GC.  There's no need to do the same with the return stack, which
+     never contains any epsilon value. */
+  int i;
+  for (i = 0; i < STACK_ELEMENT_NO; i ++)
+    res->stack_bottom[i] = epsilon_int_to_epsilon_value (0);
+
+
+  // FIXME: make the stack a GC root.
+
   return res;
 }
 
@@ -109,9 +127,35 @@ ejit_destroy_thread_state (const ejit_thread_state_t s)
   free (s);
 }
 
+void
+ejit_push_on_thread_state (const ejit_thread_state_t s, epsilon_value v)
+{
+  * (s->stack_overtop ++) = v;
+}
+
+void
+print_values (ejit_thread_state_t s)
+{
+  int i;
+  epsilon_value *p;
+  for (p = s->frame_bottom, i = 0; p < s->stack_overtop; p ++, i ++)
+#ifdef EPSILON_RUNTIME_UNTAGGED
+    fprintf (stderr, "  %2i. %p: %li, %p\n", i, p, (long)*p, *p);
+#else
+    if (epsilon_is_pointer (*p))
+      fprintf (stderr, "  %2i. %p: <pointer>\n", i, p);
+    else
+      fprintf (stderr, "  %2i. %p: %li\n", i, p, epsilon_value_to_epsilon_int (*p));
+#endif // EPSILON_RUNTIME_UNTAGGED
+}
+
 
 enum ejit_opcode_enum
   {
+    ejit_opcode_push_local,
+    ejit_opcode_procedure_prolog,
+    ejit_opcode_return,
+
     ejit_opcode_cr,
     ejit_opcode_divided,
     ejit_opcode_drop,
@@ -155,7 +199,7 @@ struct ejit_code
      literals as parameters only refer them thru *indices* of elements in this
      array.  Non-epsilon literals (offsets or other integers, foreign pointers)
      aren't here: they're included within instructions for efficiency. */
-  epsilon_word literals; // FIXME: make this a GC root
+  epsilon_value literals; // FIXME: make this a GC root
   size_t literal_no;
 
   /* Only used for debugging (FIXME: but so cheap that I might alway keep it
@@ -168,6 +212,7 @@ struct ejit_compiler_state
 {
   struct epsilon_stack instructions;
   struct epsilon_stack literals;
+  struct epsilon_stack locals;
 };
 typedef struct ejit_compiler_state* ejit_compiler_state_t;
 
@@ -176,28 +221,35 @@ ejit_initialize_compiler_state (ejit_compiler_state_t s)
 {
   epsilon_stack_initialize (& s->instructions);
   epsilon_stack_initialize (& s->literals);
+  epsilon_stack_initialize (& s->locals);
 }
 /* static void */
 /* ejit_finalize_compiler_state (ejit_compiler_state_t s) */
 /* { */
 /*   epsilon_stack_finalize (& s->instructions); */
 /*   epsilon_stack_finalize (& s->literals); */
+/*   epsilon_stack_finalize (& s->locals); */
 /* } */
 
-/* The push functions return the index of the pushed element. */
+/* Return the index of the pushed instruction. */
 static int
 ejit_push_instruction (ejit_compiler_state_t s, long n)
 {
   int res = s->instructions.element_no;
-  epsilon_stack_push (& s->instructions, (epsilon_word) (long) n);
+  epsilon_stack_push (& s->instructions, (epsilon_value) (long) n);
   return res;
 }
-static int
-ejit_push_literal (ejit_compiler_state_t s, epsilon_word literal)
+static void
+ejit_push_non_epsilon_literal (ejit_compiler_state_t s, epsilon_word literal)
 {
-  int res = s->instructions.element_no;
+  epsilon_stack_push (& s->instructions, literal);
+}
+static void
+ejit_push_epsilon_literal (ejit_compiler_state_t s, epsilon_value literal)
+{
+  long literal_stack_height = s->literals.element_no;
   epsilon_stack_push (& s->literals, literal);
-  return res;
+  epsilon_stack_push (& s->instructions, (epsilon_word)literal_stack_height);
 }
 
 #define CASE_SET_LABEL(name, arity) \
@@ -234,7 +286,7 @@ ejit_push_literal (ejit_compiler_state_t s, epsilon_word literal)
 #ifdef ENABLE_JIT_THREADING
 #define LABEL(name) \
   label_ ## name:   \
-  /* printf("%i. %s\n", (int)(ip - instructions), #name); */ \
+  printf("%i. %s\n", (int)(ip - instructions), #name); \
   /* printf("  ip == %p, ip->label == %p, label_%s == %p\n", ip, ip->label, #name, && label_ ## name);  */\
   /* printf("  Heights at entry: %i %i\n", (int)(state.stack_overtop - state.stack_bottom), (int)(state.return_stack_overtop - state.return_stack_bottom)); */
 #else
@@ -262,6 +314,10 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
         {
           switch (p->opcode)
             {
+              CASE_SET_LABEL(push_local, 1);
+              CASE_SET_LABEL(procedure_prolog, 2);
+              CASE_SET_LABEL(return, 1);
+
               CASE_SET_LABEL(cr, 0);
               CASE_SET_LABEL(divided, 0);
               CASE_SET_LABEL(drop, 0);
@@ -306,6 +362,44 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
     switch (ip->opcode)
       {
 #endif // #ifndef ENABLE_JIT_THREADING
+
+  LABEL(push_local);
+  fprintf (stderr, "## Pushing %li or %p\n",
+           (long)state.frame_bottom[(long)((ip + 1)->literal)],
+           state.frame_bottom[(long)((ip + 1)->literal)]);
+  *(state.stack_overtop ++) = state.frame_bottom[(long)((++ ip)->literal)];
+  fprintf (stderr, "after push_local:\n"); print_values (& state);
+  NEXT;
+
+  LABEL(procedure_prolog); // Parameters: formal_no, nonformal_slot_no
+
+  // FIXME: shall I save the caller status on the return stack here, or at call time?
+  /* state.return_stack_overtop[0] = state.frame_bottom; */
+  /* state.return_stack_overtop[1] = (void*)(ip + 2); */
+  /* state.return_stack_overtop += 2; */
+  state.frame_bottom = state.stack_overtop - (long)((++ ip)->literal);
+  state.stack_overtop += (long)((++ ip)->literal);
+  fprintf (stderr, "after procedure_prolog:\n"); print_values (& state);
+  NEXT;
+
+  LABEL(return); // Parameters: result no
+  memcpy (state.frame_bottom,
+          state.stack_overtop - (long)(ip[1].literal),
+          (long)(ip[1].literal) * sizeof (epsilon_value));
+  fprintf (stderr, "at return: copied %li words from %p to %p\n",
+           (long)(ip[1].literal),
+           state.stack_overtop - (long)(ip[1].literal),
+           state.frame_bottom);
+  fprintf (stderr, "at return, before altering pointers:\n"); print_values (& state);
+  state.return_stack_overtop -= 2;
+  // Set the stack overtop to make place for results.
+  state.stack_overtop = state.frame_bottom + ((long)(ip[1].literal));
+  // Restore the saved frame bottom.
+  state.frame_bottom = state.return_stack_overtop[0];
+  fprintf (stderr, "at return, before jumping:\n"); print_values (& state);
+  fprintf (stderr, "at return: jumping.\n");
+  GOTO (state.return_stack_overtop[1]);
+
 
   LABEL(cr);
   printf ("\n");
@@ -374,12 +468,14 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   NEXT;
 
   LABEL(plus);
+  // FIXME: this doesn't correctly use tagging
   ((long*)state.stack_overtop)[-2] += ((long*)state.stack_overtop)[-1];
   state.stack_overtop --;
   NEXT;
 
   LABEL(print);
-  printf ("%li ", ((long*)state.stack_overtop --)[-1]);
+  printf ("%li ",
+          epsilon_value_to_epsilon_int (((long**)state.stack_overtop --)[-1]));
   NEXT;
 
   LABEL(swap);
@@ -397,6 +493,8 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   NEXT;
 
 #ifndef ENABLE_JIT_THREADING
+      default:
+        epsilon_fatal ("this should be unreachable");
       } /* switch */
 #endif // #ifndef ENABLE_JIT_THREADING
 }
@@ -406,7 +504,7 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
 #undef GOTO
 #undef LABEL
 
-void
+static void
 ejit_initialize_code (ejit_code_t code)
 {
   ejit_initialize_or_run_code (1, code, NULL);
@@ -418,38 +516,202 @@ ejit_run_code (ejit_code_t code, ejit_thread_state_t state)
   ejit_initialize_or_run_code (0, code, state);
 }
 
-static void
-ejit_compiler_stub (ejit_compiler_state_t s)
+static long
+epsilon_max_nonformal_local_no (epsilon_value expression);
+static long
+epsilon_max_nonformal_local_no_in (epsilon_value expressions)
 {
-  ejit_push_instruction (s, ejit_opcode_lit);
-  ejit_push_instruction (s, 20);
-  ejit_push_instruction (s, ejit_opcode_lit);
-  ejit_push_instruction (s, 22);
-  ejit_push_instruction (s, ejit_opcode_plus);
-  ejit_push_instruction (s, ejit_opcode_print);
-  ejit_push_instruction (s, ejit_opcode_cr);
-  ejit_push_instruction (s, ejit_opcode_end);
+  long res = 0;
+  epsilon_value rest;
+  for (rest = expressions;
+       ! epsilon_value_is_null(rest);
+       rest = epsilon_value_cdr (rest))
+    res = epsilon_max_long (res, epsilon_max_nonformal_local_no (epsilon_value_car (rest)));
+  return res;
+}
+static long
+epsilon_max_nonformal_local_no (epsilon_value expression)
+{
+  epsilon_int opcode
+    = epsilon_value_to_epsilon_int (epsilon_load_with_epsilon_int_offset (expression, 0));
+  switch (opcode)
+    {
+    case e0_variable_opcode:
+    case e0_value_opcode:
+      return 0;
+    case e0_bundle_opcode:
+      return epsilon_max_nonformal_local_no_in (epsilon_load_with_epsilon_int_offset (expression, 2));
+    case e0_primitive_opcode:
+    case e0_call_opcode:
+    case e0_fork_opcode:
+      return epsilon_max_nonformal_local_no_in (epsilon_load_with_epsilon_int_offset (expression, 3));
+    case e0_let_opcode:
+      {
+        long bound_no = epsilon_value_length (epsilon_load_with_epsilon_int_offset (expression, 2));
+        return epsilon_max_long (epsilon_max_nonformal_local_no (epsilon_load_with_epsilon_int_offset (expression, 3)),
+                                 bound_no
+                                 + epsilon_max_nonformal_local_no (epsilon_load_with_epsilon_int_offset (expression, 4)));
+      }
+    case e0_call_indirect_opcode:
+      return epsilon_max_long (epsilon_max_nonformal_local_no (epsilon_load_with_epsilon_int_offset (expression, 2)),
+                               epsilon_max_nonformal_local_no_in (epsilon_load_with_epsilon_int_offset (expression, 3)));
+    case e0_if_in_opcode:
+      return epsilon_max_long (epsilon_max_nonformal_local_no (epsilon_load_with_epsilon_int_offset (expression, 3)),
+                               epsilon_max_nonformal_local_no (epsilon_load_with_epsilon_int_offset (expression, 4)));
+    case e0_join_opcode:
+      return epsilon_max_nonformal_local_no (epsilon_load_with_epsilon_int_offset (expression, 2));
+    default:
+      epsilon_fatal ("%s: ill-formed epsilon0 expression", __func__);
+    } // switch
+}
+
+static long
+epsilon_result_no (epsilon_value expression)
+{
+  epsilon_int opcode
+    = epsilon_value_to_epsilon_int (epsilon_load_with_epsilon_int_offset (expression, 0));
+  switch (opcode)
+    {
+    case e0_variable_opcode:
+    case e0_value_opcode:
+    case e0_fork_opcode:
+    case e0_join_opcode:
+      return 1;
+    case e0_bundle_opcode:
+      return epsilon_value_length (epsilon_load_with_epsilon_int_offset (expression, 2));
+    case e0_primitive_opcode:
+      {
+        epsilon_value primitive_name = epsilon_load_with_epsilon_int_offset (expression, 2);
+        epsilon_value primitive_descriptor = epsilon_load_with_epsilon_int_offset (primitive_name, 7);
+        if (EPSILON_UNLIKELY(epsilon_value_is_zero (primitive_descriptor)))
+          epsilon_fatal ("%s: unbound primitive name", __func__);
+        epsilon_int primitive_out_dimension = epsilon_value_to_epsilon_int (epsilon_load_with_epsilon_int_offset (primitive_descriptor, 1));
+        return primitive_out_dimension;
+      }
+    case e0_let_opcode:
+      {
+        epsilon_value body
+          = epsilon_load_with_epsilon_int_offset (expression, 4);
+        return epsilon_result_no (body);
+      }
+    case e0_call_opcode:
+    case e0_call_indirect_opcode:
+      return 0; // doesn't matter
+    case e0_if_in_opcode:
+      {
+        epsilon_value then_branch
+          = epsilon_load_with_epsilon_int_offset (expression, 3);
+        epsilon_value else_branch
+          = epsilon_load_with_epsilon_int_offset (expression, 4);
+        return epsilon_max_long (epsilon_result_no (then_branch),
+                                 epsilon_result_no (else_branch));
+      }
+    default:
+      epsilon_fatal ("%s: ill-formed epsilon0 expression", __func__);
+    } // switch
+  epsilon_fatal ("%s: this should be unreachable", __func__);
+}
+
+static void
+ejit_compile_expression (ejit_compiler_state_t s,
+                         epsilon_value expression,
+                         long formal_no,
+                         long nonformal_local_no,
+                         long result_no,
+                         bool tail)
+{
+  epsilon_int opcode
+    = epsilon_value_to_epsilon_int (epsilon_load_with_epsilon_int_offset (expression, 0));
+  switch (opcode)
+    {
+    case e0_variable_opcode:
+      {
+        epsilon_value name = epsilon_load_with_epsilon_int_offset (expression, 2);
+        long local_index = epsilon_stack_search_last (& s->locals, name);
+        if (local_index < 0)
+          {
+            epsilon_fatal ("%s: unimplemented: global", __func__);
+          }
+        else
+          {
+            ejit_push_instruction (s, ejit_opcode_push_local);
+            ejit_push_instruction (s, local_index);
+          }
+        if (tail)
+          {
+            ejit_push_instruction (s, ejit_opcode_return);
+            ejit_push_instruction (s, 1L);
+          }
+        break;
+      }
+    case e0_value_opcode:
+    case e0_bundle_opcode:
+    case e0_primitive_opcode:
+    case e0_let_opcode:
+    case e0_call_opcode:
+    case e0_call_indirect_opcode:
+    case e0_if_in_opcode:
+    case e0_fork_opcode:
+    case e0_join_opcode:
+    default:
+      epsilon_fatal ("%s: ill-formed epsilon0 expression", __func__);
+    }
 }
 
 ejit_code_t
-ejit_compile (epsilon_value expression, epsilon_value formal_list)
+ejit_compile (epsilon_value formal_list, epsilon_value expression)
 {
   ejit_code_t res = epsilon_xmalloc (sizeof (struct ejit_code));
   res->initialized = 0;
   struct ejit_compiler_state s;
-  ejit_initialize_compiler_state (& s);
+  ejit_initialize_compiler_state (&s);
 
-  /* FIXME: actually compile, pushing on s. */
-  ejit_compiler_stub (&s);
+  size_t formal_no = epsilon_value_length (formal_list);
+  size_t nonformal_local_no  = epsilon_max_nonformal_local_no (expression);
+  size_t result_no  = epsilon_result_no (expression);
+  fprintf (stderr, "The procedure has %li formals\n", formal_no);
+  fprintf (stderr, "The procedure needs %li nonformal locals\n", nonformal_local_no);
+  fprintf (stderr, "The procedure has %li results\n", result_no);
+
+  ejit_push_instruction (&s, ejit_opcode_procedure_prolog);
+  long procedure_slot_no
+    = epsilon_max_long (formal_no + nonformal_local_no, result_no);
+  ejit_push_non_epsilon_literal (&s, (void*)formal_no);
+  ejit_push_non_epsilon_literal (&s, (void*)(procedure_slot_no - formal_no));
+
+  epsilon_value more_formals;
+  for (more_formals = formal_list;
+       ! epsilon_value_is_null(more_formals);
+       more_formals = epsilon_value_cdr (more_formals))
+    {
+      fprintf (stderr, "PUSHING A FORMAL\n");
+    epsilon_stack_push (& s.locals, epsilon_value_car (more_formals));
+    }
+  ejit_compile_expression (&s, expression,
+                           formal_no, nonformal_local_no, result_no,
+                           true);
+
+  /* Add stub code: */
+  fprintf (stderr, "Adding stub end instruction...\n");
+  ejit_push_instruction (& s, ejit_opcode_end);
+
+  /* /\* ejit_push_instruction (s, ejit_opcode_lit); *\/ */
+  /* /\* ejit_push_instruction (s, epsilon_int_to_epsilon_value(20)); *\/ */
+  /* /\* ejit_push_instruction (s, ejit_opcode_lit); *\/ */
+  /* /\* ejit_push_instruction (s, epsilon_int_to_epsilon_value(22)); *\/ */
+  /* ejit_push_instruction (s, ejit_opcode_plus); */
+  /* ejit_push_instruction (s, ejit_opcode_print); */
+  /* ejit_push_instruction (s, ejit_opcode_cr); */
+  /* ejit_push_instruction (s, ejit_opcode_end); */
 
   /* Instead of copying from the two stacks and then finalizing them, just steal
      their buffers and use them as the buffers pointed by res.  This saves a
      copy, which may be important if JITting and run time.  Yes, call me a
      horrible person if you want. */
-  if (sizeof (ejit_instruction_t) != sizeof (epsilon_word))
+  if (EPSILON_UNLIKELY(sizeof (ejit_instruction_t) != sizeof (epsilon_word)))
     epsilon_fatal ("this compiler represents unions in an impossibly stupid way");
   res->instruction_no = s.instructions.element_no;
-  res->instructions = s.instructions.buffer;
+  res->instructions = (ejit_instruction_t*)s.instructions.buffer;
   /* size_t instruction_size = res->instruction_no * sizeof (ejit_instruction_t); */
   /* res->instructions = epsilon_xmalloc (instruction_size); */
   /* memcpy (res->instructions, s.instructions.buffer, instruction_size); */
@@ -462,6 +724,7 @@ ejit_compile (epsilon_value expression, epsilon_value formal_list)
   /* memcpy (res->literals, s.literals.buffer, literal_size); */
 
   /* ejit_finalize_compiler_state (& s); */ // No!
+  epsilon_stack_finalize (& s.locals);
 
   /* Convert opcodes to labels: */
   ejit_initialize_code (res);
@@ -481,18 +744,59 @@ ejit_destroy_code (const ejit_code_t c)
 
 //////////////////////////////
 
-
-#define N 1000
-
 int
 main (void)
 {
-  ejit_thread_state_t s = ejit_make_thread_state ();
-  ejit_code_t c = ejit_compile (NULL, NULL);
+  epsilon_value epsilon_null = epsilon_int_to_epsilon_value (0);
+  epsilon_value formals =
+    epsilon_gc_allocate_with_epsilon_int_length (2);
+  epsilon_store_with_epsilon_int_offset (formals,
+                                         0,
+                                         epsilon_int_to_epsilon_value (5)); // supposed to be a symbol
+  epsilon_store_with_epsilon_int_offset (formals,
+                                         1,
+                                         epsilon_null);
+  epsilon_value body =
+    epsilon_gc_allocate_with_epsilon_int_length (3);
+  epsilon_store_with_epsilon_int_offset (body,
+                                         0,
+                                         epsilon_int_to_epsilon_value (e0_variable_opcode));
+  epsilon_store_with_epsilon_int_offset (body,
+                                         1,
+                                         epsilon_int_to_epsilon_value (2));
+  epsilon_store_with_epsilon_int_offset (body,
+                                         2,
+                                         epsilon_int_to_epsilon_value (5)); // supposed to be a symbol
+
   fprintf (stderr, "OK-A 1000\n");
-  ejit_run_code (c, s);
+  ejit_thread_state_t s = ejit_make_thread_state ();
   fprintf (stderr, "OK-A 2000\n");
+  ejit_code_t c = ejit_compile (formals, body);
+  //ejit_push_on_thread_state (s, epsilon_int_to_epsilon_value (300));
+
+  //ejit_push_instruction (s, ejit_opcode_end);
+  int i;
+  for (i = 0; i < 1; i ++)
+    {
+  s->stack_overtop = s->frame_bottom = s->stack_bottom;
+  s->return_stack_overtop = s->return_stack_bottom;
+  fprintf (stderr, "OK-A 3000: simulating call...\n");
+  ejit_push_on_thread_state (s, epsilon_int_to_epsilon_value (42));
+  s->return_stack_overtop[0] = s->frame_bottom;
+  s->return_stack_overtop[1] = c->instructions + (c->instruction_no - 1);
+  s->return_stack_overtop += 2;
+
+  fprintf (stderr, "Actuals:\n");
+  print_values (s);
+  fprintf (stderr, "Running...\n");
+  ejit_run_code (c, s);
+  fprintf (stderr, "...Done.  Results:\n");
+  print_values (s);
+    }
   ejit_destroy_code (c);
-  fprintf (stderr, "OK-A 3000\n");
+  /* fprintf (stderr, "OK-A 5000\n"); */
+  ejit_destroy_thread_state (s);
+  /* fprintf (stderr, "OK-A 6000\n"); */
+  fprintf (stderr, "Success\n");
   return EXIT_SUCCESS;
 }

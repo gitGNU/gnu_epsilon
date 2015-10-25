@@ -362,11 +362,20 @@ bin_epsilon_test_utility_LDADD = \
 
 # A temporary utility for testing and developing threaded code.
 bin_PROGRAMS += \
-  bin/epsilon-test-jit
-bin_epsilon_test_jit_SOURCES = \
+  bin/epsilon-test-jit-untagged
+bin_epsilon_test_jit_untagged_SOURCES = \
   runtime/test-jit.c
-bin_epsilon_test_jit_LDADD = \
-  lib/libepsilonutility.a
+bin_epsilon_test_jit_untagged_LDADD = \
+  lib/libepsilonutility.a lib/libepsilonruntime-untagged.a
+bin_epsilon_test_jit_untagged_CPPFLAGS = -DEPSILON_RUNTIME_UNTAGGED
+
+bin_PROGRAMS += \
+  bin/epsilon-test-jit-tagged
+bin_epsilon_test_jit_tagged_SOURCES = \
+  runtime/test-jit.c
+bin_epsilon_test_jit_tagged_LDADD = \
+  lib/libepsilonutility.a lib/libepsilonruntime-tagged.a
+bin_epsilon_test_jit_tagged_CPPFLAGS = -DEPSILON_RUNTIME_TAGGED
 
 # Currently disabled
 bin_PROGRAMS += \

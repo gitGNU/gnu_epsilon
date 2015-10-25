@@ -1,5 +1,6 @@
 /* Nothing interesting yet.
 
+   Copyright (C) 2015 Luca Saiu
    Copyright (C) 2012 Université Paris 13
    Written by Luca Saiu
 
@@ -19,5 +20,20 @@
    along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>. */
 
 
-// Nothing yet.
-static int useless __attribute__((unused)) = 42;
+long
+epsilon_min_long (long a, long b)
+{
+  if (a < b)
+    return a;
+  else
+    return b;
+}
+
+long
+epsilon_max_long (long a, long b)
+{
+  if (a > b)
+    return a;
+  else
+    return b;
+}

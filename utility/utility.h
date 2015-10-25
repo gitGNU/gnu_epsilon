@@ -1,6 +1,7 @@
 /* A header #includ'ing the other utility headers.
 
    Copyright (C) 2012 Université Paris 13
+   Updated in 2015 by Luca Saiu
    Written by Luca Saiu
 
    This file is part of GNU epsilon.
@@ -35,3 +36,8 @@
 #include "stack.h"
 
 #endif // #ifndef EPSILON_UTILITY_H_
+
+long
+epsilon_min_long (long a, long b);
+long
+epsilon_max_long (long a, long b);

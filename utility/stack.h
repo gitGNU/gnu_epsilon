@@ -44,6 +44,12 @@ void epsilon_stack_destroy(epsilon_stack_t epsilon_stack);
 
 /* Look for a given element (compared by identity) in all the currently-used slots: */
 bool epsilon_stack_has(epsilon_stack_t epsilon_stack, epsilon_word element);
+
+/* Search for the last element which is equal to the given one, and return its
+   index.  Return -1 if no such element exists. */
+long
+epsilon_stack_search_last (epsilon_stack_t epsilon_stack, epsilon_word element);
+
 void epsilon_stack_push(epsilon_stack_t epsilon_stack, epsilon_word element);
 bool epsilon_stack_empty(epsilon_stack_t epsilon_stack);
 

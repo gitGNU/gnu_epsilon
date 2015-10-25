@@ -65,6 +65,16 @@ bool epsilon_stack_has(epsilon_stack_t stack, epsilon_word element){
   return false;
 }
 
+long
+epsilon_stack_search_last (epsilon_stack_t stack, epsilon_word element)
+{
+  long i;
+  for (i = stack->element_no - 1; i >= 0; i --)
+    if(stack->buffer[i] == element)
+      return i;
+  return -1;
+}
+
 void epsilon_stack_push(epsilon_stack_t stack, epsilon_word element){
   if(stack->element_no >= stack->allocated_element_no){
     const size_t old_size = stack->allocated_element_no;

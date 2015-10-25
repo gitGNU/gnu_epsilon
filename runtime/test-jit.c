@@ -835,7 +835,7 @@ ejit_compile_expression (ejit_compiler_state_t s,
             after_then_source = s->instructions.element_no;
             ejit_push_instruction (s, -1); // to backpatch later
           }
-        long i, then_target = s->instructions.element_no;
+        long then_target = s->instructions.element_no;
         while (! epsilon_stack_empty (& indices_to_backpatch))
           s->instructions.buffer[(long)epsilon_stack_pop (& indices_to_backpatch)]
             = (epsilon_word)then_target;
@@ -924,18 +924,12 @@ ejit_compile (epsilon_value formal_list, epsilon_value expression)
   fprintf (stderr, "The procedure needs %li nonformal locals\n", nonformal_local_no);
   fprintf (stderr, "The procedure has %li results\n", result_no);
 
-  //s.target_slot = epsilon_max_long (formal_no + nonformal_local_no, result_no);
-  //ejit_push_instruction (&s, ejit_opcode_procedure_prolog);
-  /* long procedure_slot_no */
-  /*   = epsilon_max_long (formal_no + nonformal_local_no, result_no); */
-  /* ejit_push_non_epsilon_literal (&s, (void*)formal_no); */
-  /* ejit_push_non_epsilon_literal (&s, (void*)(procedure_slot_no - formal_no)); */
-
   long literal_no = e0_literal_no (expression);
   /* I have to allocate res->literals before compiling: with a moving collector
      this allocation might trigger a GC and change epsilon literals.  Compiling
      doesn't need epsilon heap allocation. */
   res->literals = epsilon_gc_allocate_with_epsilon_int_length (literal_no);
+#warning FIXME: make res->literals a GC root
   fprintf (stderr, "The procedure has %li literals\n", literal_no);
 
   epsilon_value more_formals;
@@ -953,15 +947,6 @@ ejit_compile (epsilon_value formal_list, epsilon_value expression)
   fprintf (stderr, "Adding stub end instruction...\n");
   ejit_push_instruction (& s, ejit_opcode_end);
 
-  /* /\* ejit_push_instruction (s, ejit_opcode_lit); *\/ */
-  /* /\* ejit_push_instruction (s, epsilon_int_to_epsilon_value(20)); *\/ */
-  /* /\* ejit_push_instruction (s, ejit_opcode_lit); *\/ */
-  /* /\* ejit_push_instruction (s, epsilon_int_to_epsilon_value(22)); *\/ */
-  /* ejit_push_instruction (s, ejit_opcode_plus); */
-  /* ejit_push_instruction (s, ejit_opcode_print); */
-  /* ejit_push_instruction (s, ejit_opcode_cr); */
-  /* ejit_push_instruction (s, ejit_opcode_end); */
-
   /* Instead of copying from the two stacks and then finalizing them, just steal
      their buffers and use them as the buffers pointed by res.  This saves a
      copy, which may be important if JITting and run time.  Yes, call me a
@@ -970,19 +955,12 @@ ejit_compile (epsilon_value formal_list, epsilon_value expression)
     epsilon_fatal ("this compiler represents unions in an impossibly stupid way");
   res->instruction_no = s.instructions.element_no;
   res->instructions = (ejit_instruction_t*)s.instructions.buffer;
-  /* size_t instruction_size = res->instruction_no * sizeof (ejit_instruction_t); */
-  /* res->instructions = epsilon_xmalloc (instruction_size); */
-  /* memcpy (res->instructions, s.instructions.buffer, instruction_size); */
 
+  assert (s.literal_stack.element_no <= literal_no);
   int i;
   for (i = 0; i < s.literal_stack.element_no; i ++)
     epsilon_store_with_epsilon_int_offset(res->literals, i,
                                           s.literal_stack.buffer[i]);
-  assert (s.literal_stack.element_no <= literal_no);
-#warning FIXME: make res->literals a GC root
-  /* size_t literal_size = res->literal_no * sizeof (epsilon_word); */
-  /* res->literals = epsilon_xmalloc (literal_size); */
-  /* memcpy (res->literals, s.literals.buffer, literal_size); */
 
   /* ejit_finalize_compiler_state (& s); */ // No!
   epsilon_stack_finalize (& s.locals);
@@ -1193,14 +1171,21 @@ main (void)
     /*                  make_e0_bundle_3 (expression_value_57, */
     /*                                    expression_variable_10, */
     /*                                    expression_value_57)); */
-    = make_e0_let_1(10,
-                    make_e0_if_in_3 (make_e0_variable (5),
-                                     epsilon_int_to_epsilon_value (100),
-                                     epsilon_int_to_epsilon_value (42),
-                                     epsilon_int_to_epsilon_value (102),
-                                     make_e0_value (epsilon_int_to_epsilon_value (200)),
-                                     make_e0_value (epsilon_int_to_epsilon_value (300))),
-                    make_e0_variable (10));
+    /* = make_e0_let_1(10, */
+    /*                 make_e0_if_in_3 (make_e0_variable (5), */
+    /*                                  epsilon_int_to_epsilon_value (100), */
+    /*                                  epsilon_int_to_epsilon_value (42), */
+    /*                                  epsilon_int_to_epsilon_value (102), */
+    /*                                  make_e0_value (epsilon_int_to_epsilon_value (200)), */
+    /*                                  make_e0_value (epsilon_int_to_epsilon_value (300))), */
+    /*                 make_e0_variable (10)); */
+    = make_e0_if_in_3 (make_e0_variable (5),
+                       epsilon_int_to_epsilon_value (100),
+                       epsilon_int_to_epsilon_value (43),
+                       epsilon_int_to_epsilon_value (102),
+                       make_e0_bundle_2 (make_e0_value (epsilon_int_to_epsilon_value (200)),
+                                         make_e0_value (epsilon_int_to_epsilon_value (201))),
+                       make_e0_value (epsilon_int_to_epsilon_value (300)));
   fprintf (stderr, "OK-A 1000\n");
   ejit_thread_state_t s = ejit_make_thread_state ();
   fprintf (stderr, "OK-A 2000: compiling...\n");
@@ -1222,7 +1207,7 @@ main (void)
   s->stack_bottom[0] = epsilon_int_to_epsilon_value (42);
   //s->stack_bottom[1] = epsilon_int_to_epsilon_value (43);
   s->return_stack_overtop[0] = s->frame_bottom;
-  s->return_stack_overtop[1] = c->instructions + (c->instruction_no - 1);
+  s->return_stack_overtop[1] = c->instructions + (c->instruction_no - 1); // end
   s->return_stack_overtop += 2;
 
   /* fprintf (stderr, "Actuals:\n"); */

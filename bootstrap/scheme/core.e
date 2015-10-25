@@ -1393,8 +1393,8 @@
 ;;;    or zero if the expansion is not cached or there is no associated
 ;;;    macro;
 ;;; 7. the primitive descriptor associated to the name, or zero;
-;;; 8. bytecode-compiled procedure, or zero;
-;;; 9. native-compiled procedure, or zero;
+;;; 8. compiled procedure, or zero;
+;;; 9. compiled procedure data, or zero;
 ;;; 10. alist with user-defined data.
 ;;;
 ;;; The same general idea was used in some historical Lisp
@@ -1692,18 +1692,18 @@
     ;; invalid body
     (buffer:set! name (e0:value 4) (e0:value 0))))
 
-(e1:define (state:bytecode-procedure-get name)
+(e1:define (state:compiled-procedure-get name)
   (buffer:get name (e0:value 8)))
-(e1:define (state:bytecode-procedure-set! name bytecode)
+(e1:define (state:compiled-procedure-set! name bytecode)
   (buffer:set! name (e0:value 8) bytecode))
-(e1:define (state:bytecode-procedure-unset! name)
+(e1:define (state:compiled-procedure-unset! name)
   (buffer:set! name (e0:value 8) 0))
 
-(e1:define (state:native-procedure-get name)
+(e1:define (state:compiled-procedure-data-get name)
   (buffer:get name (e0:value 9)))
-(e1:define (state:native-procedure-set! name native)
+(e1:define (state:compiled-procedure-data-set! name native)
   (buffer:set! name (e0:value 9) native))
-(e1:define (state:native-procedure-unset! name)
+(e1:define (state:compiled-procedure-data-unset! name)
   (buffer:set! name (e0:value 9) 0))
 
 

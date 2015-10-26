@@ -259,8 +259,8 @@ ejit_push_epsilon_literal (ejit_compiler_state_t s, epsilon_value literal)
 }
 
 #define CASE_SET_LABEL(name, arity) \
-  case ejit_opcode_ ## name:           \
-    printf("Initializing: %3i. %s\n", (int)(p - instructions), #name);  \
+  case ejit_opcode_ ## name: \
+    PRINT_JIT_DEBUGGING(stderr, "Initializing: %3i. %s\n", (int)(p - instructions), #name); \
     p->label = && label_ ## name; \
     p += (arity) + 1;             \
     break
@@ -289,15 +289,24 @@ ejit_push_epsilon_literal (ejit_compiler_state_t s, epsilon_value literal)
   /*do*/ { ip ++; continue; } /*while (0)*/
 #endif // #ifdef ENABLE_JIT_THREADING
 
+#ifdef ENABLE_VERBOSE_JIT_DEBUG
+#define PRINT_JIT_DEBUGGING \
+  fprintf
+#else
+#define PRINT_JIT_DEBUGGING(...) \
+  /* nothing */
+#endif // #ifdef ENABLE_VERBOSE_JIT_DEBUG
+
 #ifdef ENABLE_JIT_THREADING
 #define LABEL(name) \
   label_ ## name:   \
-  printf("%i. %s\n", (int)(ip - instructions), #name); \
+  PRINT_JIT_DEBUGGING (stderr, "%i. %s\n", (int)(ip - instructions), #name); \
   /* printf("  ip == %p, ip->label == %p, label_%s == %p\n", ip, ip->label, #name, && label_ ## name);  */\
   /* printf("  Heights at entry: %i %i\n", (int)(state.stack_overtop - state.stack_bottom), (int)(state.return_stack_overtop - state.return_stack_bottom)); */
 #else
 #define LABEL(name) \
-  case ejit_opcode_ ## name:
+  case ejit_opcode_ ## name: \
+    PRINT_JIT_DEBUGGING (stderr, "%i. %s\n", (int)(ip - instructions), #name);
 #endif // #ifdef ENABLE_JIT_THREADING
 
 static void

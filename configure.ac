@@ -529,6 +529,11 @@ dnl                              [no],
 dnl                              [frob every single existing foo])
 
 # Enable *very* verbose debug prints:
+POSITRON_COMMAND_LINE_ENABLE([jit-debug], [VERBOSE_JIT_DEBUG],
+                             [no],
+                             [print debugging information about the JIT at runtime])
+
+# Enable *very* verbose debug prints:
 POSITRON_COMMAND_LINE_ENABLE([verbose-debug], [VERBOSE_DEBUG],
                              [no],
                              [print a lot of debugging information at runtime])

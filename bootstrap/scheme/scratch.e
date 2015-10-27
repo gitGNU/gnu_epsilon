@@ -29,7 +29,3 @@
                                                   ,@code))))
        (fio:write "JITting " (e ,expression-name) "...\n")
        (e1:primitive jit:run ,expression-name))))
-  ;; (e1:let ((code-as-e0-expression (repl:macroexpand-and-transform `(e1:begin
-  ;;                                                                    ,@code))))
-  ;; `(e1:primitive jit:run
-  ;;                (repl:macroexpand-and-transform `(e1:begin ,@code)))

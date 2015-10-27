@@ -366,7 +366,7 @@ bin_PROGRAMS += \
 bin_epsilon_test_jit_untagged_SOURCES = \
   runtime/test-jit.c
 bin_epsilon_test_jit_untagged_LDADD = \
-  lib/libepsilonutility.a lib/libepsilonruntime-untagged.a
+  lib/libepsilonruntime-untagged.a lib/libepsilonutility.a
 bin_epsilon_test_jit_untagged_CPPFLAGS = -DEPSILON_RUNTIME_UNTAGGED
 
 bin_PROGRAMS += \
@@ -374,7 +374,7 @@ bin_PROGRAMS += \
 bin_epsilon_test_jit_tagged_SOURCES = \
   runtime/test-jit.c
 bin_epsilon_test_jit_tagged_LDADD = \
-  lib/libepsilonutility.a lib/libepsilonruntime-tagged.a
+  lib/libepsilonruntime-tagged.a lib/libepsilonutility.a
 bin_epsilon_test_jit_tagged_CPPFLAGS = -DEPSILON_RUNTIME_TAGGED
 
 # Currently disabled

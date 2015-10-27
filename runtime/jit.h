@@ -19,4 +19,53 @@
    along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>. */
 
 
-// FIXME: move code from runtime/test-jit.c
+#ifndef EPSILON_JIT_H_
+#define EPSILON_JIT_H_
+
+#include "runtime.h"
+
+/* The state of a thread running JITted code.  The structure is intentionally
+   opaque and its inner content is subject to change in the future, possibly
+   according to the configuration.
+
+   FIXME: should this be heap-allocated, or be a manually managed root poiting
+   to heap objects? */
+typedef struct ejit_thread_state* ejit_thread_state_t;
+
+ejit_thread_state_t
+ejit_make_thread_state (void)
+  __attribute__ ((malloc));
+
+void
+ejit_destroy_thread_state (const ejit_thread_state_t s);
+
+/* void */
+/* ejit_push_on_thread_state (const ejit_thread_state_t s, epsilon_value v); */
+
+/* The generated code, which is allocated on the C heap and manually freed.
+   Again, the structure is intentionally opaque. */
+typedef struct ejit_code* ejit_code_t;
+
+/* If literals_slot_pointer is non-NULL generate a final end instruction and
+   place the literals slot index into the given location, so that the code can
+   be easily executed even if there is no associated symbol.
+
+   FIXME: say that the literals part which is generated is not a GC root and should
+   be used immediately (by being put on a stack), before GC-allocating. */
+ejit_code_t
+ejit_compile (epsilon_value expression, epsilon_value formal_list,
+              long *literals_slot_pointer)
+  __attribute__(( malloc ));
+
+void
+ejit_destroy_code (const ejit_code_t c);
+
+void
+ejit_run_code (ejit_code_t code, ejit_thread_state_t state);
+
+// FIXME: explain how this is useful for the main expression.
+void
+ejit_evaluate_expression (epsilon_value expression);
+
+
+#endif // #ifndef EPSILON_JIT_H_

@@ -1937,6 +1937,9 @@
 (state:primitive-set! (e0:value gc:disable!)        (e0:value 0) (e0:value 0) (e0:value #t) (e0:value #f))
 (state:primitive-set! (e0:value gc:reenable!)       (e0:value 0) (e0:value 0) (e0:value #t) (e0:value #f))
 
+;;; FIXME: this is likely only useful while I debug the JIT.
+(state:primitive-set! (e0:value jit:run)            (e0:value 1) (e0:value 0) (e0:value #t) (e0:value #t))
+
 ;;; Unexecing primitives, not always available.  Those are *not* reflective: they just read boxedness tags
 (state:primitive-set! (e0:value whatever:atom?)     (e0:value 1) (e0:value 1) (e0:value #f) (e0:value #f))
 (state:primitive-set! (e0:value whatever:buffer?)   (e0:value 1) (e0:value 1) (e0:value #f) (e0:value #f))

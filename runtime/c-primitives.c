@@ -529,6 +529,11 @@ static void epsilon_primitive_io_write_value(epsilon_value *stack){
 #endif // #ifdef EPSILON_RUNTIME_UNTAGGED
 }
 
+static void
+epsilon_primitive_jit_run (epsilon_value *stack){
+  ejit_evaluate_expression (stack[0]);
+}
+
 ///////////////////////////////////////////////////////////////////
 // Primitive definitions: end
 
@@ -611,6 +616,8 @@ void epsilon_c_primitives_initialize(void){
   epsilon_initialize_c_primitive("io:write-32-bit-big-endian", epsilon_primitive_io_write_32bit_bigendian, 2, 0);
 
   epsilon_initialize_c_primitive("io:read-sexpression", epsilon_primitive_io_read_sexpression, 1, 1);
+
+  epsilon_initialize_c_primitive("jit:run", epsilon_primitive_jit_run, 1, 0);
 
   epsilon_initialize_c_primitive("primitive:get-index", epsilon_primitive_primitive_get_index, 1, 1);
   epsilon_initialize_c_primitive("primitive:call-in-c", epsilon_primitive_primitive_call_in_c, 2, 1);

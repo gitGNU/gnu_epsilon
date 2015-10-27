@@ -104,6 +104,7 @@ enum ejit_opcode_enum
     ejit_opcode_jump,
     ejit_opcode_jump_if_equal,
     ejit_opcode_literal,
+    ejit_opcode_primitive,
     //ejit_opcode_procedure_prolog,
     ejit_opcode_return,
     ejit_opcode_set_literals,
@@ -281,6 +282,7 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
               CASE_SET_LABEL(jump, 1);
               CASE_SET_LABEL(jump_if_equal, 3);
               CASE_SET_LABEL(literal, 2);
+              CASE_SET_LABEL(primitive, 2);
               //CASE_SET_LABEL(procedure_prolog, 1);
               CASE_SET_LABEL(return, 2);
               CASE_SET_LABEL(set_literals, 1);
@@ -376,6 +378,11 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   /* fprintf (stderr, "after literal pushing:\n"); print_values (& state); */
   NEXT;
 
+  LABEL(primitive); // Parameters: primitive_index, inout_slot
+  epsilon_call_c_primitive_by_index((long)((ip + 1)->literal),
+                                    state.frame_bottom + (long)((ip + 2)->literal));
+  ip += 2;
+  NEXT;
   /* LABEL(procedure_prolog); // Parameters: first_parameter_slot */
   /* // FIXME: shall I save the caller status on the return stack here, or at call time? */
   /* /\* state.return_stack_overtop[0] = state.frame_bottom; *\/ */
@@ -643,6 +650,15 @@ ejit_compile_epilog (ejit_compiler_state_t s,
     }
 }
 
+static void
+ejit_compile_expressions (ejit_compiler_state_t s,
+                          epsilon_value expression,
+                          long formal_no,
+                          long nonformal_local_no,
+                          long result_no,
+                          long literals_slot, // -1 if not used
+                          long first_target_slot);
+
 // FIXME: possible optimizations: don't generate at all the set_literals
 // instructions when no literals are needed.  This will be frequent once
 // I add the possibility of setting unboxed literals in a more efficient
@@ -698,7 +714,7 @@ ejit_compile_expression (ejit_compiler_state_t s,
       {
         fprintf (stderr, "compiling bundle\n");
         epsilon_value items = epsilon_load_with_epsilon_int_offset (expression, 2);
-        long i, item_no = epsilon_value_length (items);
+        long item_no = epsilon_value_length (items);
         if (item_no == 1)
           {
             ejit_compile_expression (s,
@@ -709,26 +725,40 @@ ejit_compile_expression (ejit_compiler_state_t s,
                                      tail);
             break;
           }
-        fprintf (stderr, "  items are %li\n", item_no);
-        epsilon_value more_items;
-        for (more_items = items, i = 0;
-             ! epsilon_value_is_null (more_items);
-             more_items = epsilon_value_cdr (more_items), i ++)
-          {
-            fprintf (stderr, "  compiling item %li...\n", i);
-            ejit_compile_expression (s,
-                                     epsilon_value_car (more_items),
-                                     formal_no, nonformal_local_no, result_no,
-                                     literals_slot,
-                                     target_slot + i,
-                                     false);
-            fprintf (stderr, "  ...compiled item %li\n", i);
-          }
+        ejit_compile_expressions (s,
+                                  items,
+                                  formal_no,
+                                  nonformal_local_no,
+                                  result_no,
+                                  literals_slot,
+                                  target_slot);
         ejit_compile_epilog (s, item_no, target_slot, tail);
         break;
       }
     case e0_primitive_opcode:
-      epsilon_fatal ("unimplemented in the compiler: primitive");
+      {
+        fprintf (stderr, "compiling primitive");
+        epsilon_value actuals = epsilon_load_with_epsilon_int_offset (expression, 3);
+        ejit_compile_expressions (s,
+                                  actuals,
+                                  formal_no,
+                                  nonformal_local_no,
+                                  result_no,
+                                  literals_slot,
+                                  target_slot);
+        epsilon_value name = epsilon_load_with_epsilon_int_offset (expression, 2);
+        epsilon_value primitive_descriptor
+          = epsilon_load_with_epsilon_int_offset(name, 7);
+        epsilon_int primitive_index
+          = epsilon_value_to_epsilon_int (epsilon_load_with_epsilon_int_offset (primitive_descriptor, 4));
+        // FIXME: check in-dimension and warn on mismatch
+        epsilon_int primitive_out_dimension = epsilon_value_to_epsilon_int(epsilon_load_with_epsilon_int_offset(primitive_descriptor, 1));
+        ejit_push_instruction (s, ejit_opcode_primitive);
+        ejit_push_instruction (s, primitive_index);
+        ejit_push_instruction (s, target_slot);
+        ejit_compile_epilog (s, primitive_out_dimension, target_slot, tail);
+        break;
+      }
     case e0_let_opcode:
       {
         fprintf (stderr, "compiling let\n");
@@ -823,7 +853,7 @@ ejit_compile_expression (ejit_compiler_state_t s,
                                  tail);
         long after_then_target = s->instructions.element_no;
         if (! tail)
-          s->instructions.buffer[after_then_source] = after_then_target;
+          s->instructions.buffer[after_then_source] = (void*)after_then_target;
         epsilon_stack_finalize (& indices_to_backpatch);
         break;
       }
@@ -834,6 +864,30 @@ ejit_compile_expression (ejit_compiler_state_t s,
     default:
       epsilon_fatal ("%s: ill-formed epsilon0 expression", __func__);
     }
+}
+
+static void
+ejit_compile_expressions (ejit_compiler_state_t s,
+                          epsilon_value expressions,
+                          long formal_no,
+                          long nonformal_local_no,
+                          long result_no,
+                          long literals_slot, // -1 if not used
+                          long first_target_slot)
+{
+  int i;
+  epsilon_value rest;
+  for (rest = expressions, i = 0;
+       ! epsilon_value_is_null (rest);
+       rest = epsilon_value_cdr (rest), i ++)
+    ejit_compile_expression (s,
+                             epsilon_value_car (rest),
+                             formal_no,
+                             nonformal_local_no,
+                             result_no,
+                             literals_slot,
+                             first_target_slot + i,
+                             false);
 }
 
 long

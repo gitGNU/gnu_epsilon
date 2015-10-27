@@ -378,11 +378,16 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   /* fprintf (stderr, "after literal pushing:\n"); print_values (& state); */
   NEXT;
 
-  LABEL(primitive); // Parameters: primitive_index, inout_slot
-  epsilon_call_c_primitive_by_index((long)((ip + 1)->literal),
-                                    state.frame_bottom + (long)((ip + 2)->literal));
+  LABEL(primitive); // Parameters: primitive_function_pointer, inout_slot
+  //{
+    /* epsilon_c_primitive_function fp = */
+    /*   ((epsilon_c_primitive_function)((ip + 1)->literal)); */
+    //fprintf (stderr, "B: primitive function pointer is %p\n", fp);
+  ((epsilon_c_primitive_function)((ip + 1)->literal))(state.frame_bottom
+                                                      + (long)((ip + 2)->literal));
   ip += 2;
   NEXT;
+  //}
   /* LABEL(procedure_prolog); // Parameters: first_parameter_slot */
   /* // FIXME: shall I save the caller status on the return stack here, or at call time? */
   /* /\* state.return_stack_overtop[0] = state.frame_bottom; *\/ */
@@ -737,7 +742,7 @@ ejit_compile_expression (ejit_compiler_state_t s,
       }
     case e0_primitive_opcode:
       {
-        fprintf (stderr, "compiling primitive");
+        fprintf (stderr, "compiling primitive\n");
         epsilon_value actuals = epsilon_load_with_epsilon_int_offset (expression, 3);
         ejit_compile_expressions (s,
                                   actuals,
@@ -751,10 +756,13 @@ ejit_compile_expression (ejit_compiler_state_t s,
           = epsilon_load_with_epsilon_int_offset(name, 7);
         epsilon_int primitive_index
           = epsilon_value_to_epsilon_int (epsilon_load_with_epsilon_int_offset (primitive_descriptor, 4));
+        epsilon_c_primitive_function primitive_function
+          = epsilon_c_primitive_functions[primitive_index];
+        //fprintf (stderr, "A: primitive function pointer is %p\n", primitive_function);
         // FIXME: check in-dimension and warn on mismatch
         epsilon_int primitive_out_dimension = epsilon_value_to_epsilon_int(epsilon_load_with_epsilon_int_offset(primitive_descriptor, 1));
         ejit_push_instruction (s, ejit_opcode_primitive);
-        ejit_push_instruction (s, primitive_index);
+        ejit_push_instruction (s, (long)primitive_function);
         ejit_push_instruction (s, target_slot);
         ejit_compile_epilog (s, primitive_out_dimension, target_slot, tail);
         break;

@@ -57,8 +57,15 @@ ejit_destroy_thread_state (const ejit_thread_state_t s);
    Again, the structure is intentionally opaque. */
 typedef struct ejit_code* ejit_code_t;
 
+/* If literals_slot_pointer is non-NULL generate a final end instruction and
+   place the literals slot index into the given location, so that the code can
+   be easily executed even if there is no associated symbol.
+
+   FIXME: say that the literals part which is generated is not a GC root and should
+   be used immediately (by being put on a stack), before GC-allocating. */
 ejit_code_t
-ejit_compile (epsilon_value expression, epsilon_value formal_list)
+ejit_compile (epsilon_value expression, epsilon_value formal_list,
+              long *literals_slot_pointer)
   __attribute__(( malloc ));
 
 void
@@ -138,7 +145,7 @@ print_values (ejit_thread_state_t s)
   int i;
   epsilon_value *p;
   for (p = s->frame_bottom, i = 0;
-       i < 10; // FIXME: take frame height as a parameter
+       i < 15; // FIXME: take frame height as a parameter
        p ++, i ++)
 #ifdef EPSILON_RUNTIME_UNTAGGED
     fprintf (stderr, "  %2i. %p: %li, %p\n", i, p, (long)*p, *p);
@@ -439,6 +446,7 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   /* fprintf (stderr, "after procedure_prolog:\n"); print_values (& state); */
   /* NEXT; */
 
+  // FIXME: also add a return1 instruction as an optimization, for the common case.
   LABEL(return); // Parameters: first_result_slot, result_no
   memcpy (state.frame_bottom,
           state.stack_bottom + (long)(ip[1].literal),
@@ -722,6 +730,7 @@ ejit_compile_expression (ejit_compiler_state_t s,
         long local_index = epsilon_stack_search_last (& s->locals, name);
         if (local_index < 0)
           {
+            // FIXME: globals have to be included as literals!
             epsilon_fatal ("%s: unimplemented: global", __func__);
           }
         else
@@ -938,7 +947,8 @@ e0_literal_no_in (epsilon_value expressions)
 }
 
 ejit_code_t
-ejit_compile (epsilon_value formal_list, epsilon_value expression)
+ejit_compile (epsilon_value formal_list, epsilon_value expression,
+              long *literals_slot_pointer)
 {
   ejit_code_t res = epsilon_xmalloc (sizeof (struct ejit_code));
   res->initialized = 0;
@@ -988,16 +998,20 @@ ejit_compile (epsilon_value formal_list, epsilon_value expression)
                            formal_no, nonformal_local_no, result_no,
                            literals_slot,
                            target_slot,
-                           true);
+                           literals_slot_pointer == NULL);
 
-  /* Add stub code: */
-  fprintf (stderr, "Adding stub end instruction...\n");
-  ejit_push_instruction (& s, ejit_opcode_end);
+  if (literals_slot_pointer)
+    {
+      * literals_slot_pointer = literals_slot;
+      /* Add stub code: */
+      fprintf (stderr, "Adding stub end instruction...\n");
+      ejit_push_instruction (& s, ejit_opcode_end);
+    }
 
   /* Instead of copying from the two stacks and then finalizing them, just steal
      their buffers and use them as the buffers pointed by res.  This saves a
-     copy, which may be important if JITting and run time.  Yes, call me a
-     horrible person if you want. */
+     copy, which may be important if JITting and run time.  I guess this makes me
+     a horrible person. */
   if (EPSILON_UNLIKELY(sizeof (ejit_instruction_t) != sizeof (epsilon_word)))
     epsilon_fatal ("this compiler represents unions in an impossibly stupid way");
   res->instruction_no = s.instructions.element_no;
@@ -1006,9 +1020,11 @@ ejit_compile (epsilon_value formal_list, epsilon_value expression)
   assert (s.literal_stack.element_no <= literal_no);
   int i;
   for (i = 0; i < s.literal_stack.element_no; i ++)
-    epsilon_store_with_epsilon_int_offset(res->literals, i,
-                                          s.literal_stack.buffer[i]);
-
+    epsilon_store_with_epsilon_int_offset (res->literals, i,
+                                           s.literal_stack.buffer[i]);
+  for (; i < literal_no; i ++)
+    epsilon_store_with_epsilon_int_offset (res->literals, i,
+                                           epsilon_int_to_epsilon_value (0));
   /* ejit_finalize_compiler_state (& s); */ // No!
   epsilon_stack_finalize (& s.locals);
   epsilon_stack_finalize (& s.literal_stack);
@@ -1023,6 +1039,36 @@ void
 ejit_destroy_code (const ejit_code_t c)
 {
   free (c->instructions);
+}
+
+void
+ejit_evaluate_expression (epsilon_value expression)
+{
+  /* Compile the code, with an end instruction in the end.  There's no return
+     instruction, and results won't end up in their appropriate slots. */
+  epsilon_value epsilon_null = epsilon_int_to_epsilon_value (0);
+  long literals_slot;
+  ejit_code_t c = ejit_compile (epsilon_null, expression, &literals_slot);
+
+  /* Make an empty thread state.  Since the code is not reached thru a call
+     instruction we have to manually set the literals pointer in the stack;
+     everything else starts out empty, including the return stack. */
+  ejit_thread_state_t s = ejit_make_thread_state ();
+  if (literals_slot != -1)
+    s->stack_bottom[literals_slot] = c->literals;
+
+  /* Run the code.  In typical usage this will call some procedures to be
+     compiled on the fly, and act as the main expression of a larger program. */
+  ejit_run_code (c, s);
+
+  print_values (s);
+
+  /* If everything worked at this point we can return, destroying the compiled
+     code and the thread state.  Neither will be used anywhere else. */
+  ejit_destroy_code (c);
+  ejit_destroy_thread_state (s);
+
+  /* We can't return any result; we don't even know how many they are. */
 }
 
 ////////////////////////////// Scratch
@@ -1189,9 +1235,9 @@ int
 main (void)
 {
   epsilon_value epsilon_null = epsilon_int_to_epsilon_value (0);
-  epsilon_value formals
-    //= make_variables_2 (5, 6);
-    = make_variables_1 (5);
+  /* epsilon_value formals */
+  /*   = make_variables_2 (5, 6); */
+  /*   //= make_variables_1 (5); */
   epsilon_value expression_variable_5 = make_e0_variable (5);
   epsilon_value expression_variable_6 = make_e0_variable (6);
   epsilon_value expression_variable_10 = make_e0_variable (10);
@@ -1204,9 +1250,13 @@ main (void)
 
   //epsilon_value body = expression_variable_5;
   //epsilon_value body = expression_bundle_variable_6_variable_5;
-  epsilon_value body
+  epsilon_value e
+    = make_e0_let_2 (10, 11,
+                     make_e0_bundle_2 (make_e0_value (epsilon_int_to_epsilon_value (42)),
+                                       make_e0_value (epsilon_int_to_epsilon_value (43))),
+                     make_e0_variable (11));
     /* = make_e0_let_2 (10, 11, */
-    /*                  make_e0_bundle_2 (expression_variable_6, expression_variable_5), */
+    /*                  make_e0_bundle_2 (expression_variable_5, expression_variable_5), */
     /*                  make_e0_variable (10)); */
     /* = make_e0_let_2 (10, 11, */
     /*                  make_e0_bundle_3 (make_e0_variable (6), */
@@ -1223,56 +1273,15 @@ main (void)
     /*                                  make_e0_value (epsilon_int_to_epsilon_value (200)), */
     /*                                  make_e0_value (epsilon_int_to_epsilon_value (300))), */
     /*                 make_e0_variable (10)); */
-    = make_e0_if_in_3 (make_e0_variable (5),
-                       epsilon_int_to_epsilon_value (100),
-                       epsilon_int_to_epsilon_value (43),
-                       epsilon_int_to_epsilon_value (102),
-                       make_e0_bundle_2 (make_e0_value (epsilon_int_to_epsilon_value (200)),
-                                         make_e0_value (epsilon_int_to_epsilon_value (201))),
-                       make_e0_value (epsilon_int_to_epsilon_value (300)));
-  fprintf (stderr, "OK-A 1000\n");
-  ejit_thread_state_t s = ejit_make_thread_state ();
-  fprintf (stderr, "OK-A 2000: compiling...\n");
-  ejit_code_t c = ejit_compile (formals, body);
-  fprintf (stderr, "OK-A 2500: ...compiled\n");
-  //ejit_push_on_thread_state (s, epsilon_int_to_epsilon_value (300));
+    /* = make_e0_if_in_3 (make_e0_variable (5), */
+    /*                    epsilon_int_to_epsilon_value (100), */
+    /*                    epsilon_int_to_epsilon_value (43), */
+    /*                    epsilon_int_to_epsilon_value (102), */
+    /*                    make_e0_bundle_2 (make_e0_value (epsilon_int_to_epsilon_value (200)), */
+    /*                                      make_e0_value (epsilon_int_to_epsilon_value (201))), */
+    /*                    make_e0_value (epsilon_int_to_epsilon_value (300))); */
+  ejit_evaluate_expression (e);
 
-  //ejit_push_instruction (s, ejit_opcode_end);
-  fprintf (stderr, "Running...\n");
-  int i;
-  for (i = 0; i < 1; i ++)
-    {
-  s->frame_bottom =
-    //s->stack_overtop =
-    s->stack_bottom;
-  s->return_stack_overtop = s->return_stack_bottom;
-  /* fprintf (stderr, "OK-A 3000: simulating call...\n"); */
-  //ejit_push_on_thread_state (s, epsilon_int_to_epsilon_value (42));
-
-  // Put literals in a lot of slots on the stack; this will also cover the right
-  // spot.  I don't care about doing it precisely here: when there's an actual call
-  // instruction it will have the symbol to take literals from.
-  int j;
-  for (j = 0; j < 10; j ++)
-    s->stack_bottom[j] = c->literals;
-
-  s->stack_bottom[0] = epsilon_int_to_epsilon_value (42);
-  //s->stack_bottom[1] = epsilon_int_to_epsilon_value (43);
-  s->return_stack_overtop[0] = s->frame_bottom;
-  s->return_stack_overtop[1] = c->instructions + (c->instruction_no - 1); // end
-  s->return_stack_overtop += 2;
-
-  /* fprintf (stderr, "Actuals:\n"); */
-  /* print_values (s); */
-  /* fprintf (stderr, "Running...\n"); */
-  ejit_run_code (c, s);
-    }
-  fprintf (stderr, "...Done %i times.  Results:\n", i);
-  print_values (s);
-  ejit_destroy_code (c);
-  /* fprintf (stderr, "OK-A 5000\n"); */
-  ejit_destroy_thread_state (s);
-  /* fprintf (stderr, "OK-A 6000\n"); */
   fprintf (stderr, "Success\n");
   return EXIT_SUCCESS;
 }

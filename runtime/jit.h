@@ -22,6 +22,8 @@
 #ifndef EPSILON_JIT_H_
 #define EPSILON_JIT_H_
 
+#include <stdbool.h>
+
 #include "runtime.h"
 
 /* The state of a thread running JITted code.  The structure is intentionally
@@ -46,15 +48,12 @@ ejit_destroy_thread_state (const ejit_thread_state_t s);
    Again, the structure is intentionally opaque. */
 typedef struct ejit_code* ejit_code_t;
 
-/* If literals_slot_pointer is non-NULL generate a final end instruction and
-   place the literals slot index into the given location, so that the code can
-   be easily executed even if there is no associated symbol.
-
-   FIXME: say that the literals part which is generated is not a GC root and should
-   be used immediately (by being put on a stack), before GC-allocating. */
+/* If return_in_the_end is true then don't compile in a tail context and
+   generate a final end instruction.  This is probably only useful for
+   the main expression code. */
 ejit_code_t
-ejit_compile (epsilon_value expression, epsilon_value formal_list,
-              long *literals_slot_pointer)
+ejit_compile (epsilon_value formal_list, epsilon_value expression,
+              bool return_in_the_end)
   __attribute__(( malloc ));
 
 void
@@ -67,5 +66,20 @@ ejit_run_code (ejit_code_t code, ejit_thread_state_t state);
 void
 ejit_evaluate_expression (epsilon_value expression);
 
+void
+ejit_compile_procedure (epsilon_value symbol)
+  __attribute__ ((cold, noinline));
+
+void
+ejit_uncompile_procedure (epsilon_value symbol)
+  __attribute__ ((cold, noinline));
+
+void
+ejit_recompile_procedure (epsilon_value symbol)
+  __attribute__ ((cold, noinline));
+
+void
+ejit_compile_procedure_if_needed (epsilon_value symbol)
+  __attribute__ ((hot, inline));
 
 #endif // #ifndef EPSILON_JIT_H_

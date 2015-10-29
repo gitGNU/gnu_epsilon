@@ -29,3 +29,18 @@
                                                   ,@code))))
        (fio:write "JITting " (e ,expression-name) "...\n")
        (e1:primitive jit:run ,expression-name))))
+
+;; e0:expression-without-unneeded-lets
+
+(e1:define (fibo n)
+(e1:primitive fixnum:+ 0
+  (e1:if (e1:primitive fixnum:< n 2)
+    n
+    (e1:primitive fixnum:+
+                  (fibo (e1:primitive fixnum:- n 2))
+                  (fibo (e1:primitive fixnum:1- n)))))
+)
+(e1:define (f n)
+  (e1:if 0
+    1000
+    2000))

@@ -127,6 +127,10 @@ enum ejit_opcode_enum
     //ejit_opcode_procedure_prolog,
     ejit_opcode_return_0,
     ejit_opcode_return_1,
+    ejit_opcode_return_2,
+    ejit_opcode_return_3,
+    ejit_opcode_return_4,
+    ejit_opcode_return_5,
     ejit_opcode_return,
     ejit_opcode_set_literals,
 
@@ -254,7 +258,7 @@ ejit_push_epsilon_literal (ejit_compiler_state_t s, epsilon_value literal)
 #ifdef ENABLE_JIT_THREADING
 #define LABEL(name) \
   label_ ## name:   \
-  /* __asm__ ("# Instruction "#name".\n"); */ \
+  __asm__ ("# Instruction "#name".\n"); \
   PRINT_JIT_DEBUGGING (stderr, "%i. %s\n", (int)(ip - instructions), #name); \
   /* printf("  ip == %p, ip->label == %p, label_%s == %p\n", ip, ip->label, #name, && label_ ## name);  */\
   /* printf("  Heights at entry: %i %i\n", (int)(state.stack_overtop - state.stack_bottom), (int)(state.return_stack_overtop - state.return_stack_bottom)); */
@@ -266,7 +270,7 @@ ejit_push_epsilon_literal (ejit_compiler_state_t s, epsilon_value literal)
 
 static void
 jit_copy_slots (epsilon_value *frame_bottom,
-                  long first_source_slot, long first_target_slot, size_t slot_no)
+                long first_source_slot, long first_target_slot, size_t slot_no)
   __attribute__ ((hot, always_inline));
 
 static void
@@ -324,6 +328,10 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
               CASE_SET_LABEL(return, 2);
               CASE_SET_LABEL(return_0, 0);
               CASE_SET_LABEL(return_1, 1);
+              CASE_SET_LABEL(return_2, 1);
+              CASE_SET_LABEL(return_3, 1);
+              CASE_SET_LABEL(return_4, 1);
+              CASE_SET_LABEL(return_5, 1);
               CASE_SET_LABEL(set_literals, 1);
 
               CASE_SET_LABEL(end, 0);
@@ -534,31 +542,41 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   ip += 2;
   NEXT;
 
+#define RETURN_COMMON_PART \
+  state.return_stack_overtop -= 2; \
+  state.frame_bottom = state.return_stack_overtop[0]; \
+  GOTO (state.return_stack_overtop[1]);
+
+#define RETURN_N(result_no) \
+  jit_copy_slots (state.frame_bottom, (long)(ip[1].literal), 0, result_no); \
+  RETURN_COMMON_PART;
+
   LABEL(return); // Parameters: first_result_slot, result_no
-  // FIXME: perf shows that this memcpy is fucking expensive, and the compiler
-  // doesn't detect alignment.  It might be worth using a simple for loop
-  // instead; results are normally few in number...
-  // FIXME: try using jit_copy_slots.
-  memcpy (state.frame_bottom,
-          state.frame_bottom + (long)(ip[1].literal),
-          (long)(ip[2].literal) * sizeof (epsilon_value));
-  goto return_common_part; // FIXME: gcc actually generates jumps, instead of duplicating code.  I should factor with a macro instead of doing this.
+  jit_copy_slots (state.frame_bottom,
+                  (long)(ip[1].literal), 0, (long)(ip[2].literal));
+  RETURN_COMMON_PART;
 
   LABEL(return_0); // Parameters: none
-  goto return_common_part; // FIXME: gcc actually generates jumps, instead of duplicating code.  I should factor with a macro instead of doing this.
-
+  RETURN_COMMON_PART;
   LABEL(return_1); // Parameters: result_slot
-  state.frame_bottom[0] = state.frame_bottom[(long)(ip[1].literal)];
-return_common_part:
-  state.return_stack_overtop -= 2;
-  state.frame_bottom = state.return_stack_overtop[0];
-  GOTO (state.return_stack_overtop[1]);
+  RETURN_N (1);
+  LABEL(return_2); // Parameters: result_slot
+  RETURN_N (2);
+  LABEL(return_3); // Parameters: result_slot
+  RETURN_N (3);
+  LABEL(return_4); // Parameters: result_slot
+  RETURN_N (4);
+  LABEL(return_5); // Parameters: result_slot
+  RETURN_N (5);
+
+#undef RETURN_COMMON_PART
+#undef RETURN_N
 
   LABEL(set_literals); // Parameters: literals_slot
   literals = state.frame_bottom[(long)(++ ip)->literal];
   NEXT;
 
-  LABEL(end);
+  LABEL(end); // Parameters: none
   *original_state = state;
   return;
 
@@ -697,8 +715,8 @@ ejit_compile_epilog (ejit_compiler_state_t s,
     case 0:
       ejit_push_instruction (s, ejit_opcode_return_0);
       break;
-    case 1:
-      ejit_push_instruction (s, ejit_opcode_return_1);
+    case 1: case 2: case 3: case 4: case 5:
+      ejit_push_instruction (s, ejit_opcode_return_0 + result_no);
       ejit_push_instruction (s, target_slot);
       break;
     default:

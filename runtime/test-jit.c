@@ -27,14 +27,7 @@
 #include <assert.h>
 
 #include "runtime.h"
-
-//////////////////////////////
-
-
-//////////////////////////////
-
-
-////////////////////////////// Scratch
+#include "data.h"
 
 epsilon_value
 make_list_1 (epsilon_value x)

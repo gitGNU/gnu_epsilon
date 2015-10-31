@@ -358,7 +358,7 @@ bin_epsilon_test_utility_SOURCES = \
   utility/test.c
 bin_epsilon_test_utility_LDADD = \
   lib/libepsilonutility.a
-#bin_epsilon_test_utility_CPPFLAGS = -DEPSILON_RUNTIME_UNTAGGED
+bin_epsilon_test_utility_CPPFLAGS = -DEPSILON_RUNTIME_UNTAGGED
 
 # A temporary utility for testing and developing threaded code.
 bin_PROGRAMS += \

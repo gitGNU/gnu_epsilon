@@ -48,21 +48,21 @@ inline epsilon_value epsilon_int_to_epsilon_value(epsilon_int i){
   return (epsilon_value)i;
 }
 #endif //#ifndef EPSILON_RUNTIME_UNTAGGED
-inline epsilon_value* epsilon_value_to_value_elements(epsilon_value pointer_value){
-  return (epsilon_value*)pointer_value;
-}
+/* inline epsilon_value* epsilon_value_to_value_elements(epsilon_value pointer_value){ */
+/*   return (epsilon_value*)pointer_value; */
+/* } */
 epsilon_thread epsilon_value_to_thread(epsilon_value value){
   return value; // FIXME: test and ensure this is correct
 }
 epsilon_value epsilon_thread_to_epsilon_value(epsilon_thread thread){
   return thread; // FIXME: test and ensure this is correct
 }
-inline epsilon_value epsilon_foreign_pointer_to_epsilon_value(void *p){
-  return epsilon_int_to_epsilon_value((epsilon_int)p);
-}
-inline void* epsilon_value_to_foreign_pointer(epsilon_value value){
-  return (void*)(epsilon_value_to_epsilon_int(value));
-}
+/* inline epsilon_value epsilon_foreign_pointer_to_epsilon_value(void *p){ */
+/*   return epsilon_int_to_epsilon_value((epsilon_int)p); */
+/* } */
+/* inline void* epsilon_value_to_foreign_pointer(epsilon_value value){ */
+/*   return (void*)(epsilon_value_to_epsilon_int(value)); */
+/* } */
 
 #ifndef EPSILON_RUNTIME_UNTAGGED
 inline bool epsilon_value_eq(epsilon_value value1, epsilon_value value2){

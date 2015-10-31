@@ -49,8 +49,10 @@ bool epsilon_is_fixnum(epsilon_value value);
 bool epsilon_is_pointer(epsilon_value value);
 size_t epsilon_buffer_size(epsilon_value pointer_value); // in words; may crash on non-pointers
 
+#ifndef EPSILON_RUNTIME_UNTAGGED
 /* Tag and untag.  Notice that foreign pointers, not managed by us,
-   are effectively treated like epsilon_int's and tagged as fixnums. */
+   are tagged as fixnums, but not shifted: this assumes that even
+   foreign pointers are aligned to at least 16 bits. */
 epsilon_int epsilon_value_to_epsilon_int(epsilon_value value); // always succeed, even if value is a pointer
 epsilon_unsigned epsilon_value_to_epsilon_unsigned(epsilon_value value); // always succeed, even if value is a pointer
 epsilon_value epsilon_int_to_epsilon_value(epsilon_int i);
@@ -61,6 +63,7 @@ bool epsilon_value_to_bool(epsilon_value value);
 epsilon_value epsilon_bool_to_epsilon_value(bool b);
 epsilon_thread epsilon_value_to_thread(epsilon_value value);
 epsilon_value epsilon_thread_to_epsilon_value(epsilon_thread thread);
+#endif // #ifndef EPSILON_RUNTIME_UNTAGGED
 
 epsilon_thread epsilon_current_thread(void);
 
@@ -115,6 +118,8 @@ void epsilon_runtime_appropriate_fail(char *reason) // Fail in a runtime-appropr
 #ifdef EPSILON_RUNTIME_UNTAGGED
 #define epsilon_value_to_epsilon_int(X) ((epsilon_int)(long)(X))
 #define epsilon_value_to_epsilon_unsigned(X) ((epsilon_unsigned)(long)(X))
+#define epsilon_value_to_foreign_pointer(X) (X)
+#define epsilon_foreign_pointer_to_epsilon_value(X) (X)
 #define epsilon_int_to_epsilon_value(X) ((epsilon_value)(long)(X))
 #define epsilon_value_to_bool(X) ((long)(X))
 #define epsilon_bool_to_epsilon_value(X) ((epsilon_value)(long)(X))
@@ -124,5 +129,6 @@ void epsilon_runtime_appropriate_fail(char *reason) // Fail in a runtime-appropr
 #define epsilon_store_with_epsilon_int_offset(P, O, D) ((epsilon_value*)(long)(P))[(long)(O)]=((epsilon_value)(long)(D))
 #define epsilon_load_with_value_offset(P, O) (epsilon_load_with_epsilon_int_offset(P, epsilon_value_to_epsilon_int(O)))
 #define epsilon_store_with_value_offset(P, O, D) epsilon_store_with_epsilon_int_offset(P, epsilon_value_to_epsilon_int(O), D)
+#define epsilon_value_to_value_elements(P) (P)
 #endif //#ifdef EPSILON_RUNTIME_UNTAGGED
 #endif // #ifndef __EPSILON_DATA_H_

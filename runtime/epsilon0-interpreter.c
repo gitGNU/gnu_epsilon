@@ -112,9 +112,11 @@ static epsilon_value e0_eval_out_dimension_1_expression_with_stack(epsilon_value
 static epsilon_int e0_eval_expressions_with_stack(epsilon_value expressions, imperative_environment_t local_environment, epsilon_value *value_stack)
   __attribute__(( hot ));
 
-/* It's absolutely essential that the interpreter is compiled with
-   tail-calls enabled, even at -O1: */
-#pragma GCC optimize ("-foptimize-sibling-calls")
+// As far as I see, #pragma GCC optimize uses the given options as *the only*
+// optimization options.  That's not what I want.
+/* /\* It's absolutely essential that the interpreter is compiled with */
+/*    tail-calls enabled, even at -O1: *\/ */
+/* #pragma GCC optimize ("-foptimize-sibling-calls") */
 //#pragma GCC optimize ("-fno-lto")
 
 static epsilon_value e0_eval_out_dimension_1_expression_with_stack(epsilon_value expression, imperative_environment_t local_environment, epsilon_value *value_stack){

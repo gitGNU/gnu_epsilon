@@ -105,6 +105,7 @@ enum ejit_opcode_enum
     ejit_opcode_copy,
     ejit_opcode_jump,
     ejit_opcode_jump_if_equal,
+    ejit_opcode_global,
     ejit_opcode_literal,
     ejit_opcode_nontail_call,
     ejit_opcode_primitive,
@@ -215,7 +216,7 @@ ejit_push_epsilon_literal (ejit_compiler_state_t s, epsilon_value literal)
 
 #define CASE_SET_LABEL(name, arity) \
   case ejit_opcode_ ## name: \
-  /*PRINT_JIT_DEBUGGING*/fprintf(stderr, "Initializing: %3i. %s\n", (int)(p - instructions), #name); \
+  PRINT_JIT_DEBUGGING(stderr, "Initializing: %3i. %s\n", (int)(p - instructions), #name); \
     p->label = && label_ ## name; \
     p += (arity) + 1;             \
     break
@@ -290,6 +291,7 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
               CASE_SET_LABEL(copy, 2);
               CASE_SET_LABEL(jump, 1);
               CASE_SET_LABEL(jump_if_equal, 3);
+              CASE_SET_LABEL(global, 2);
               CASE_SET_LABEL(literal, 2);
               CASE_SET_LABEL(primitive, 2);
               //CASE_SET_LABEL(procedure_prolog, 1);
@@ -297,26 +299,9 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
               CASE_SET_LABEL(return_1, 1);
               CASE_SET_LABEL(return, 2);
               CASE_SET_LABEL(set_literals, 1);
-              CASE_SET_LABEL(tail_call, 3);
+              CASE_SET_LABEL(tail_call, 2);
 
               CASE_SET_LABEL(end, 0);
-
-              /* CASE_SET_LABEL(cr, 0); */
-              /* CASE_SET_LABEL(divided, 0); */
-              /* CASE_SET_LABEL(drop, 0); */
-              /* CASE_SET_LABEL(dup, 0); */
-              /* CASE_SET_LABEL(for, 0); */
-              /* CASE_SET_LABEL(i, 0); */
-              /* CASE_SET_LABEL(j, 0); */
-              /* CASE_SET_LABEL(nop, 0); */
-              /* CASE_SET_LABEL(over, 0); */
-              /* CASE_SET_LABEL(lit, 1); */
-              /* CASE_SET_LABEL(minus, 0); */
-              /* CASE_SET_LABEL(next, 0); */
-              /* CASE_SET_LABEL(plus, 0); */
-              /* CASE_SET_LABEL(print, 0); */
-              /* CASE_SET_LABEL(swap, 0); */
-              /* CASE_SET_LABEL(times, 0); */
             default:
               assert (0);
             }; /* switch */
@@ -354,18 +339,30 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   ip += 2;
   NEXT;
 
+  LABEL(global); // Parameters: symbol, to_slot
+  {
+    epsilon_value symbol
+      = epsilon_load_with_epsilon_int_offset (literals,
+                                              (long)((ip + 1)->literal));
+#ifdef ENABLE_DEBUG
+    if (EPSILON_UNLIKELY (epsilon_load_with_epsilon_int_offset (symbol, 1))
+        == epsilon_value_zero)
+      epsilon_fatal ("%s accessing unbound global", __func__);
+#endif // #ifdef ENABLE_DEBUG
+    epsilon_value global_binding
+      = epsilon_load_with_epsilon_int_offset (symbol, 2);
+    state.frame_bottom[(long)((ip + 2)->literal)] = global_binding;
+    ip += 2;
+    NEXT;
+  }
+
   LABEL(jump); // Parameters: instruction_offset
   GOTO (ip + (long)((ip + 1)->literal));
 
   LABEL(jump_if_equal); // Parameters: from_slot, literal_index, instruction_offset
   if (epsilon_load_with_epsilon_int_offset (literals, (long)((ip + 2)->literal))
       == state.frame_bottom[(long)((ip + 1)->literal)])
-    {
-      /* fprintf (stderr, "JUMP!\n"); */
-      GOTO (ip + (long)((ip + 3)->literal));
-    }
-  /* else */
-  /*   fprintf (stderr, "DON'T jump!\n"); */
+    GOTO (ip + (long)((ip + 3)->literal));
   ip += 3;
   NEXT;
 
@@ -382,38 +379,16 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
     state.return_stack_overtop[0] = state.frame_bottom;
     state.return_stack_overtop[1] = (void*)(ip + 4);
     state.return_stack_overtop += 2;
-    //fprintf (stderr, "nontail call: about to call\n");
     epsilon_value symbol
       = epsilon_load_with_epsilon_int_offset (literals,
                                               (long)((ip + 1)->literal));
-    /* { */
-    /*   char *s = epsilon_symbol_to_malloced_char_star (symbol); */
-    /*   fprintf (stderr, "The symbol name is %s.\n", s); */
-    /*   free(s); */
-    /* } */
-    //fprintf (stderr, "  symbol:      %p\n", symbol);
+    ejit_compile_procedure_if_needed (symbol);
     epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8);
-    if (EPSILON_UNLIKELY (target_as_value == epsilon_value_zero))
-      {
-        fprintf (stderr, "Nontail call: I have to compile the callee...\n");
-        ejit_compile_procedure (symbol);
-        target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8);
-        fprintf (stderr, "...callee now compiled.\n");
-      }
-    /* else */
-    /*   fprintf (stderr, "The callee is already compiled.  Good!\n"); */
     ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value);
-    //fprintf (stderr, "  target: %p\n", target);
     literals = epsilon_load_with_epsilon_int_offset (symbol, 9);
-    //fprintf (stderr, "  literals: %p\n", literals);
     state.frame_bottom[(long)((ip + 3)->literal)] = (void*)literals;
     state.frame_bottom += (long)((ip + 2)->literal);
-    //print_values (& state); // #######
     GOTO (target);
-  /*
-  state.frame_bottom = state.return_stack_overtop[0];
-  GOTO (state.return_stack_overtop[1]);
-   */
   }
 
   LABEL(primitive); // Parameters: primitive_function_pointer, inout_slot
@@ -485,14 +460,8 @@ return_common_part:
     epsilon_value symbol
       = epsilon_load_with_epsilon_int_offset (literals,
                                               (long)((ip + 1)->literal));
+    ejit_compile_procedure_if_needed (symbol);
     epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8);
-    if (EPSILON_UNLIKELY (target_as_value == epsilon_value_zero))
-      {
-        fprintf (stderr, "Tail call: I have to compile the callee...\n");
-        ejit_compile_procedure (symbol);
-        target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8);
-        fprintf (stderr, "...callee now compiled.\n");
-      }
     ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value);
     literals = epsilon_load_with_epsilon_int_offset (symbol, 9);
     state.frame_bottom[(long)((ip + 2)->literal)] = (void*)literals;
@@ -502,93 +471,6 @@ return_common_part:
   LABEL(end);
   *original_state = state;
   return;
-
-  /* LABEL(cr); */
-  /* printf ("\n"); */
-  /* NEXT; */
-
-  /* LABEL(divided); */
-  /* ((long*)state.stack_overtop)[-2] /= ((long*)state.stack_overtop)[-1]; */
-  /* state.stack_overtop --; */
-  /* NEXT; */
-
-  /* LABEL(drop); */
-  /* state.stack_overtop --; */
-  /* NEXT; */
-
-  /* LABEL(dup); */
-  /* *state.stack_overtop = state.stack_overtop[-1]; */
-  /* state.stack_overtop ++; */
-  /* NEXT; */
-
-  /* LABEL(for); */
-  /* state.return_stack_overtop[0] = (epsilon_word)(ip + 1); */
-  /* state.return_stack_overtop[1] = *(-- state.stack_overtop); */
-  /* state.return_stack_overtop += 2; */
-  /* NEXT; */
-
-  /* LABEL(i); */
-  /* *(state.stack_overtop ++) = state.return_stack_overtop[-1]; */
-  /* NEXT; */
-
-  /* LABEL(j); */
-  /* *(state.stack_overtop ++) = state.return_stack_overtop[-3]; */
-  /* NEXT; */
-
-  /* LABEL(lit); */
-  /* *state.stack_overtop = (++ ip)->literal; */
-  /* state.stack_overtop ++; */
-  /* NEXT; */
-
-  /* LABEL(minus); */
-  /* ((long*)state.stack_overtop)[-2] -= ((long*)state.stack_overtop)[-1]; */
-  /* state.stack_overtop --; */
-  /* NEXT; */
-
-  /* LABEL(next); */
-  /* if (__builtin_expect(((long*)state.return_stack_overtop)[-1], 1) == 0) */
-  /*   { */
-  /*     state.return_stack_overtop -= 2; */
-  /*     NEXT; */
-  /*   } */
-  /* else */
-  /*   { */
-  /*     ((long*)state.return_stack_overtop)[-1] --; */
-  /*     GOTO (state.return_stack_overtop[-2]); */
-  /*   } */
-
-  /* LABEL(nop); */
-  /* NEXT; */
-
-  /* LABEL(over); */
-  /* state.stack_overtop[0] = state.stack_overtop[-2]; */
-  /* state.stack_overtop ++; */
-  /* NEXT; */
-
-  /* LABEL(plus); */
-  /* // FIXME: this doesn't correctly use tagging */
-  /* ((long*)state.stack_overtop)[-2] += ((long*)state.stack_overtop)[-1]; */
-  /* state.stack_overtop --; */
-  /* NEXT; */
-
-  /* LABEL(print); */
-  /* printf ("%li ", */
-  /*         epsilon_value_to_epsilon_int (((long**)state.stack_overtop --)[-1])); */
-  /* NEXT; */
-
-  /* LABEL(swap); */
-  /* { */
-  /*   asm("#aaa\n"); */
-  /*   epsilon_word tmp = state.stack_overtop[-1]; */
-  /*   state.stack_overtop[-1] = state.stack_overtop[-2]; */
-  /*   state.stack_overtop[-2] = tmp; */
-  /*   NEXT; */
-  /* } */
-
-  /* LABEL(times); */
-  /* ((long*)state.stack_overtop)[-2] *= ((long*)state.stack_overtop)[-1]; */
-  /* state.stack_overtop --; */
-  /* NEXT; */
 
 #ifndef ENABLE_JIT_THREADING
       default:
@@ -767,13 +649,13 @@ ejit_compile_expression (ejit_compiler_state_t s,
     case e0_variable_opcode:
       {
         // FIXME: optimizable: in the tail case directly write to slot 0
-        fprintf (stderr, "compiling variable\n");
         epsilon_value name = epsilon_load_with_epsilon_int_offset (expression, 2);
         long local_index = epsilon_stack_search_last (& s->locals, name);
         if (local_index < 0)
           {
-            // FIXME: globals have to be included as literals!
-            epsilon_fatal ("%s: unimplemented: global", __func__);
+            ejit_push_instruction (s, ejit_opcode_global);
+            ejit_push_epsilon_literal (s, name);
+            ejit_push_instruction (s, target_slot);
           }
         else
           {
@@ -787,7 +669,6 @@ ejit_compile_expression (ejit_compiler_state_t s,
     case e0_value_opcode:
       {
         // FIXME: optimizable: in the tail case directly write to slot 0
-        fprintf (stderr, "compiling value\n");
         epsilon_value literal
           = epsilon_load_with_epsilon_int_offset (expression, 2);
         ejit_push_instruction (s, ejit_opcode_literal);
@@ -798,7 +679,6 @@ ejit_compile_expression (ejit_compiler_state_t s,
       }
    case e0_bundle_opcode:
       {
-        fprintf (stderr, "compiling bundle\n");
         epsilon_value items = epsilon_load_with_epsilon_int_offset (expression, 2);
         long item_no = epsilon_value_length (items);
         if (item_no == 1)
@@ -823,7 +703,6 @@ ejit_compile_expression (ejit_compiler_state_t s,
       }
     case e0_primitive_opcode:
       {
-        fprintf (stderr, "compiling primitive\n");
         epsilon_value actuals = epsilon_load_with_epsilon_int_offset (expression, 3);
         ejit_compile_expressions (s,
                                   actuals,
@@ -850,7 +729,6 @@ ejit_compile_expression (ejit_compiler_state_t s,
       }
     case e0_let_opcode:
       {
-        fprintf (stderr, "compiling let\n");
         epsilon_value variables = epsilon_load_with_epsilon_int_offset (expression, 2);
         long i, variable_no = epsilon_value_length (variables);
         epsilon_value bound_expression = epsilon_load_with_epsilon_int_offset (expression, 3);
@@ -887,7 +765,6 @@ ejit_compile_expression (ejit_compiler_state_t s,
       }
     case e0_call_opcode:
       {
-        fprintf (stderr, "compiling call\n");
         epsilon_value name = epsilon_load_with_epsilon_int_offset (expression, 2);
         epsilon_value actuals = epsilon_load_with_epsilon_int_offset (expression, 3);
         long actual_no = epsilon_value_length (actuals);
@@ -900,7 +777,6 @@ ejit_compile_expression (ejit_compiler_state_t s,
                                   target_slot);
         if (tail)
           {
-            fprintf (stderr, "compiling tail call\n");
             int i;
             for (i = 0; i < actual_no; i ++)
               {
@@ -913,12 +789,9 @@ ejit_compile_expression (ejit_compiler_state_t s,
             ejit_push_instruction (s, ejit_opcode_tail_call);
             ejit_push_epsilon_literal (s, name);
             ejit_push_instruction (s, actual_no);
-            break;
           }
         else
           {
-            fprintf (stderr, "compiling nontail call\n");
-
             ejit_push_instruction (s, ejit_opcode_nontail_call);
             ejit_push_epsilon_literal (s, name);
             ejit_push_instruction (s, target_slot);
@@ -931,14 +804,13 @@ ejit_compile_expression (ejit_compiler_state_t s,
                 ejit_push_instruction (s, ejit_opcode_set_literals);
                 ejit_push_instruction (s, literals_slot);
               }
-            break;
           } // nontail call
+        break;
       }
     case e0_call_indirect_opcode:
       epsilon_fatal ("unimplemented in the compiler: call-indirect");
     case e0_if_in_opcode:
       {
-        fprintf (stderr, "compiling if-in\n");
         epsilon_value discriminand = epsilon_load_with_epsilon_int_offset (expression, 2);
         epsilon_value literals = epsilon_load_with_epsilon_int_offset (expression, 3);
         epsilon_value then_branch = epsilon_load_with_epsilon_int_offset (expression, 4);
@@ -1096,19 +968,18 @@ ejit_compile (epsilon_value formal_list, epsilon_value expression,
   ejit_initialize_compiler_state (&s);
 
   size_t formal_no = epsilon_value_length (formal_list);
-  fprintf (stderr, "The procedure has %li formals\n", formal_no);
+  //fprintf (stderr, "The procedure has %li formals\n", formal_no);
   size_t nonformal_local_no  = epsilon_max_nonformal_local_no (expression);
-  fprintf (stderr, "The procedure needs %li nonformal locals\n", nonformal_local_no);
+  //fprintf (stderr, "The procedure needs %li nonformal locals\n", nonformal_local_no);
   size_t result_no  = epsilon_result_no (expression);
-  fprintf (stderr, "The procedure has %li results\n", result_no);
+  //fprintf (stderr, "The procedure has %li results\n", result_no);
 
   long literal_no = e0_literal_no (expression);
   /* I have to allocate res->literals before compiling: with a moving collector
      this allocation might trigger a GC and change epsilon literals.  Compiling
      doesn't need epsilon heap allocation. */
   res->literals = epsilon_gc_allocate_with_epsilon_int_length (literal_no);
-#warning FIXME: make res->literals a GC root unless it's immediately stored into a symbol as it's supposed to be.
-  fprintf (stderr, "The procedure has %li literals\n", literal_no);
+  //fprintf (stderr, "The procedure has %li literals\n", literal_no);
 
   long literals_slot;
   long target_slot;
@@ -1127,8 +998,8 @@ ejit_compile (epsilon_value formal_list, epsilon_value expression,
       //ejit_push_instruction (&s, ejit_opcode_set_literals);
       //ejit_push_instruction (&s, literals_slot);
     }
-  fprintf (stderr, "literals_slot is %li\n", literals_slot);
-  fprintf (stderr, "target_slot is %li\n", target_slot);
+  //fprintf (stderr, "literals_slot is %li\n", literals_slot);
+  //fprintf (stderr, "target_slot is %li\n", target_slot);
   epsilon_value more_formals;
   for (more_formals = formal_list;
        ! epsilon_value_is_null (more_formals);
@@ -1141,7 +1012,7 @@ ejit_compile (epsilon_value formal_list, epsilon_value expression,
     epsilon_stack_push (& s.locals, NULL);
   if (! return_in_the_end)
     {
-      fprintf (stderr, "Adding main stub prolog...\n");
+      //fprintf (stderr, "Adding main stub prolog...\n");
       ejit_push_instruction (&s, ejit_opcode_set_literals);
       ejit_push_instruction (&s, literals_slot);
     }
@@ -1152,7 +1023,7 @@ ejit_compile (epsilon_value formal_list, epsilon_value expression,
                            return_in_the_end);
   if (! return_in_the_end)
     {
-      fprintf (stderr, "Adding main stub epilog...\n");
+      //fprintf (stderr, "Adding main stub epilog...\n");
       ejit_push_instruction (& s, ejit_opcode_end);
     }
 
@@ -1244,24 +1115,32 @@ ejit_recompile_procedure (epsilon_value symbol)
 void
 ejit_compile_procedure_if_needed (epsilon_value symbol)
 {
-  const epsilon_value zero = epsilon_int_to_epsilon_value (0);
-  epsilon_value compiled_code_as_value
-    = epsilon_load_with_epsilon_int_offset(symbol, 8);
-  if (EPSILON_UNLIKELY (compiled_code_as_value == zero))
-    ejit_compile_procedure (symbol);
+  epsilon_value target_as_value
+    = epsilon_load_with_epsilon_int_offset (symbol, 8);
+  if (EPSILON_UNLIKELY (! epsilon_value_to_epsilon_int (target_as_value)))
+    {
+      epsilon_value symbol_name_value
+        = epsilon_load_with_epsilon_int_offset (symbol, 0);
+      char *symbol_name
+        = epsilon_string_to_malloced_char_star (symbol_name_value);
+      fprintf (stderr, "Compiling %s...\n", symbol_name);
+      ejit_compile_procedure (symbol);
+      fprintf (stderr, "  ... the procedure %s is now compiled.\n", symbol_name);
+      free (symbol_name);
+    }
 }
 
 void
 ejit_evaluate_expression (epsilon_value expression)
 {
-  fprintf (stderr, "OK-A 100 before compiling\n");
+  //fprintf (stderr, "OK-A 100 before compiling\n");
 
   /* Compile the code, with an end instruction in the end.  There's no return
      instruction, and results won't end up in their appropriate slots. */
   epsilon_value epsilon_null = epsilon_int_to_epsilon_value (0);
   ejit_code_t c = ejit_compile (epsilon_null, expression, false);
 
-  fprintf (stderr, "OK-A 200 after compiling\n");
+  //fprintf (stderr, "OK-A 200 after compiling\n");
 
   /* Make an empty thread state.  Since the code is not reached thru a call
      instruction we have to manually set the literals pointer in the stack;
@@ -1271,13 +1150,13 @@ ejit_evaluate_expression (epsilon_value expression)
   ejit_thread_state_t s = ejit_make_thread_state ();
   s->stack_bottom[0] = c->literals;
 
-  fprintf (stderr, "OK-A 1000 before running\n");
+  //fprintf (stderr, "OK-A 1000 before running\n");
 
   /* Run the code.  In typical usage this will call some procedures to be
      compiled on the fly, and act as the main expression of a larger program. */
   ejit_run_code (c, s);
 
-  fprintf (stderr, "OK-A 2000 after running\n");
+  //fprintf (stderr, "OK-A 2000 after running\n");
 
   print_values (s);
 

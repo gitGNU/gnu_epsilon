@@ -29,6 +29,8 @@
 #include "runtime.h"
 #include "config.h"
 
+//#undef ENABLE_JIT_THREADING
+
 struct ejit_thread_state
 {
   //epsilon_value *stack_overtop;
@@ -102,18 +104,30 @@ print_values (ejit_thread_state_t s)
 
 enum ejit_opcode_enum
   {
-    ejit_opcode_copy,
+    ejit_opcode_copy_1,
+    ejit_opcode_copy_2,
+    ejit_opcode_copy_3,
+    ejit_opcode_copy_4,
+    ejit_opcode_copy_5,
+    ejit_opcode_copy_and_tail_call,
+    ejit_opcode_copy_and_tail_call_0,
+    ejit_opcode_copy_and_tail_call_1,
+    ejit_opcode_copy_and_tail_call_2,
+    ejit_opcode_copy_and_tail_call_3,
+    ejit_opcode_copy_and_tail_call_4,
+    ejit_opcode_copy_and_tail_call_5,
     ejit_opcode_jump,
-    ejit_opcode_jump_if_equal,
+    ejit_opcode_jump_if_equal_boxed,
+    ejit_opcode_jump_if_equal_unboxed,
     ejit_opcode_global,
-    ejit_opcode_literal,
+    ejit_opcode_literal_boxed,
+    ejit_opcode_literal_unboxed,
     ejit_opcode_nontail_call,
     ejit_opcode_primitive,
     //ejit_opcode_procedure_prolog,
     ejit_opcode_return_0,
     ejit_opcode_return_1,
     ejit_opcode_return,
-    ejit_opcode_tail_call,
     ejit_opcode_set_literals,
 
     ejit_opcode_end,
@@ -200,7 +214,7 @@ ejit_push_epsilon_literal (ejit_compiler_state_t s, epsilon_value literal)
 
 #define CASE_SET_LABEL(name, arity) \
   case ejit_opcode_ ## name: \
-  /*PRINT_JIT_DEBUGGING*/fprintf(stderr, "Initializing: %3i. %s\n", (int)(p - instructions), #name); \
+  /* PRINT_JIT_DEBUGGING */fprintf(stderr, "Initializing: %3i. %s\n", (int)(p - instructions), #name); \
     p->label = && label_ ## name; \
     p += (arity) + 1;             \
     break
@@ -240,7 +254,7 @@ ejit_push_epsilon_literal (ejit_compiler_state_t s, epsilon_value literal)
 #ifdef ENABLE_JIT_THREADING
 #define LABEL(name) \
   label_ ## name:   \
-  __asm__ ("# Instruction "#name".\n"); \
+  /* __asm__ ("# Instruction "#name".\n"); */ \
   PRINT_JIT_DEBUGGING (stderr, "%i. %s\n", (int)(ip - instructions), #name); \
   /* printf("  ip == %p, ip->label == %p, label_%s == %p\n", ip, ip->label, #name, && label_ ## name);  */\
   /* printf("  Heights at entry: %i %i\n", (int)(state.stack_overtop - state.stack_bottom), (int)(state.return_stack_overtop - state.return_stack_bottom)); */
@@ -249,6 +263,20 @@ ejit_push_epsilon_literal (ejit_compiler_state_t s, epsilon_value literal)
   case ejit_opcode_ ## name: \
     PRINT_JIT_DEBUGGING (stderr, "%i. %s\n", (int)(ip - instructions), #name);
 #endif // #ifdef ENABLE_JIT_THREADING
+
+static void
+jit_copy_slots (epsilon_value *frame_bottom,
+                  long first_source_slot, long first_target_slot, size_t slot_no)
+  __attribute__ ((hot, always_inline));
+
+static void
+jit_copy_slots (epsilon_value *frame_bottom,
+                long first_source_slot, long first_target_slot, size_t slot_no)
+{
+  long i;
+  for (i = 0; i < slot_no; i ++)
+    frame_bottom[first_target_slot + i] = frame_bottom[first_source_slot + i];
+}
 
 static void
 ejit_initialize_or_run_code (int initialize, ejit_code_t code,
@@ -260,6 +288,7 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
                              ejit_thread_state_t original_state)
 {
   const epsilon_value epsilon_value_zero
+    __attribute__ ((unused))
     = epsilon_int_to_epsilon_value (0);
   const ejit_instruction_t *instructions = code->instructions;
   const ejit_instruction_t *past_last __attribute__((__unused__))
@@ -272,18 +301,30 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
         {
           switch (p->opcode)
             {
-              CASE_SET_LABEL(nontail_call, 3);
-              CASE_SET_LABEL(copy, 2);
+              CASE_SET_LABEL(copy_1, 2);
+              CASE_SET_LABEL(copy_2, 2);
+              CASE_SET_LABEL(copy_3, 2);
+              CASE_SET_LABEL(copy_4, 2);
+              CASE_SET_LABEL(copy_5, 2);
+              CASE_SET_LABEL(copy_and_tail_call, 3);
+              CASE_SET_LABEL(copy_and_tail_call_0, 2);
+              CASE_SET_LABEL(copy_and_tail_call_1, 2);
+              CASE_SET_LABEL(copy_and_tail_call_2, 2);
+              CASE_SET_LABEL(copy_and_tail_call_3, 2);
+              CASE_SET_LABEL(copy_and_tail_call_4, 2);
+              CASE_SET_LABEL(copy_and_tail_call_5, 2);
               CASE_SET_LABEL(jump, 1);
-              CASE_SET_LABEL(jump_if_equal, 3);
+              CASE_SET_LABEL(jump_if_equal_boxed, 3);
+              CASE_SET_LABEL(jump_if_equal_unboxed, 3);
               CASE_SET_LABEL(global, 2);
-              CASE_SET_LABEL(literal, 2);
+              CASE_SET_LABEL(literal_boxed, 2);
+              CASE_SET_LABEL(literal_unboxed, 2);
+              CASE_SET_LABEL(nontail_call, 3);
               CASE_SET_LABEL(primitive, 2);
               CASE_SET_LABEL(return, 2);
               CASE_SET_LABEL(return_0, 0);
               CASE_SET_LABEL(return_1, 1);
               CASE_SET_LABEL(set_literals, 1);
-              CASE_SET_LABEL(tail_call, 2);
 
               CASE_SET_LABEL(end, 0);
             default:
@@ -315,13 +356,99 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
       {
 #endif // #ifndef ENABLE_JIT_THREADING
 
-  LABEL(copy); // Parameters: from_slot, to_slot
+  LABEL(copy_1); // Parameters: from_slot, to_slot
   //fprintf (stderr, "\ncopy %li %li\n", (long)(ip[1].literal), (long)(ip[2].literal));
   //fprintf (stderr, "\nRight before executing copy:\n"); print_values (& state);
-  state.frame_bottom[(long)((ip + 2)->literal)]
-    = state.frame_bottom[(long)((ip + 1)->literal)];
+  jit_copy_slots (state.frame_bottom,
+                  (long)((ip + 1)->literal), (long)((ip + 2)->literal), 1);
+  /* state.frame_bottom[(long)((ip + 2)->literal)] */
+  /*   = state.frame_bottom[(long)((ip + 1)->literal)]; */
   ip += 2;
   NEXT;
+
+  LABEL(copy_2); // Parameters: from_first_slot, to_first_slot
+  jit_copy_slots (state.frame_bottom,
+                  (long)((ip + 1)->literal), (long)((ip + 2)->literal), 2);
+  ip += 2;
+  NEXT;
+
+  LABEL(copy_3); // Parameters: from_first_slot, to_first_slot
+  jit_copy_slots (state.frame_bottom,
+                  (long)((ip + 1)->literal), (long)((ip + 2)->literal), 3);
+  ip += 2;
+  NEXT;
+
+  LABEL(copy_4); // Parameters: from_first_slot, to_first_slot
+  jit_copy_slots (state.frame_bottom,
+                  (long)((ip + 1)->literal), (long)((ip + 2)->literal), 4);
+  ip += 2;
+  NEXT;
+
+  LABEL(copy_5); // Parameters: from_first_slot, to_first_slot
+  jit_copy_slots (state.frame_bottom,
+                  (long)((ip + 1)->literal), (long)((ip + 2)->literal), 5);
+  ip += 2;
+  NEXT;
+
+#define COPY_AND_TAIL_CALL_COMMON_PART                                  \
+    epsilon_value symbol                                                \
+      = epsilon_load_with_epsilon_int_offset (literals,                 \
+                                              (long)((ip + 1)->literal)); \
+    ejit_compile_procedure_if_needed (symbol);                          \
+    epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8); \
+    ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value); \
+    literals = epsilon_load_with_epsilon_int_offset (symbol, 9);        \
+    jit_copy_slots (state.frame_bottom, (long)((ip + 2)->literal), 0, actual_no); \
+    state.frame_bottom[actual_no] = (void*)literals;                    \
+    /*fprintf (stderr, "Going to %p, with %li parameters\n", target, actual_no);*/ \
+    GOTO (target);
+
+  LABEL(copy_and_tail_call); // Parameters: symbol, first_actual_slot, literals_slot
+  {
+    const long actual_no = (long)((ip + 3)->literal);
+    COPY_AND_TAIL_CALL_COMMON_PART;
+    /* epsilon_value symbol */
+    /*   = epsilon_load_with_epsilon_int_offset (literals, */
+    /*                                           (long)((ip + 1)->literal)); */
+    /* ejit_compile_procedure_if_needed (symbol); */
+    /* epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8); */
+    /* ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value); */
+    /* literals = epsilon_load_with_epsilon_int_offset (symbol, 9); */
+    /* jit_copy_slots (state.frame_bottom, (long)((ip + 2)->literal), 0, actual_no); */
+    /* state.frame_bottom[actual_no] = (void*)literals; */
+    /* GOTO (target); */
+  }
+  LABEL(copy_and_tail_call_0); // Parameters: symbol, first_actual_slot
+  {
+    const long actual_no = 0;
+    COPY_AND_TAIL_CALL_COMMON_PART;
+  }
+  LABEL(copy_and_tail_call_1); // Parameters: symbol, first_actual_slot
+  {
+    const long actual_no = 1;
+    COPY_AND_TAIL_CALL_COMMON_PART;
+  }
+  LABEL(copy_and_tail_call_2); // Parameters: symbol, first_actual_slot
+  {
+    const long actual_no = 2;
+    COPY_AND_TAIL_CALL_COMMON_PART;
+  }
+  LABEL(copy_and_tail_call_3); // Parameters: symbol, first_actual_slot
+  {
+    const long actual_no = 3;
+    COPY_AND_TAIL_CALL_COMMON_PART;
+  }
+  LABEL(copy_and_tail_call_4); // Parameters: symbol, first_actual_slot
+  {
+    const long actual_no = 4;
+    COPY_AND_TAIL_CALL_COMMON_PART;
+  }
+  LABEL(copy_and_tail_call_5); // Parameters: symbol, first_actual_slot
+  {
+    const long actual_no = 5;
+    COPY_AND_TAIL_CALL_COMMON_PART;
+  }
+#undef COPY_AND_TAIL_CALL_COMMON_PART                                  \
 
   LABEL(global); // Parameters: symbol, to_slot
   {
@@ -343,22 +470,35 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   LABEL(jump); // Parameters: instruction_offset
   GOTO (ip + (long)((ip + 1)->literal));
 
-  LABEL(jump_if_equal); // Parameters: from_slot, literal_index, instruction_offset
+  LABEL(jump_if_equal_boxed); // Parameters: from_slot, literal_index, instruction_offset
   if (epsilon_load_with_epsilon_int_offset (literals, (long)((ip + 2)->literal))
       == state.frame_bottom[(long)((ip + 1)->literal)])
     GOTO (ip + (long)((ip + 3)->literal));
   ip += 3;
   NEXT;
 
-  LABEL(literal); // Parameters: literal_index, to_slot
+  LABEL(jump_if_equal_unboxed); // Parameters: from_slot, literal, instruction_offset
+  if (((ip + 2)->literal)
+      == state.frame_bottom[(long)((ip + 1)->literal)])
+    GOTO (ip + (long)((ip + 3)->literal));
+  ip += 3;
+  NEXT;
+
+  LABEL(literal_boxed); // Parameters: literal_index, to_slot
   state.frame_bottom[(long)((ip + 2)->literal)]
     = epsilon_load_with_epsilon_int_offset (literals,
                                             (long)((ip + 1)->literal));
   ip += 2;
   NEXT;
 
+  LABEL(literal_unboxed); // Parameters: literal, to_slot
+  state.frame_bottom[(long)((ip + 2)->literal)] = ((ip + 1)->literal);
+  ip += 2;
+  NEXT;
+
   LABEL(nontail_call); // Parameters: symbol, first_actual_slot, literals_slot
   {
+    //fprintf (stderr, "OK-E 1000\n");
     //print_values (& state); // #######
     state.return_stack_overtop[0] = state.frame_bottom;
     state.return_stack_overtop[1] = (void*)(ip + 4);
@@ -366,12 +506,19 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
     epsilon_value symbol
       = epsilon_load_with_epsilon_int_offset (literals,
                                               (long)((ip + 1)->literal));
+    //fprintf (stderr, "OK-E 2000\n");
     ejit_compile_procedure_if_needed (symbol);
+    //fprintf (stderr, "OK-E 3000\n");
     epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8);
+    //fprintf (stderr, "OK-E 4000\n");
     ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value);
+    //fprintf (stderr, "OK-E 5000\n");
     literals = epsilon_load_with_epsilon_int_offset (symbol, 9);
+    //fprintf (stderr, "OK-E 6000\n");
     state.frame_bottom[(long)((ip + 3)->literal)] = (void*)literals;
+    //fprintf (stderr, "OK-E 7000\n");
     state.frame_bottom += (long)((ip + 2)->literal);
+    //fprintf (stderr, "OK-E 8000: target is %p (here is %p)\n", target, &symbol);
     GOTO (target);
   }
 
@@ -391,6 +538,7 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   // FIXME: perf shows that this memcpy is fucking expensive, and the compiler
   // doesn't detect alignment.  It might be worth using a simple for loop
   // instead; results are normally few in number...
+  // FIXME: try using jit_copy_slots.
   memcpy (state.frame_bottom,
           state.frame_bottom + (long)(ip[1].literal),
           (long)(ip[2].literal) * sizeof (epsilon_value));
@@ -403,26 +551,12 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   state.frame_bottom[0] = state.frame_bottom[(long)(ip[1].literal)];
 return_common_part:
   state.return_stack_overtop -= 2;
-  // Restore the saved frame bottom.
   state.frame_bottom = state.return_stack_overtop[0];
   GOTO (state.return_stack_overtop[1]);
 
   LABEL(set_literals); // Parameters: literals_slot
   literals = state.frame_bottom[(long)(++ ip)->literal];
   NEXT;
-
-  LABEL(tail_call); // Parameters: symbol, literals_slot
-  {
-    epsilon_value symbol
-      = epsilon_load_with_epsilon_int_offset (literals,
-                                              (long)((ip + 1)->literal));
-    ejit_compile_procedure_if_needed (symbol);
-    epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8);
-    ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value);
-    literals = epsilon_load_with_epsilon_int_offset (symbol, 9);
-    state.frame_bottom[(long)((ip + 2)->literal)] = (void*)literals;
-    GOTO (target);
-  }
 
   LABEL(end);
   *original_state = state;
@@ -583,6 +717,16 @@ ejit_compile_expressions (ejit_compiler_state_t s,
                           long literals_slot, // -1 if not used
                           long first_target_slot);
 
+static bool
+ejit_is_boxed (epsilon_value literal)
+{
+#ifdef EPSILON_RUNTIME_UNTAGGED
+  return false;
+#else
+  return epsilon_is_pointer (literal);
+#endif // #ifdef EPSILON_RUNTIME_UNTAGGED
+}
+
 // FIXME: possible optimizations: don't generate at all the set_literals
 // instructions when no literals are needed.  This will be frequent once
 // I add the possibility of setting unboxed literals in a more efficient
@@ -615,7 +759,7 @@ ejit_compile_expression (ejit_compiler_state_t s,
           }
         else
           {
-            ejit_push_instruction (s, ejit_opcode_copy);
+            ejit_push_instruction (s, ejit_opcode_copy_1);
             ejit_push_instruction (s, local_index);
             ejit_push_instruction (s, target_slot);
           }
@@ -627,9 +771,18 @@ ejit_compile_expression (ejit_compiler_state_t s,
         // FIXME: optimizable: in the tail case directly write to slot 0
         epsilon_value literal
           = epsilon_load_with_epsilon_int_offset (expression, 2);
-        ejit_push_instruction (s, ejit_opcode_literal);
-        ejit_push_epsilon_literal (s, literal);
-        ejit_push_instruction (s, target_slot);
+        if (ejit_is_boxed (literal))
+          {
+            ejit_push_instruction (s, ejit_opcode_literal_boxed);
+            ejit_push_epsilon_literal (s, literal);
+            ejit_push_instruction (s, target_slot);
+          }
+        else
+          {
+            ejit_push_instruction (s, ejit_opcode_literal_unboxed);
+            ejit_push_instruction (s, (long)literal);
+            ejit_push_instruction (s, target_slot);
+          }
         ejit_compile_epilog (s, 1, target_slot, tail);
         break;
       }
@@ -705,7 +858,7 @@ ejit_compile_expression (ejit_compiler_state_t s,
             long local_index = epsilon_stack_search_last (& s->locals, variable);
             // FIXME: this is optimizable.  If the variables are more than one,
             // I could generate a single copy_multiple instruction.
-            ejit_push_instruction (s, ejit_opcode_copy);
+            ejit_push_instruction (s, ejit_opcode_copy_1);
             ejit_push_instruction (s, target_slot + i);
             ejit_push_instruction (s, local_index);
           }
@@ -733,18 +886,24 @@ ejit_compile_expression (ejit_compiler_state_t s,
                                   target_slot);
         if (tail)
           {
-            int i;
-            for (i = 0; i < actual_no; i ++)
+            switch (actual_no)
               {
-                // FIXME: this is optimizable.  If the variables are more than one,
-                // I could generate a single copy_multiple instruction.
-                ejit_push_instruction (s, ejit_opcode_copy);
-                ejit_push_instruction (s, target_slot + i);
-                ejit_push_instruction (s, i);
-              } // for
-            ejit_push_instruction (s, ejit_opcode_tail_call);
-            ejit_push_epsilon_literal (s, name);
-            ejit_push_instruction (s, actual_no);
+              case 0: case 1: case 2: case 3: case 4: case 5:
+                ejit_push_instruction (s, ejit_opcode_copy_and_tail_call_0 + actual_no);
+                ejit_push_epsilon_literal (s, name);
+                ejit_push_instruction (s, target_slot);
+                break;
+              default:
+                {
+                  // FIXME: instead of this, it might be faster to have a
+                  // generic tail_call instruction which performs no copy,
+                  // and perform the copy here with a few instructions.
+                  ejit_push_instruction (s, ejit_opcode_copy_and_tail_call);
+                  ejit_push_epsilon_literal (s, name);
+                  ejit_push_instruction (s, target_slot);
+                  ejit_push_instruction (s, actual_no);
+                } // default
+              } // switch
           }
         else
           {
@@ -771,6 +930,8 @@ ejit_compile_expression (ejit_compiler_state_t s,
         epsilon_value literals = epsilon_load_with_epsilon_int_offset (expression, 3);
         epsilon_value then_branch = epsilon_load_with_epsilon_int_offset (expression, 4);
         epsilon_value else_branch = epsilon_load_with_epsilon_int_offset (expression, 5);
+        // FIXME: important optimization: when the discriminand is a nonglobal
+        // variable don't push it: we can test it in its current slot.
         ejit_compile_expression (s,
                                  discriminand,
                                  formal_no, nonformal_local_no, result_no,
@@ -786,9 +947,18 @@ ejit_compile_expression (ejit_compiler_state_t s,
           {
             epsilon_value literal = epsilon_value_car (more_literals);
             long this_instruction_index = s->instructions.element_no;
-            ejit_push_instruction (s, ejit_opcode_jump_if_equal);
-            ejit_push_instruction (s, target_slot);
-            ejit_push_epsilon_literal (s, literal);
+            if (ejit_is_boxed (literal))
+              {
+                ejit_push_instruction (s, ejit_opcode_jump_if_equal_boxed);
+                ejit_push_instruction (s, target_slot);
+                ejit_push_epsilon_literal (s, literal);
+              }
+            else
+              {
+                ejit_push_instruction (s, ejit_opcode_jump_if_equal_unboxed);
+                ejit_push_instruction (s, target_slot);
+                ejit_push_instruction (s, (long)literal);
+              }
             epsilon_stack_push (& indices_to_backpatch,
                                 (epsilon_word)(long)(s->instructions.element_no));
             // This will be backpatched later, to compute an offset.

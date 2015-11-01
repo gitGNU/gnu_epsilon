@@ -276,6 +276,10 @@ ejit_push_epsilon_literal (ejit_compiler_state_t s, epsilon_value literal)
     PRINT_JIT_DEBUGGING (stderr, "%i. %s\n", (int)(ip - instructions), #name);
 #endif // #ifdef ENABLE_JIT_THREADING
 
+/* The range [first_source_slot, first_source_slot + slot_no) can intersect with
+   [first_target_slot, first_target_slot + slot_no), as long as the target comes
+   before the source.  This is useful for "sliding" objects on stack slots back
+   in the direction of the stack bottom. */
 static void
 jit_copy_slots (epsilon_value *frame_bottom,
                 long first_source_slot, long first_target_slot, size_t slot_no)
@@ -562,28 +566,42 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   ip += 2;
   NEXT;
 
-#define NONTAIL_CALL_COMMON_PART \
-    state.return_stack_overtop[0] = state.frame_bottom; \
-    state.return_stack_overtop[1] = (void*)(ip + 4); \
-    state.return_stack_overtop += 2; \
-    ejit_compile_procedure_if_needed (symbol); \
-    epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8); \
-    ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value); \
-    literals = epsilon_load_with_epsilon_int_offset (symbol, 9); \
-    state.frame_bottom[(long)((ip + 3)->literal)] = (void*)literals; \
-    state.frame_bottom += (long)((ip + 2)->literal); \
-    GOTO (target)
-
   LABEL(nontail_call); // Parameters: symbol, first_actual_slot, literals_slot
   {
     SYMBOL_FROM_FIRST_PARAMETER;
-    NONTAIL_CALL_COMMON_PART;
+    state.return_stack_overtop[0] = state.frame_bottom;
+    state.return_stack_overtop[1] = (void*)(ip + 4);
+    state.return_stack_overtop += 2;
+    ejit_compile_procedure_if_needed (symbol);
+    epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8);
+    ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value);
+    literals = epsilon_load_with_epsilon_int_offset (symbol, 9);
+    state.frame_bottom[(long)((ip + 3)->literal)] = (void*)literals;
+    state.frame_bottom += (long)((ip + 2)->literal);
+    GOTO (target);
   }
 
   LABEL(nontail_indirect_call); // Parameters: procedure_slot, first_actual_slot, literals_slot
   {
+    epsilon_fatal ("iI need the number of actuals, which can be deduced from literals_slot if I pay attention.  Having both first two arguments here is stupid anyway.");
     SYMBOL_FROM_FIRST_PARAMETER_SLOT;
-    NONTAIL_CALL_COMMON_PART;
+    long procedure_slot = (long)((ip + 1)->literal);
+    long first_actual_slot = (long)((ip + 2)->literal);
+    long literals_slot = (long)((ip + 3)->literal);
+    // "Slide" actuals back by one slot, to cover the procedure slot.
+    jit_copy_slots (state.frame_bottom,
+                    first_actual_slot, procedure_slot,
+                    literals_slot);
+    state.return_stack_overtop[0] = state.frame_bottom;
+    state.return_stack_overtop[1] = (void*)(ip + 4);
+    state.return_stack_overtop += 2;
+    ejit_compile_procedure_if_needed (symbol);
+    epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8);
+    ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value);
+    literals = epsilon_load_with_epsilon_int_offset (symbol, 9);
+    state.frame_bottom[literals_slot] = (void*)literals;
+    state.frame_bottom += procedure_slot; // this slot now holds the first actual
+    GOTO (target);
   }
 
   LABEL(primitive); // Parameters: primitive_function_pointer, inout_slot
@@ -983,7 +1001,7 @@ ejit_compile_expression (ejit_compiler_state_t s,
                   ejit_push_instruction (s, actual_no);
                 } // default
               } // switch
-          }
+          } // tail call
         else
           {
             ejit_push_instruction (s, ejit_opcode_nontail_call);
@@ -1002,7 +1020,68 @@ ejit_compile_expression (ejit_compiler_state_t s,
         break;
       }
     case e0_call_indirect_opcode:
-      epsilon_fatal ("unimplemented in the compiler: call-indirect");
+      {
+        epsilon_value callee
+          = epsilon_load_with_epsilon_int_offset (expression, 2);
+        epsilon_value actuals
+          = epsilon_load_with_epsilon_int_offset (expression, 3);
+        long actual_no = epsilon_value_length (actuals);
+        long callee_slot = target_slot;
+        ejit_compile_expression (s,
+                                 callee,
+                                 formal_no, nonformal_local_no, result_no,
+                                 literals_slot,
+                                 callee_slot,
+                                 false);
+        long first_actual_slot = target_slot + 1;
+        ejit_compile_expressions (s,
+                                  actuals,
+                                  formal_no,
+                                  nonformal_local_no,
+                                  result_no,
+                                  literals_slot,
+                                  first_actual_slot);
+        if (tail)
+          {
+            switch (actual_no)
+              {
+              case 0: case 1: case 2: case 3: case 4: case 5:
+                ejit_push_instruction (s, ejit_opcode_copy_and_tail_indirect_call_0 + actual_no);
+                ejit_push_instruction (s, callee_slot);
+                ejit_push_instruction (s, first_actual_slot);
+                break;
+              default:
+                {
+                  // FIXME: instead of this, it might be faster to have a
+                  // generic tail_call instruction which performs no copy,
+                  // and perform the copy here with a few instructions.
+                  ejit_push_instruction (s, ejit_opcode_copy_and_tail_indirect_call);
+                  ejit_push_instruction (s, callee_slot);
+                  ejit_push_instruction (s, first_actual_slot);
+                  ejit_push_instruction (s, actual_no);
+                } // default
+              } // switch
+          } // tail
+        else
+          {
+            epsilon_fatal ("call-indirect in the non-tail case: this is messy and wrong");
+
+            //LABEL(nontail_indirect_call); // Parameters: procedure_slot, first_actual_slot, literals_slot
+            ejit_push_instruction (s, ejit_opcode_nontail_indirect_call);
+            ejit_push_instruction (s, callee_slot);
+            ejit_push_instruction (s, first_actual_slot);
+            ejit_push_instruction (s, target_slot + actual_no);
+            // FIXME: don't do this in case of a directly recursive call.  Actually
+            // I could also avoid it whenever the continuation of the procedure call
+            // doesn't need literals...
+            if (literals_slot != -1)
+              {
+                ejit_push_instruction (s, ejit_opcode_set_literals);
+                ejit_push_instruction (s, literals_slot);
+              }
+          }
+        break;
+      } // call-indirect
     case e0_if_in_opcode:
       {
         epsilon_value discriminand = epsilon_load_with_epsilon_int_offset (expression, 2);

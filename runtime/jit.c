@@ -116,6 +116,13 @@ enum ejit_opcode_enum
     ejit_opcode_copy_and_tail_call_3,
     ejit_opcode_copy_and_tail_call_4,
     ejit_opcode_copy_and_tail_call_5,
+    ejit_opcode_copy_and_tail_indirect_call,
+    ejit_opcode_copy_and_tail_indirect_call_0,
+    ejit_opcode_copy_and_tail_indirect_call_1,
+    ejit_opcode_copy_and_tail_indirect_call_2,
+    ejit_opcode_copy_and_tail_indirect_call_3,
+    ejit_opcode_copy_and_tail_indirect_call_4,
+    ejit_opcode_copy_and_tail_indirect_call_5,
     ejit_opcode_jump,
     ejit_opcode_jump_if_equal_boxed,
     ejit_opcode_jump_if_equal_unboxed,
@@ -123,6 +130,7 @@ enum ejit_opcode_enum
     ejit_opcode_literal_boxed,
     ejit_opcode_literal_unboxed,
     ejit_opcode_nontail_call,
+    ejit_opcode_nontail_indirect_call,
     ejit_opcode_primitive,
     //ejit_opcode_procedure_prolog,
     ejit_opcode_return_0,
@@ -317,6 +325,13 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
               CASE_SET_LABEL(copy_and_tail_call_3, 2);
               CASE_SET_LABEL(copy_and_tail_call_4, 2);
               CASE_SET_LABEL(copy_and_tail_call_5, 2);
+              CASE_SET_LABEL(copy_and_tail_indirect_call, 3);
+              CASE_SET_LABEL(copy_and_tail_indirect_call_0, 2);
+              CASE_SET_LABEL(copy_and_tail_indirect_call_1, 2);
+              CASE_SET_LABEL(copy_and_tail_indirect_call_2, 2);
+              CASE_SET_LABEL(copy_and_tail_indirect_call_3, 2);
+              CASE_SET_LABEL(copy_and_tail_indirect_call_4, 2);
+              CASE_SET_LABEL(copy_and_tail_indirect_call_5, 2);
               CASE_SET_LABEL(jump, 1);
               CASE_SET_LABEL(jump_if_equal_boxed, 3);
               CASE_SET_LABEL(jump_if_equal_unboxed, 3);
@@ -324,6 +339,7 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
               CASE_SET_LABEL(literal_boxed, 2);
               CASE_SET_LABEL(literal_unboxed, 2);
               CASE_SET_LABEL(nontail_call, 3);
+              CASE_SET_LABEL(nontail_indirect_call, 3);
               CASE_SET_LABEL(primitive, 2);
               CASE_SET_LABEL(return, 2);
               CASE_SET_LABEL(return_0, 0);
@@ -398,10 +414,13 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   ip += 2;
   NEXT;
 
+#define SYMBOL_FROM_FIRST_PARAMETER \
+    epsilon_value symbol \
+      = epsilon_load_with_epsilon_int_offset (literals, \
+                                              (long)((ip + 1)->literal))
+#define SYMBOL_FROM_FIRST_PARAMETER_SLOT \
+    epsilon_value symbol = state.frame_bottom[(long)((ip + 1)->literal)]
 #define COPY_AND_TAIL_CALL_COMMON_PART                                  \
-    epsilon_value symbol                                                \
-      = epsilon_load_with_epsilon_int_offset (literals,                 \
-                                              (long)((ip + 1)->literal)); \
     ejit_compile_procedure_if_needed (symbol);                          \
     epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8); \
     ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value); \
@@ -413,50 +432,89 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
 
   LABEL(copy_and_tail_call); // Parameters: symbol, first_actual_slot, literals_slot
   {
+    SYMBOL_FROM_FIRST_PARAMETER;
     const long actual_no = (long)((ip + 3)->literal);
     COPY_AND_TAIL_CALL_COMMON_PART;
-    /* epsilon_value symbol */
-    /*   = epsilon_load_with_epsilon_int_offset (literals, */
-    /*                                           (long)((ip + 1)->literal)); */
-    /* ejit_compile_procedure_if_needed (symbol); */
-    /* epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8); */
-    /* ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value); */
-    /* literals = epsilon_load_with_epsilon_int_offset (symbol, 9); */
-    /* jit_copy_slots (state.frame_bottom, (long)((ip + 2)->literal), 0, actual_no); */
-    /* state.frame_bottom[actual_no] = (void*)literals; */
-    /* GOTO (target); */
   }
   LABEL(copy_and_tail_call_0); // Parameters: symbol, first_actual_slot
   {
+    SYMBOL_FROM_FIRST_PARAMETER;
     const long actual_no = 0;
     COPY_AND_TAIL_CALL_COMMON_PART;
   }
   LABEL(copy_and_tail_call_1); // Parameters: symbol, first_actual_slot
   {
+    SYMBOL_FROM_FIRST_PARAMETER;
     const long actual_no = 1;
     COPY_AND_TAIL_CALL_COMMON_PART;
   }
   LABEL(copy_and_tail_call_2); // Parameters: symbol, first_actual_slot
   {
+    SYMBOL_FROM_FIRST_PARAMETER;
     const long actual_no = 2;
     COPY_AND_TAIL_CALL_COMMON_PART;
   }
   LABEL(copy_and_tail_call_3); // Parameters: symbol, first_actual_slot
   {
+    SYMBOL_FROM_FIRST_PARAMETER;
     const long actual_no = 3;
     COPY_AND_TAIL_CALL_COMMON_PART;
   }
   LABEL(copy_and_tail_call_4); // Parameters: symbol, first_actual_slot
   {
+    SYMBOL_FROM_FIRST_PARAMETER;
     const long actual_no = 4;
     COPY_AND_TAIL_CALL_COMMON_PART;
   }
   LABEL(copy_and_tail_call_5); // Parameters: symbol, first_actual_slot
   {
+    SYMBOL_FROM_FIRST_PARAMETER;
     const long actual_no = 5;
     COPY_AND_TAIL_CALL_COMMON_PART;
   }
-#undef COPY_AND_TAIL_CALL_COMMON_PART                                  \
+
+  LABEL(copy_and_tail_indirect_call); // Parameters: procedure_slot, first_actual_slot, literals_slot
+  {
+    SYMBOL_FROM_FIRST_PARAMETER_SLOT;
+    const long actual_no = (long)((ip + 3)->literal);
+    COPY_AND_TAIL_CALL_COMMON_PART;
+  }
+  LABEL(copy_and_tail_indirect_call_0); // Parameters: procedure_slot, first_actual_slot
+  {
+    SYMBOL_FROM_FIRST_PARAMETER_SLOT;
+    const long actual_no = 0;
+    COPY_AND_TAIL_CALL_COMMON_PART;
+  }
+  LABEL(copy_and_tail_indirect_call_1); // Parameters: procedure_slot, first_actual_slot
+  {
+    SYMBOL_FROM_FIRST_PARAMETER_SLOT;
+    const long actual_no = 1;
+    COPY_AND_TAIL_CALL_COMMON_PART;
+  }
+  LABEL(copy_and_tail_indirect_call_2); // Parameters: procedure_slot, first_actual_slot
+  {
+    SYMBOL_FROM_FIRST_PARAMETER_SLOT;
+    const long actual_no = 2;
+    COPY_AND_TAIL_CALL_COMMON_PART;
+  }
+  LABEL(copy_and_tail_indirect_call_3); // Parameters: procedure_slot, first_actual_slot
+  {
+    SYMBOL_FROM_FIRST_PARAMETER_SLOT;
+    const long actual_no = 3;
+    COPY_AND_TAIL_CALL_COMMON_PART;
+  }
+  LABEL(copy_and_tail_indirect_call_4); // Parameters: procedure_slot, first_actual_slot
+  {
+    SYMBOL_FROM_FIRST_PARAMETER_SLOT;
+    const long actual_no = 4;
+    COPY_AND_TAIL_CALL_COMMON_PART;
+  }
+  LABEL(copy_and_tail_indirect_call_5); // Parameters: procedure_slot, first_actual_slot
+  {
+    SYMBOL_FROM_FIRST_PARAMETER_SLOT;
+    const long actual_no = 5;
+    COPY_AND_TAIL_CALL_COMMON_PART;
+  }
 
   LABEL(global); // Parameters: symbol, to_slot
   {
@@ -504,30 +562,28 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   ip += 2;
   NEXT;
 
+#define NONTAIL_CALL_COMMON_PART \
+    state.return_stack_overtop[0] = state.frame_bottom; \
+    state.return_stack_overtop[1] = (void*)(ip + 4); \
+    state.return_stack_overtop += 2; \
+    ejit_compile_procedure_if_needed (symbol); \
+    epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8); \
+    ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value); \
+    literals = epsilon_load_with_epsilon_int_offset (symbol, 9); \
+    state.frame_bottom[(long)((ip + 3)->literal)] = (void*)literals; \
+    state.frame_bottom += (long)((ip + 2)->literal); \
+    GOTO (target)
+
   LABEL(nontail_call); // Parameters: symbol, first_actual_slot, literals_slot
   {
-    //fprintf (stderr, "OK-E 1000\n");
-    //print_values (& state); // #######
-    state.return_stack_overtop[0] = state.frame_bottom;
-    state.return_stack_overtop[1] = (void*)(ip + 4);
-    state.return_stack_overtop += 2;
-    epsilon_value symbol
-      = epsilon_load_with_epsilon_int_offset (literals,
-                                              (long)((ip + 1)->literal));
-    //fprintf (stderr, "OK-E 2000\n");
-    ejit_compile_procedure_if_needed (symbol);
-    //fprintf (stderr, "OK-E 3000\n");
-    epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8);
-    //fprintf (stderr, "OK-E 4000\n");
-    ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value);
-    //fprintf (stderr, "OK-E 5000\n");
-    literals = epsilon_load_with_epsilon_int_offset (symbol, 9);
-    //fprintf (stderr, "OK-E 6000\n");
-    state.frame_bottom[(long)((ip + 3)->literal)] = (void*)literals;
-    //fprintf (stderr, "OK-E 7000\n");
-    state.frame_bottom += (long)((ip + 2)->literal);
-    //fprintf (stderr, "OK-E 8000: target is %p (here is %p)\n", target, &symbol);
-    GOTO (target);
+    SYMBOL_FROM_FIRST_PARAMETER;
+    NONTAIL_CALL_COMMON_PART;
+  }
+
+  LABEL(nontail_indirect_call); // Parameters: procedure_slot, first_actual_slot, literals_slot
+  {
+    SYMBOL_FROM_FIRST_PARAMETER_SLOT;
+    NONTAIL_CALL_COMMON_PART;
   }
 
   LABEL(primitive); // Parameters: primitive_function_pointer, inout_slot
@@ -579,6 +635,11 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   LABEL(end); // Parameters: none
   *original_state = state;
   return;
+
+#undef COPY_AND_TAIL_CALL_COMMON_PART
+#undef NONTAIL_CALL_COMMON_PART
+#undef SYMBOL_FROM_FIRST_PARAMETER
+#undef SYMBOL_FROM_FIRST_PARAMETER_SLOT
 
 #ifndef ENABLE_JIT_THREADING
       default:

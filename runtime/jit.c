@@ -1225,14 +1225,17 @@ e0_literal_no_in (epsilon_value expressions)
 
 ejit_code_t
 ejit_compile (epsilon_value formal_list, epsilon_value expression,
-              bool return_in_the_end)
+              bool main_expression)
 {
+  size_t formal_no = epsilon_value_length (formal_list);
+  if (main_expression && formal_no != 0)
+    epsilon_fatal ("%s: formal_list must be empty for the main expression",
+                   __func__);
   ejit_code_t res = epsilon_xmalloc (sizeof (struct ejit_code));
   res->initialized = 0;
   struct ejit_compiler_state s;
   ejit_initialize_compiler_state (&s);
 
-  size_t formal_no = epsilon_value_length (formal_list);
   //fprintf (stderr, "The procedure has %li formals\n", formal_no);
   size_t nonformal_local_no  = epsilon_max_nonformal_local_no (expression);
   //fprintf (stderr, "The procedure needs %li nonformal locals\n", nonformal_local_no);
@@ -1272,7 +1275,7 @@ ejit_compile (epsilon_value formal_list, epsilon_value expression,
      nonformal locals, to keep mirroring the actual stack configuration. */
   if (literals_slot != -1)
     epsilon_stack_push (& s.locals, NULL);
-  if (! return_in_the_end)
+  if (main_expression)
     {
       //fprintf (stderr, "Adding main stub prolog...\n");
       ejit_push_instruction (&s, ejit_opcode_set_literals);
@@ -1282,8 +1285,8 @@ ejit_compile (epsilon_value formal_list, epsilon_value expression,
                            formal_no, nonformal_local_no, result_no,
                            literals_slot,
                            target_slot,
-                           return_in_the_end);
-  if (! return_in_the_end)
+                           ! main_expression);
+  if (main_expression)
     {
       //fprintf (stderr, "Adding main stub epilog...\n");
       ejit_push_instruction (& s, ejit_opcode_end);
@@ -1341,7 +1344,7 @@ ejit_compile_procedure (epsilon_value symbol)
   if (body == zero)
     epsilon_fatal ("%s: compiling an undefined procedure", __func__);
 #endif // #ifdef ENABLE_DEBUG
-  ejit_code_t c = ejit_compile (formals, body, true);
+  ejit_code_t c = ejit_compile (formals, body, false);
   size_t instruction_size = sizeof (ejit_instruction_t) * c->instruction_no;
   ejit_instruction_t *instructions = epsilon_xmalloc (instruction_size);
   memcpy (instructions, c->instructions, instruction_size); // FIXME: avoid this copy, in a clean way
@@ -1400,7 +1403,7 @@ ejit_evaluate_expression (epsilon_value expression)
   /* Compile the code, with an end instruction in the end.  There's no return
      instruction, and results won't end up in their appropriate slots. */
   epsilon_value epsilon_null = epsilon_int_to_epsilon_value (0);
-  ejit_code_t c = ejit_compile (epsilon_null, expression, false);
+  ejit_code_t c = ejit_compile (epsilon_null, expression, true);
 
   //fprintf (stderr, "OK-A 200 after compiling\n");
 

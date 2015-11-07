@@ -2,7 +2,7 @@
 ;;;;; e0 global state, interpreter and macros defined in epsilon0 plus e1:define
 
 ;;;;; Copyright (C) 2012 Université Paris 13
-;;;;; Copyright (C) 2013, 2014 Luca Saiu
+;;;;; Copyright (C) 2013, 2014, 2015 Luca Saiu
 ;;;;; Written by Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.

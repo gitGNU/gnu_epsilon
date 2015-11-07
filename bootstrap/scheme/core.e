@@ -1684,13 +1684,19 @@
   (buffer:set! name (e0:value 3) formals))
 (e1:define (state:procedure-set-body! name body)
   (buffer:set! name (e0:value 4) body))
+(e1:define (state:procedure-invalidate-compiled name)
+  ;; FIXME: also "uncompile" the procedure, freeing the associate resources.
+  (e0:let () (buffer:set! name (e0:value 8) (e0:value 0))
+    (buffer:set! name (e0:value 9) (e0:value 0))))
 (e1:define (state:procedure-set! name formals body)
   (e0:let () (state:procedure-set-formals! name formals)
-    (state:procedure-set-body! name body)))
+    (e0:let () (state:procedure-invalidate-compiled name)
+      (state:procedure-set-body! name body))))
 (e1:define (state:procedure-unset! name)
   (e0:let () (buffer:set! name (e0:value 3) list:nil)
-    ;; invalid body
-    (buffer:set! name (e0:value 4) (e0:value 0))))
+    (e0:let () (state:procedure-invalidate-compiled name)
+      ;; invalid body
+      (buffer:set! name (e0:value 4) (e0:value 0)))))
 
 (e1:define (state:compiled-procedure-get name)
   (buffer:get name (e0:value 8)))

@@ -579,14 +579,8 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   LABEL(nontail_call); // Parameters: symbol, first_actual_slot, literals_slot
   {
     SYMBOL_FROM_FIRST_PARAMETER;
-    // FIXME: rethink the idea of saving the frame pointer to the return stack.
-    // Saving an offset instead would easily allow me to move the entire stack
-    // and return stack, which will be nice for stack resizing and for keeping
-    // thread states on the heap, which I want to do in the future (stacks may
-    // be ordinary epsilon buffers).
-    // Instructions are already position-independent, and I could make the stack
-    // position-independent as well.
-    state.return_stack_overtop[0] = state.frame_bottom;
+    state.return_stack_overtop[0]
+      = (void*)(long)(state.frame_bottom - state.stack_bottom);
     state.return_stack_overtop[1] = (void*)(ip + 4);
     state.return_stack_overtop += 2;
     ejit_compile_procedure_if_needed (symbol);
@@ -635,7 +629,7 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
 
 #define RETURN_COMMON_PART \
   state.return_stack_overtop -= 2; \
-  state.frame_bottom = state.return_stack_overtop[0]; \
+  state.frame_bottom = state.stack_bottom + (long)state.return_stack_overtop[0]; \
   GOTO (state.return_stack_overtop[1]);
 
 #define RETURN_N(result_no) \

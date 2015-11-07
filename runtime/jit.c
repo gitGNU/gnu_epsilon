@@ -255,6 +255,16 @@ ejit_push_epsilon_literal (ejit_compiler_state_t s, epsilon_value literal)
   /*do*/ { ip ++; continue; } /*while (0)*/
 #endif // #ifdef ENABLE_JIT_THREADING
 
+#ifdef ENABLE_JIT_THREADING
+// This could be used in some (risky) optimizations, for example changing some
+// indirect call into a direct call, or a safe instruction into an unsafe
+// instruction.  Not currently used.
+#define CHANGE_OPCODE(new_instruction_name) \
+  ip->label = && label_ ## new_instruction_name
+#else
+  ip->opcode = ejit_opcode_ ## new_instruction_name
+#endif // #ifdef ENABLE_JIT_THREADING
+
 #ifdef ENABLE_VERBOSE_JIT_DEBUG
 #define PRINT_JIT_DEBUGGING \
   fprintf
@@ -569,6 +579,13 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   LABEL(nontail_call); // Parameters: symbol, first_actual_slot, literals_slot
   {
     SYMBOL_FROM_FIRST_PARAMETER;
+    // FIXME: rethink the idea of saving the frame pointer to the return stack.
+    // Saving an offset instead would easily allow me to move the entire stack
+    // and return stack, which will be nice for stack resizing and for keeping
+    // thread states on the heap, which I want to do in the future (stacks may
+    // be ordinary epsilon buffers).
+    // Instructions are already position-independent, and I could make the stack
+    // position-independent as well.
     state.return_stack_overtop[0] = state.frame_bottom;
     state.return_stack_overtop[1] = (void*)(ip + 4);
     state.return_stack_overtop += 2;

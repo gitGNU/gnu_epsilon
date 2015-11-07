@@ -352,7 +352,7 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
               CASE_SET_LABEL(global, 2);
               CASE_SET_LABEL(literal_boxed, 2);
               CASE_SET_LABEL(literal_unboxed, 2);
-              CASE_SET_LABEL(nontail_call, 3);
+              CASE_SET_LABEL(nontail_call, 4);
               CASE_SET_LABEL(nontail_indirect_call, 3);
               CASE_SET_LABEL(primitive, 2);
               CASE_SET_LABEL(return, 2);
@@ -576,43 +576,28 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   ip += 2;
   NEXT;
 
-  LABEL(nontail_call); // Parameters: symbol, first_actual_slot, literals_slot
+  LABEL(nontail_call); // Parameters: symbol, first_actual_slot, old_literals_slot, new_literals_slot
   {
     SYMBOL_FROM_FIRST_PARAMETER;
+    long old_literals_slot = (long)((ip + 3)->literal);
+    long new_literals_slot = (long)((ip + 4)->literal);
     state.return_stack_overtop[0]
       = (void*)(long)(state.frame_bottom - state.stack_bottom);
-    state.return_stack_overtop[1] = (void*)(ip + 4);
-    state.return_stack_overtop += 2;
+    state.return_stack_overtop[1] = old_literals_slot;
+    state.return_stack_overtop[2] = (void*)(ip + 5);
+    state.return_stack_overtop += 3;
     ejit_compile_procedure_if_needed (symbol);
     epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8);
     ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value);
     literals = epsilon_load_with_epsilon_int_offset (symbol, 9);
-    state.frame_bottom[(long)((ip + 3)->literal)] = (void*)literals;
+    state.frame_bottom[new_literals_slot] = (void*)literals;
     state.frame_bottom += (long)((ip + 2)->literal);
     GOTO (target);
   }
 
   LABEL(nontail_indirect_call); // Parameters: procedure_slot, first_actual_slot, literals_slot
   {
-    epsilon_fatal ("iI need the number of actuals, which can be deduced from literals_slot if I pay attention.  Having both first two arguments here is stupid anyway.");
-    SYMBOL_FROM_FIRST_PARAMETER_SLOT;
-    long procedure_slot = (long)((ip + 1)->literal);
-    long first_actual_slot = (long)((ip + 2)->literal);
-    long literals_slot = (long)((ip + 3)->literal);
-    // "Slide" actuals back by one slot, to cover the procedure slot.
-    jit_copy_slots (state.frame_bottom,
-                    first_actual_slot, procedure_slot,
-                    literals_slot);
-    state.return_stack_overtop[0] = state.frame_bottom;
-    state.return_stack_overtop[1] = (void*)(ip + 4);
-    state.return_stack_overtop += 2;
-    ejit_compile_procedure_if_needed (symbol);
-    epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8);
-    ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value);
-    literals = epsilon_load_with_epsilon_int_offset (symbol, 9);
-    state.frame_bottom[literals_slot] = (void*)literals;
-    state.frame_bottom += procedure_slot; // this slot now holds the first actual
-    GOTO (target);
+    epsilon_fatal ("FIXME: implement, changing parameters as well");
   }
 
   LABEL(primitive); // Parameters: primitive_function_pointer, inout_slot
@@ -628,9 +613,10 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   NEXT;
 
 #define RETURN_COMMON_PART \
-  state.return_stack_overtop -= 2; \
+  state.return_stack_overtop -= 3; \
   state.frame_bottom = state.stack_bottom + (long)state.return_stack_overtop[0]; \
-  GOTO (state.return_stack_overtop[1]);
+  literals = state.frame_bottom[(long)state.return_stack_overtop[1]]; \
+  GOTO (state.return_stack_overtop[2]);
 
 #define RETURN_N(result_no) \
   jit_copy_slots (state.frame_bottom, (long)(ip[1].literal), 0, result_no); \
@@ -835,11 +821,6 @@ ejit_is_boxed (epsilon_value literal)
 #endif // #ifdef EPSILON_RUNTIME_UNTAGGED
 }
 
-// FIXME: possible optimizations: don't generate at all the set_literals
-// instructions when no literals are needed.  This will be frequent once
-// I add the possibility of setting unboxed literals in a more efficient
-// way, without indirection..
-
 static void
 ejit_compile_expression (ejit_compiler_state_t s,
                          epsilon_value expression,
@@ -1018,15 +999,8 @@ ejit_compile_expression (ejit_compiler_state_t s,
             ejit_push_instruction (s, ejit_opcode_nontail_call);
             ejit_push_epsilon_literal (s, name);
             ejit_push_instruction (s, target_slot);
+            ejit_push_instruction (s, formal_no);
             ejit_push_instruction (s, target_slot + actual_no);
-            // FIXME: don't do this in case of a directly recursive call.  Actually
-            // I could also avoid it whenever the continuation of the procedure call
-            // doesn't need literals...
-            if (literals_slot != -1)
-              {
-                ejit_push_instruction (s, ejit_opcode_set_literals);
-                ejit_push_instruction (s, literals_slot);
-              }
           } // nontail call
         break;
       }
@@ -1082,14 +1056,6 @@ ejit_compile_expression (ejit_compiler_state_t s,
             ejit_push_instruction (s, callee_slot);
             ejit_push_instruction (s, first_actual_slot);
             ejit_push_instruction (s, target_slot + actual_no);
-            // FIXME: don't do this in case of a directly recursive call.  Actually
-            // I could also avoid it whenever the continuation of the procedure call
-            // doesn't need literals...
-            if (literals_slot != -1)
-              {
-                ejit_push_instruction (s, ejit_opcode_set_literals);
-                ejit_push_instruction (s, literals_slot);
-              }
           }
         break;
       } // call-indirect
@@ -1289,9 +1255,6 @@ ejit_compile (epsilon_value formal_list, epsilon_value expression,
       literals_slot = formal_no;
       target_slot = epsilon_max_long (formal_no + 1 + nonformal_local_no,
                                       result_no);
-      // No, this is not needed: the call instruction takes care of it.
-      //ejit_push_instruction (&s, ejit_opcode_set_literals);
-      //ejit_push_instruction (&s, literals_slot);
     }
   //fprintf (stderr, "literals_slot is %li\n", literals_slot);
   //fprintf (stderr, "target_slot is %li\n", target_slot);

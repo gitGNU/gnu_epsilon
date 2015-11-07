@@ -38,6 +38,8 @@ struct ejit_thread_state
   epsilon_value *frame_bottom;
   epsilon_word *return_stack_overtop;
   epsilon_word *return_stack_bottom;
+
+  long result_no;
 };
 
 #define STACK_ELEMENT_NO        10000
@@ -583,7 +585,7 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
     long new_literals_slot = (long)((ip + 4)->literal);
     state.return_stack_overtop[0]
       = (void*)(long)(state.frame_bottom - state.stack_bottom);
-    state.return_stack_overtop[1] = old_literals_slot;
+    state.return_stack_overtop[1] = (void*)old_literals_slot;
     state.return_stack_overtop[2] = (void*)(ip + 5);
     state.return_stack_overtop += 3;
     ejit_compile_procedure_if_needed (symbol);
@@ -618,17 +620,19 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   literals = state.frame_bottom[(long)state.return_stack_overtop[1]]; \
   GOTO (state.return_stack_overtop[2]);
 
-#define RETURN_N(result_no) \
-  jit_copy_slots (state.frame_bottom, (long)(ip[1].literal), 0, result_no); \
+#define RETURN_N(result_no_) \
+  jit_copy_slots (state.frame_bottom, (long)(ip[1].literal), 0, result_no_); \
+  state.result_no = result_no_; \
   RETURN_COMMON_PART;
 
   LABEL(return); // Parameters: first_result_slot, result_no
   jit_copy_slots (state.frame_bottom,
                   (long)(ip[1].literal), 0, (long)(ip[2].literal));
+  state.result_no = (long)(ip[2].literal);
   RETURN_COMMON_PART;
 
   LABEL(return_0); // Parameters: none
-  RETURN_COMMON_PART;
+  RETURN_N (0);
   LABEL(return_1); // Parameters: result_slot
   RETURN_N (1);
   LABEL(return_2); // Parameters: result_slot

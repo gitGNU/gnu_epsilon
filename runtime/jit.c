@@ -379,7 +379,7 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
               CASE_SET_LABEL(literal_boxed, 2);
               CASE_SET_LABEL(literal_unboxed, 2);
               CASE_SET_LABEL(nontail_call, 4);
-              CASE_SET_LABEL(nontail_indirect_call, 4);
+              CASE_SET_LABEL(nontail_indirect_call, 3);
               CASE_SET_LABEL(primitive, 2);
               CASE_SET_LABEL(return, 2);
               CASE_SET_LABEL(return_0, 0);
@@ -602,33 +602,39 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   ip += 2;
   NEXT;
 
+#define NONTAIL_CALL_COMMON \
+    state.return_stack_overtop[0] \
+      = (void*)(long)(state.frame_bottom - state.stack_bottom); \
+    state.return_stack_overtop[1] = (void*)old_literals_slot; \
+    state.return_stack_overtop[2] = (void*)next_instruction; \
+    state.return_stack_overtop += 3; \
+    ejit_compile_procedure_if_needed (symbol); \
+    epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8); \
+    ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value); \
+    literals = epsilon_load_with_epsilon_int_offset (symbol, 9); \
+    state.frame_bottom[new_literals_slot] = (void*)literals; \
+    state.frame_bottom += first_actual_slot; \
+    GOTO (target);
+
   LABEL(nontail_call); // Parameters: symbol, first_actual_slot, old_literals_slot, new_literals_slot
   {
     SYMBOL_FROM_FIRST_PARAMETER;
     long first_actual_slot = (long)((ip + 2)->literal);
     long old_literals_slot = (long)((ip + 3)->literal);
     long new_literals_slot = (long)((ip + 4)->literal);
-    state.return_stack_overtop[0]
-      = (void*)(long)(state.frame_bottom - state.stack_bottom);
-    state.return_stack_overtop[1] = (void*)old_literals_slot;
-    state.return_stack_overtop[2] = (void*)(ip + 5);
-    state.return_stack_overtop += 3;
-    ejit_compile_procedure_if_needed (symbol);
-    epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8);
-    ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value);
-    literals = epsilon_load_with_epsilon_int_offset (symbol, 9);
-    state.frame_bottom[new_literals_slot] = (void*)literals;
-    state.frame_bottom += first_actual_slot;
-    GOTO (target);
+    const ejit_instruction_t *next_instruction = (void*)(ip + 5);
+    NONTAIL_CALL_COMMON;
   }
 
-  LABEL(nontail_indirect_call); // Parameters: procedure_slot, first_actual_slot, old_literals_slot, new_literals_slot
+  LABEL(nontail_indirect_call); // Parameters: procedure_slot, old_literals_slot, new_literals_slot
   {
     SYMBOL_FROM_FIRST_PARAMETER_SLOT;
     long procedure_slot = (long)((ip + 1)->literal);
-    long first_actual_slot = (long)((ip + 2)->literal);
-    long old_literals_slot = (long)((ip + 3)->literal);
-    long new_literals_slot = (long)((ip + 4)->literal);
+    long first_actual_slot = procedure_slot + 1;
+    long old_literals_slot = (long)((ip + 2)->literal);
+    long new_literals_slot = (long)((ip + 3)->literal);
+    const ejit_instruction_t *next_instruction = (void*)(ip + 4);
+
     /* "Slide" actuals down by one slot, overwriting the procedure. */
     long actual_no = new_literals_slot - first_actual_slot + 1;
     jit_copy_slots (state.frame_bottom,
@@ -636,19 +642,7 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
                     actual_no);
     first_actual_slot = procedure_slot;
 
-    // FIXME: this could be factored with the last part of nontail_call
-    state.return_stack_overtop[0]
-      = (void*)(long)(state.frame_bottom - state.stack_bottom);
-    state.return_stack_overtop[1] = (void*)old_literals_slot;
-    state.return_stack_overtop[2] = (void*)(ip + 5);
-    state.return_stack_overtop += 3;
-    ejit_compile_procedure_if_needed (symbol);
-    epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8);
-    ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value);
-    literals = epsilon_load_with_epsilon_int_offset (symbol, 9);
-    state.frame_bottom[new_literals_slot] = (void*)literals;
-    state.frame_bottom += first_actual_slot;
-    GOTO (target);
+    NONTAIL_CALL_COMMON;
   }
 
   LABEL(primitive); // Parameters: primitive_function_pointer, inout_slot
@@ -1104,7 +1098,6 @@ ejit_compile_expression (ejit_compiler_state_t s,
           {
             ejit_push_instruction (s, ejit_opcode_nontail_indirect_call);
             ejit_push_instruction (s, callee_slot);
-            ejit_push_instruction (s, first_actual_slot);
             ejit_push_instruction (s, formal_no);
             ejit_push_instruction (s, target_slot + actual_no);
           }

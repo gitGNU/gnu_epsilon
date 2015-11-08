@@ -38,6 +38,7 @@ struct ejit_thread_state
   epsilon_value *frame_bottom;
   epsilon_word *return_stack_overtop;
   epsilon_word *return_stack_bottom;
+  size_t stack_element_no;
 
   long result_no;
 };
@@ -49,13 +50,16 @@ ejit_thread_state_t
 ejit_make_thread_state (void)
 {
   ejit_thread_state_t res = epsilon_xmalloc (sizeof (struct ejit_thread_state));
+  const size_t stack_element_no = STACK_ELEMENT_NO;
+  const size_t return_stack_element_no = RETURN_STACK_ELEMENT_NO;
+  res->stack_element_no = stack_element_no;
   res->frame_bottom
     = res->stack_bottom
     //= res->stack_overtop
-    = epsilon_xmalloc (STACK_ELEMENT_NO * sizeof (epsilon_word));
+    = epsilon_xmalloc (stack_element_no * sizeof (epsilon_word));
   res->return_stack_bottom
     = res->return_stack_overtop
-    = epsilon_xmalloc (RETURN_STACK_ELEMENT_NO * sizeof (epsilon_word));
+    = epsilon_xmalloc (return_stack_element_no * sizeof (epsilon_word));
 
   /* Fill the stack with epsilon 0 values, so that it can be safely scanned by
      the GC.  There's no need to do the same with the return stack, which
@@ -63,10 +67,11 @@ ejit_make_thread_state (void)
   const epsilon_value epsilon_value_zero
     = epsilon_int_to_epsilon_value (0);
   int i;
-  for (i = 0; i < STACK_ELEMENT_NO; i ++)
+  for (i = 0; i < stack_element_no; i ++)
     res->stack_bottom[i] = epsilon_value_zero;
 
-  // FIXME: make the stack a GC root.
+  /* Make the stack a GC root. */
+  GC_add_roots (res->stack_bottom, res->stack_bottom + STACK_ELEMENT_NO);
 
   return res;
 }
@@ -74,16 +79,12 @@ ejit_make_thread_state (void)
 void
 ejit_destroy_thread_state (const ejit_thread_state_t s)
 {
+  const size_t stack_element_no = s->stack_element_no;
+  GC_remove_roots (s->stack_bottom, s->stack_bottom + stack_element_no);
   free (s->stack_bottom);
   free (s->return_stack_bottom);
   free (s);
 }
-
-/* void */
-/* ejit_push_on_thread_state (const ejit_thread_state_t s, epsilon_value v) */
-/* { */
-/*   * (s->stack_overtop ++) = v; */
-/* } */
 
 void
 ejit_debugging_print_from_stack (ejit_thread_state_t s, size_t how_many)
@@ -1464,7 +1465,6 @@ ejit_evaluate_expression (epsilon_value main_expression)
      ends up in the first slot.  Note that this is harmess even if there are
      no literals. */
   ejit_thread_state_t s = ejit_make_thread_state ();
-  GC_add_roots (s->stack_bottom, s->stack_bottom + STACK_ELEMENT_NO);
   s->stack_bottom[0] = c->literals;
 
   /* The return instruction at the end of the compiled main instruction
@@ -1489,8 +1489,6 @@ ejit_evaluate_expression (epsilon_value main_expression)
 
   ejit_print_results (s);
   //ejit_print_values (s);
-
-  GC_remove_roots (s->stack_bottom, s->stack_bottom + STACK_ELEMENT_NO);
 
   /* If everything worked at this point we can return, destroying the compiled
      code and the thread state.  Neither will be used anywhere else. */

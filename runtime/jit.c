@@ -42,8 +42,8 @@ struct ejit_thread_state
   long result_no;
 };
 
-#define STACK_ELEMENT_NO        10000
-#define RETURN_STACK_ELEMENT_NO 5000
+#define STACK_ELEMENT_NO        5000//10000
+#define RETURN_STACK_ELEMENT_NO 2000//5000
 
 ejit_thread_state_t
 ejit_make_thread_state (void)
@@ -1371,8 +1371,8 @@ ejit_destroy_code (const ejit_code_t c)
 void
 ejit_compile_procedure (epsilon_value symbol)
 {
-#ifdef ENABLE_DEBUG
   const epsilon_value zero = epsilon_int_to_epsilon_value (0);
+#ifdef ENABLE_DEBUG
   epsilon_value compiled_code_as_value
     = epsilon_load_with_epsilon_int_offset(symbol, 8);
   if (compiled_code_as_value != zero)
@@ -1382,10 +1382,14 @@ ejit_compile_procedure (epsilon_value symbol)
     = epsilon_load_with_epsilon_int_offset(symbol, 3);
   epsilon_value body
     = epsilon_load_with_epsilon_int_offset(symbol, 4);
-#ifdef ENABLE_DEBUG
   if (body == zero)
-    epsilon_fatal ("%s: compiling an undefined procedure", __func__);
-#endif // #ifdef ENABLE_DEBUG
+    {
+      epsilon_value symbol_name_value
+        = epsilon_load_with_epsilon_int_offset (symbol, 0);
+      char *symbol_name
+        = epsilon_string_to_malloced_char_star (symbol_name_value);
+      epsilon_fatal ("%s: compiling the undefined procedure %s (symbol %p)", __func__, symbol_name, symbol);
+    }
   ejit_code_t c = ejit_compile (formals, body, false);
   size_t instruction_size = sizeof (ejit_instruction_t) * c->instruction_no;
   ejit_instruction_t *instructions = epsilon_xmalloc (instruction_size);
@@ -1460,6 +1464,7 @@ ejit_evaluate_expression (epsilon_value main_expression)
      ends up in the first slot.  Note that this is harmess even if there are
      no literals. */
   ejit_thread_state_t s = ejit_make_thread_state ();
+  GC_add_roots (s->stack_bottom, s->stack_bottom + STACK_ELEMENT_NO);
   s->stack_bottom[0] = c->literals;
 
   /* The return instruction at the end of the compiled main instruction
@@ -1484,6 +1489,8 @@ ejit_evaluate_expression (epsilon_value main_expression)
 
   ejit_print_results (s);
   //ejit_print_values (s);
+
+  GC_remove_roots (s->stack_bottom, s->stack_bottom + STACK_ELEMENT_NO);
 
   /* If everything worked at this point we can return, destroying the compiled
      code and the thread state.  Neither will be used anywhere else. */

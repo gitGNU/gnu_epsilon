@@ -86,12 +86,12 @@ ejit_destroy_thread_state (const ejit_thread_state_t s)
 /* } */
 
 void
-print_values (ejit_thread_state_t s)
+ejit_debugging_print_from_stack (ejit_thread_state_t s, size_t how_many)
 {
   int i;
   epsilon_value *p;
   for (p = s->frame_bottom, i = 0;
-       i < 6; // FIXME: take frame height as a parameter
+       i < how_many;
        p ++, i ++)
 #ifdef EPSILON_RUNTIME_UNTAGGED
     fprintf (stderr, "  %2i. %p: %li, %p\n", i, p, (long)*p, *p);
@@ -101,6 +101,30 @@ print_values (ejit_thread_state_t s)
     else
       fprintf (stderr, "  %2i. %p: %li\n", i, p, epsilon_value_to_epsilon_int (*p));
 #endif // EPSILON_RUNTIME_UNTAGGED
+}
+
+void
+ejit_print_results (ejit_thread_state_t s)
+{
+  int i;
+  epsilon_value *p;
+  for (p = s->frame_bottom, i = 0;
+       i < s->result_no;
+       p ++, i ++)
+#ifdef EPSILON_RUNTIME_UNTAGGED
+    fprintf (stderr, "%li\n", (long)*p);
+#else
+    if (epsilon_is_pointer (*p))
+      fprintf (stderr, "%p\n", *p);
+    else
+      fprintf (stderr, "%li\n", epsilon_value_to_epsilon_int (*p));
+#endif // EPSILON_RUNTIME_UNTAGGED
+}
+
+void
+ejit_print_values (ejit_thread_state_t s)
+{
+  ejit_debugging_print_from_stack (s, 5);
 }
 
 
@@ -228,7 +252,7 @@ ejit_push_epsilon_literal (ejit_compiler_state_t s, epsilon_value literal)
 
 #define CASE_SET_LABEL(name, arity) \
   case ejit_opcode_ ## name: \
-  /* PRINT_JIT_DEBUGGING */fprintf(stderr, "Initializing: %3i. %s\n", (int)(p - instructions), #name); \
+  PRINT_JIT_DEBUGGING (stderr, "Initializing: %3i. %s\n", (int)(p - instructions), #name); \
     p->label = && label_ ## name; \
     p += (arity) + 1;             \
     break
@@ -1285,7 +1309,9 @@ ejit_compile (epsilon_value formal_list, epsilon_value expression,
                            formal_no, nonformal_local_no, result_no,
                            literals_slot,
                            target_slot,
-                           ! main_expression);
+                           //! main_expression);
+                           //!!!!!
+                           true);
   if (main_expression)
     {
       //fprintf (stderr, "Adding main stub epilog...\n");
@@ -1396,24 +1422,33 @@ ejit_compile_procedure_if_needed (epsilon_value symbol)
 }
 
 void
-ejit_evaluate_expression (epsilon_value expression)
+ejit_evaluate_expression (epsilon_value main_expression)
 {
   //fprintf (stderr, "OK-A 100 before compiling\n");
 
   /* Compile the code, with an end instruction in the end.  There's no return
      instruction, and results won't end up in their appropriate slots. */
   epsilon_value epsilon_null = epsilon_int_to_epsilon_value (0);
-  ejit_code_t c = ejit_compile (epsilon_null, expression, true);
+  ejit_code_t c = ejit_compile (epsilon_null, main_expression, true);
 
   //fprintf (stderr, "OK-A 200 after compiling\n");
 
   /* Make an empty thread state.  Since the code is not reached thru a call
-     instruction we have to manually set the literals pointer in the stack;
-     everything else starts out empty, including the return stack.
-     There are no formals, therefore the literal pointers ends up in the
-     first slot. */
+     instruction we have to manually set the literals pointer in the stack (a
+     set_literals instruction has already been generated); everything else
+     starts out empty.  There are no formals, therefore the literal pointers
+     ends up in the first slot.  Note that this is harmess even if there are
+     no literals. */
   ejit_thread_state_t s = ejit_make_thread_state ();
   s->stack_bottom[0] = c->literals;
+
+  /* The return instruction at the end of the compiled main instruction
+     should jump to the final end instruction. */
+  long end_index = c->instruction_no - 1;
+  s->return_stack_overtop[0] = (void*)(long)0; // offset from stack bottom
+  s->return_stack_overtop[1] = (void*)(long)0; // literals after returning aren't ever used
+  s->return_stack_overtop[2] = (void*)(c->instructions + end_index);
+  s->return_stack_overtop += 3;
 
   //fprintf (stderr, "OK-A 1000 before running\n");
 
@@ -1423,7 +1458,8 @@ ejit_evaluate_expression (epsilon_value expression)
 
   //fprintf (stderr, "OK-A 2000 after running\n");
 
-  print_values (s);
+  ejit_print_results (s);
+  //ejit_print_values (s);
 
   /* If everything worked at this point we can return, destroying the compiled
      code and the thread state.  Neither will be used anywhere else. */

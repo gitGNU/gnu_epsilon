@@ -379,7 +379,7 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
               CASE_SET_LABEL(literal_boxed, 2);
               CASE_SET_LABEL(literal_unboxed, 2);
               CASE_SET_LABEL(nontail_call, 4);
-              CASE_SET_LABEL(nontail_indirect_call, 3);
+              CASE_SET_LABEL(nontail_indirect_call, 4);
               CASE_SET_LABEL(primitive, 2);
               CASE_SET_LABEL(return, 2);
               CASE_SET_LABEL(return_0, 0);
@@ -605,6 +605,7 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
   LABEL(nontail_call); // Parameters: symbol, first_actual_slot, old_literals_slot, new_literals_slot
   {
     SYMBOL_FROM_FIRST_PARAMETER;
+    long first_actual_slot = (long)((ip + 2)->literal);
     long old_literals_slot = (long)((ip + 3)->literal);
     long new_literals_slot = (long)((ip + 4)->literal);
     state.return_stack_overtop[0]
@@ -617,13 +618,37 @@ ejit_initialize_or_run_code (int initialize, ejit_code_t code,
     ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value);
     literals = epsilon_load_with_epsilon_int_offset (symbol, 9);
     state.frame_bottom[new_literals_slot] = (void*)literals;
-    state.frame_bottom += (long)((ip + 2)->literal);
+    state.frame_bottom += first_actual_slot;
     GOTO (target);
   }
 
-  LABEL(nontail_indirect_call); // Parameters: procedure_slot, first_actual_slot, literals_slot
+  LABEL(nontail_indirect_call); // Parameters: procedure_slot, first_actual_slot, old_literals_slot, new_literals_slot
   {
-    epsilon_fatal ("FIXME: implement, changing parameters as well");
+    SYMBOL_FROM_FIRST_PARAMETER_SLOT;
+    long procedure_slot = (long)((ip + 1)->literal);
+    long first_actual_slot = (long)((ip + 2)->literal);
+    long old_literals_slot = (long)((ip + 3)->literal);
+    long new_literals_slot = (long)((ip + 4)->literal);
+    /* "Slide" actuals down by one slot, overwriting the procedure. */
+    long actual_no = new_literals_slot - first_actual_slot + 1;
+    jit_copy_slots (state.frame_bottom,
+                    first_actual_slot, procedure_slot,
+                    actual_no);
+    first_actual_slot = procedure_slot;
+
+    // FIXME: this could be factored with the last part of nontail_call
+    state.return_stack_overtop[0]
+      = (void*)(long)(state.frame_bottom - state.stack_bottom);
+    state.return_stack_overtop[1] = (void*)old_literals_slot;
+    state.return_stack_overtop[2] = (void*)(ip + 5);
+    state.return_stack_overtop += 3;
+    ejit_compile_procedure_if_needed (symbol);
+    epsilon_value target_as_value = epsilon_load_with_epsilon_int_offset (symbol, 8);
+    ejit_label_t target = epsilon_value_to_foreign_pointer (target_as_value);
+    literals = epsilon_load_with_epsilon_int_offset (symbol, 9);
+    state.frame_bottom[new_literals_slot] = (void*)literals;
+    state.frame_bottom += first_actual_slot;
+    GOTO (target);
   }
 
   LABEL(primitive); // Parameters: primitive_function_pointer, inout_slot
@@ -1077,12 +1102,10 @@ ejit_compile_expression (ejit_compiler_state_t s,
           } // tail
         else
           {
-            epsilon_fatal ("call-indirect in the non-tail case: this is messy and wrong");
-
-            //LABEL(nontail_indirect_call); // Parameters: procedure_slot, first_actual_slot, literals_slot
             ejit_push_instruction (s, ejit_opcode_nontail_indirect_call);
             ejit_push_instruction (s, callee_slot);
             ejit_push_instruction (s, first_actual_slot);
+            ejit_push_instruction (s, formal_no);
             ejit_push_instruction (s, target_slot + actual_no);
           }
         break;
@@ -1410,14 +1433,18 @@ ejit_compile_procedure_if_needed (epsilon_value symbol)
     = epsilon_load_with_epsilon_int_offset (symbol, 8);
   if (EPSILON_UNLIKELY (! epsilon_value_to_epsilon_int (target_as_value)))
     {
+#ifdef ENABLE_VERBOSE_JIT_DEBUG
       epsilon_value symbol_name_value
         = epsilon_load_with_epsilon_int_offset (symbol, 0);
       char *symbol_name
         = epsilon_string_to_malloced_char_star (symbol_name_value);
       fprintf (stderr, "Compiling %s...\n", symbol_name);
+#endif // #ifdef ENABLE_VERBOSE_JIT_DEBUG
       ejit_compile_procedure (symbol);
+#ifdef ENABLE_VERBOSE_JIT_DEBUG
       fprintf (stderr, "  ... the procedure %s is now compiled.\n", symbol_name);
       free (symbol_name);
+#endif // #ifdef ENABLE_VERBOSE_JIT_DEBUG
     }
 }
 
@@ -1445,6 +1472,8 @@ ejit_evaluate_expression (epsilon_value main_expression)
   /* The return instruction at the end of the compiled main instruction
      should jump to the final end instruction. */
   long end_index = c->instruction_no - 1;
+  // FIXME: when moving this to ejit_run_code, make this relative to the frame
+  // bottom -- but notice that one or both of these 0s may be frame-relative.
   s->return_stack_overtop[0] = (void*)(long)0; // offset from stack bottom
   s->return_stack_overtop[1] = (void*)(long)0; // literals after returning aren't ever used
   s->return_stack_overtop[2] = (void*)(c->instructions + end_index);
@@ -1454,6 +1483,8 @@ ejit_evaluate_expression (epsilon_value main_expression)
 
   /* Run the code.  In typical usage this will call some procedures to be
      compiled on the fly, and act as the main expression of a larger program. */
+  // FIXME: the previous stack and return stack initialization should be moved
+  // into ejit_run_code.
   ejit_run_code (c, s);
 
   //fprintf (stderr, "OK-A 2000 after running\n");

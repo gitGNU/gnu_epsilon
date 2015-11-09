@@ -1,8 +1,8 @@
 ;;;;; This is -*- epsilon -*- (with some Scheme).
 ;;;;; Bootstrap driver
 
-;;;;; Copyright (C) 2012 Université Paris 13
 ;;;;; Copyright (C) 2013, 2014, 2015 Luca Saiu
+;;;;; Copyright (C) 2012 Université Paris 13
 ;;;;; Written by Luca Saiu
 
 ;;;;; Copyright (C) 2013 Jérémie Koenig
@@ -5070,7 +5070,7 @@
               10)))
 
 
-;;;;; Fixed-point parsing and printing
+;;;;; Fixed-point parsing
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (e1:define (reader:string-in-simple-dot-notation->fixed-point s)
@@ -5087,37 +5087,94 @@
 (e1:define (reader:string-in-simple-dot-notation->fixed-point-helper s i acc)
   (e1:let ((c (string:get s i)))
     (e1:if (whatever:eq? c #\.)
-      (e1:let ((integer-part (fixedpoint:fixnum->fixedpoint acc)))
-        (reader:string-in-simple-dot-notation->fixed-point-fractional-helper
-         s
-         (fixnum:1+ i)
-         fixedpoint:1/10
-         integer-part))
+      (e1:let ((integer-part (fixedpoint:fixnum->fixedpoint acc))
+               (fractional-part (fixedpoint:fractional-digits-string-to-bitmask s (fixnum:1+ i))))
+        (fixnum:bitwise-or integer-part fractional-part))
       (e1:let ((c-digit (reader:character-value c 10)))
         (reader:string-in-simple-dot-notation->fixed-point-helper
          s
          (fixnum:1+ i)
          (fixnum:+ c-digit (fixnum:* acc 10)))))))
-(e1:define (reader:string-in-simple-dot-notation->fixed-point-fractional-helper s i weight acc)
-  (e1:if (fixnum:= i (string:length s))
+
+;;; This implementation is quite inefficient and not particularly beautiful.  It
+;;; follows the usual doubling algorithm.
+
+;;; The result is reversed
+(e1:define (fixedpoint:increment-reversed-decimal-digits dd)
+  (e1:cond ((list:null? dd)
+            (list:list 1))
+           ((fixnum:= (list:head dd) 9)
+            (list:cons 0
+                       (fixedpoint:increment-reversed-decimal-digits (list:tail dd))))
+           (else
+            (list:cons (fixnum:1+ (list:head dd))
+                       (list:tail dd)))))
+
+;;; The result is reversed
+(e1:define (fixedpoint:double-reversed-decimal-digits dd)
+  (e1:match dd
+    ((list:list-nil)
+     list:nil)
+    ((list:list-cons first rest)
+     (e1:let ((doubled-first (fixnum:* first 2)))
+       (e1:if (fixnum:>= doubled-first 10)
+          (list:cons (fixnum:- doubled-first 10)
+                     (fixedpoint:increment-reversed-decimal-digits (fixedpoint:double-reversed-decimal-digits rest)))
+          (list:cons doubled-first
+                     (fixedpoint:double-reversed-decimal-digits rest)))))))
+
+(e1:define (fixedpoint:double-decimal-digits dd)
+  (list:reverse (fixedpoint:double-reversed-decimal-digits (list:reverse dd))))
+
+(e1:define (fixedpoint:fractional-decimal-digits-to-binary-digits-helper dd remaining-digits)
+  (e1:if (fixnum:zero? remaining-digits)
+    list:nil
+    (e1:let ((doubled-dd (fixedpoint:double-decimal-digits dd)))
+      (e1:if (fixnum:= (list:length dd) (list:length doubled-dd))
+        (list:cons 0
+                   (fixedpoint:fractional-decimal-digits-to-binary-digits-helper doubled-dd
+                                                                                 (fixnum:1- remaining-digits)))
+        (list:cons 1
+                   (fixedpoint:fractional-decimal-digits-to-binary-digits-helper (list:tail doubled-dd)
+                                                                                 (fixnum:1- remaining-digits)))))))
+
+(e1:define (fixedpoint:fractional-decimal-digits->binary-digits dd)
+  (fixedpoint:fractional-decimal-digits-to-binary-digits-helper dd fixedpoint:fractional-bit-no))
+
+(e1:define (fixedpoint:fractional-decimal-digits->bitmask dd)
+  (e1:let ((bb (fixedpoint:fractional-decimal-digits->binary-digits dd)))
+    (fixedpoint:fractional-binary-digits->bitmask bb)))
+
+(e1:define (fixedpoint:fractional-binary-digits->bitmask bb)
+  (fixedpoint:reversed-fractional-binary-digits->bitmask (list:reverse bb)
+                                                         1
+                                                         0))
+(e1:define (fixedpoint:reversed-fractional-binary-digits->bitmask rbb value acc)
+  (e1:if (list:null? rbb)
     acc
-    (e1:let* ((digit-as-fixnum (reader:character-value (string:get s i) 10))
-              (digit (fixedpoint:fixnum->fixedpoint digit-as-fixnum))
-              (weighted-digit (fixedpoint:* weight digit)))
-      (reader:string-in-simple-dot-notation->fixed-point-fractional-helper
-       s
-       (fixnum:1+ i)
-       (fixedpoint:10/ weight)
-       (fixedpoint:+ acc weighted-digit)))))
-(e1:define fixedpoint:1
-  (fixedpoint:fixnum->fixedpoint 1))
-(e1:define fixedpoint:10
-  (fixedpoint:fixnum->fixedpoint 10))
-(e1:define fixedpoint:1/10
-  (fixedpoint:/ fixedpoint:1
-                fixedpoint:10))
-(e1:define (fixedpoint:10/ x)
-  (fixedpoint:* x fixedpoint:1/10))
+    (e1:let ((new-rbb (list:tail rbb))
+             (new-value (fixnum:left-shift-1-bit value))
+             (new-acc (e1:case (list:head rbb)
+                        ((0) acc)
+                        ((1) (fixnum:bitwise-or acc value))
+                        (else (e1:error "unreachable")))))
+      (fixedpoint:reversed-fractional-binary-digits->bitmask new-rbb
+                                                             new-value
+                                                             new-acc))))
+
+(e1:define (fixedpoint:fractional-digits-string-to-digits s index)
+  (e1:if (fixnum:= index (string:length s))
+    list:nil
+    (list:cons (character:character->fixnum (string:get s index))
+               (fixedpoint:fractional-digits-string-to-digits s (fixnum:1+ index)))))
+
+(e1:define (fixedpoint:fractional-digits-string-to-bitmask digits-string after-dot-index)
+  (e1:let ((dd (fixedpoint:fractional-digits-string-to-digits digits-string after-dot-index)))
+    (fixedpoint:fractional-decimal-digits->bitmask dd)))
+
+
+;;;;; Fixed-point printing
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (e1:define (printer:write-fixed-point port fp)
   (e1:if (fixnum:= (fixedpoint:sign fp) -1)

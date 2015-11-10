@@ -5711,69 +5711,84 @@
       (e1:load-helper file-name bp))))
 
 
-;;;;; Sine by cubic interpolation
+;;;;; Fixed-point constants
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; I interpolated (by hand) the cubic ax³ + bx² + cx + d = 0, using 0 and pi/2
-;; as nodes.
-(e1:define (fixedpoint:square x)
-  (fixedpoint:* x x))
+(e1:define fixedpoint:0
+  0)
+(e1:define fixedpoint:1
+  (reader:string-in-simple-dot-notation->fixed-point "1.0"))
+(e1:define fixedpoint:-1
+  (fixnum:- fixedpoint:1))
+(e1:define fixedpoint:2
+  (reader:string-in-simple-dot-notation->fixed-point "2.0"))
+(e1:define fixedpoint:10
+  (reader:string-in-simple-dot-notation->fixed-point "10.0"))
 
-(e1:define (fixedpoint:cube x)
-  (fixedpoint:* x (fixedpoint:* x x)))
+(e1:define fixedpoint:e
+  (reader:string-in-simple-dot-notation->fixed-point
+   "2.718281828459045235360287471352662497757247093699959574966967627724076630353547594571382178525166427"))
 
 (e1:define fixedpoint:pi
-  ;; I avoid using a literal just not to introduce other Guile cruft...
-  (reader:string-in-simple-dot-notation->fixed-point "3.141592653589793"))
-
+  ;; I avoid using fixed-point literals just not to introduce more
+  ;; temporary Guile cruft...
+  (reader:string-in-simple-dot-notation->fixed-point
+   "3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117067"))
 (e1:define fixedpoint:-pi
   (fixnum:- fixedpoint:pi))
-
 (e1:define fixedpoint:2pi
   (fixnum:* 2 fixedpoint:pi))
-
 (e1:define fixedpoint:-2pi
   (fixnum:- fixedpoint:2pi))
-
 (e1:define fixedpoint:pi/2
   (fixnum:/ fixedpoint:pi 2))
-
+(e1:define fixedpoint:-pi/2
+  (fixnum:- fixedpoint:pi/2))
 (e1:define fixedpoint:3pi/2
   (fixnum:* 3 fixedpoint:pi/2))
-
 (e1:define fixedpoint:-3pi/2
   (fixnum:- fixedpoint:3pi/2))
 
-(e1:define fixedpoint:-pi/2
-  (fixnum:- fixedpoint:pi/2))
+
+;;;;; Fixed-point sine by quintic interpolation
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Let x = t pi/2, to make sin(t) pass thru (0, 0) and (1, 1).  I manually
+;;; interpolated at⁵ + bt³ + cx = 0 ; it's an odd function, like sine, passing
+;;; thru (0, 0) and therefore not needing a zero-degree term.  I took t = 0 and
+;;; t = 1 as nodes.  Notice that the derivative in t = 0 is pi/2, not 1.
 
 (e1:define sine:a
-  (fixedpoint:/ (fixedpoint:+ (fixnum:* 4 fixedpoint:pi)
-                              (reader:string-in-simple-dot-notation->fixed-point "-16.0"))
-                (fixedpoint:cube fixedpoint:pi)))
+  (fixnum:/ (fixedpoint:- fixedpoint:pi
+                          (reader:string-in-simple-dot-notation->fixed-point "3.0"))
+            2))
 (e1:define sine:b
-  (fixedpoint:+ (fixedpoint:/ (reader:string-in-simple-dot-notation->fixed-point "12.0")
-                              (fixedpoint:square fixedpoint:pi))
-                (fixedpoint:/ (reader:string-in-simple-dot-notation->fixed-point "-4.0")
-                              fixedpoint:pi)))
-;; sine:c is 1.0 and sine:d is 0.0.  I don't really need them as globals.
+  (fixnum:/ (fixedpoint:- (reader:string-in-simple-dot-notation->fixed-point "5.0")
+                          fixedpoint:2pi)
+            2))
 (e1:define sine:c
-  (reader:string-in-simple-dot-notation->fixed-point "1.0"))
-(e1:define sine:d
-  (reader:string-in-simple-dot-notation->fixed-point "0.0"))
+  fixedpoint:pi/2)
 
+(e1:define (sine:sinet-in-0-1 t)
+  (e1:let* ((t2 (fixedpoint:* t t))
+            (t3 (fixedpoint:* t2 t))
+            (t5 (fixedpoint:* t3 t2)))
+    (fixnum:+ (fixedpoint:* sine:a t5)
+              (fixedpoint:* sine:b t3)
+              (fixedpoint:* sine:c t))))
+
+;; It's faster to multiply by 2/pi than to divide by pi/2.
+(e1:define fixedpoint:2/pi
+  (fixedpoint:/ (reader:string-in-simple-dot-notation->fixed-point "2.0")
+                fixedpoint:pi))
 (e1:define (sine:sine-in-0-pi/2 x)
-  (e1:let* ((x2 (fixedpoint:* x x))
-            (x3 (fixedpoint:* x2 x)))
-    (fixnum:+ (fixedpoint:* sine:a x3)
-              (fixedpoint:* sine:b x2)
-              (fixedpoint:* sine:c x)
-              sine:d)))
+  (sine:sinet-in-0-1 (fixedpoint:* x fixedpoint:2/pi)))
 
 (e1:define (sine:normalize-angle-in-0-2pi x-anywhere)
   (e1:let* ((x (fixnum:% x-anywhere fixedpoint:2pi)))
     (e1:if (fixnum:< x 0)
-      (fixedpoint:+ x fixedpoint:2pi)
+      ;; Unfortunately I currently can't rely on the sign of %.
+      (sine:normalize-angle-in-0-2pi (fixedpoint:+ x fixedpoint:2pi))
       x)))
 
 (e1:define (fixedpoint:sin x-anywhere)
@@ -5782,7 +5797,8 @@
     ;;            " -> " (f x)
     ;;            ": range " (i (fixnum:/ x fixedpoint:pi/2))
     ;;            "\n")
-    (e1:case (fixnum:/ x fixedpoint:pi/2)
+    (e1:case ;; (fixnum:/ x fixedpoint:pi/2)
+             (fixnum:/ (fixnum:* x 2) fixedpoint:pi) ;; more precise
       ((0)
        (sine:sine-in-0-pi/2 x))
       ((1)
@@ -5792,7 +5808,10 @@
       ((3)
        (fixnum:- (sine:sine-in-0-pi/2 (fixnum:- fixedpoint:2pi x))))
       (else
-       (e1:error "unreachable")))))
+       (fio:write "The interval index is "
+                  (i (fixnum:/ x fixedpoint:pi/2))
+                  "\n")
+       (e1:error "fixedpoint:sin: unreachable")))))
 
 
 ;;;;; Other trigonometric functions

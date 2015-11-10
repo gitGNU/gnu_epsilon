@@ -48,12 +48,13 @@ ejit_destroy_thread_state (const ejit_thread_state_t s);
    Again, the structure is intentionally opaque. */
 typedef struct ejit_code* ejit_code_t;
 
-/* If return_in_the_end is true then don't compile in a tail context and
-   generate a final end instruction.  This is probably only useful for
-   the main expression code. */
+/* If main_expression is true then compile a main expression, which of course is
+   allowed to call any procedure; executing the main expression returns from
+   the interpreter at the end.  When main_expression is true formal_list should
+   be the empty list. */
 ejit_code_t
 ejit_compile (epsilon_value formal_list, epsilon_value expression,
-              bool return_in_the_end)
+              bool main_expression)
   __attribute__(( malloc ));
 
 void

@@ -5711,6 +5711,101 @@
       (e1:load-helper file-name bp))))
 
 
+;;;;; Sine by cubic interpolation
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; I interpolated (by hand) the cubic ax³ + bx² + cx + d = 0, using 0 and pi/2
+;; as nodes.
+(e1:define (fixedpoint:square x)
+  (fixedpoint:* x x))
+
+(e1:define (fixedpoint:cube x)
+  (fixedpoint:* x (fixedpoint:* x x)))
+
+(e1:define fixedpoint:pi
+  ;; I avoid using a literal just not to introduce other Guile cruft...
+  (reader:string-in-simple-dot-notation->fixed-point "3.141592653589793"))
+
+(e1:define fixedpoint:-pi
+  (fixnum:- fixedpoint:pi))
+
+(e1:define fixedpoint:2pi
+  (fixnum:* 2 fixedpoint:pi))
+
+(e1:define fixedpoint:-2pi
+  (fixnum:- fixedpoint:2pi))
+
+(e1:define fixedpoint:pi/2
+  (fixnum:/ fixedpoint:pi 2))
+
+(e1:define fixedpoint:3pi/2
+  (fixnum:* 3 fixedpoint:pi/2))
+
+(e1:define fixedpoint:-3pi/2
+  (fixnum:- fixedpoint:3pi/2))
+
+(e1:define fixedpoint:-pi/2
+  (fixnum:- fixedpoint:pi/2))
+
+(e1:define sine:a
+  (fixedpoint:/ (fixedpoint:+ (fixnum:* 4 fixedpoint:pi)
+                              (reader:string-in-simple-dot-notation->fixed-point "-16.0"))
+                (fixedpoint:cube fixedpoint:pi)))
+(e1:define sine:b
+  (fixedpoint:+ (fixedpoint:/ (reader:string-in-simple-dot-notation->fixed-point "12.0")
+                              (fixedpoint:square fixedpoint:pi))
+                (fixedpoint:/ (reader:string-in-simple-dot-notation->fixed-point "-4.0")
+                              fixedpoint:pi)))
+;; sine:c is 1.0 and sine:d is 0.0.  I don't really need them as globals.
+(e1:define sine:c
+  (reader:string-in-simple-dot-notation->fixed-point "1.0"))
+(e1:define sine:d
+  (reader:string-in-simple-dot-notation->fixed-point "0.0"))
+
+(e1:define (sine:sine-in-0-pi/2 x)
+  (e1:let* ((x2 (fixedpoint:* x x))
+            (x3 (fixedpoint:* x2 x)))
+    (fixnum:+ (fixedpoint:* sine:a x3)
+              (fixedpoint:* sine:b x2)
+              (fixedpoint:* sine:c x)
+              sine:d)))
+
+(e1:define (sine:normalize-angle-in-0-2pi x-anywhere)
+  (e1:let* ((x (fixnum:% x-anywhere fixedpoint:2pi)))
+    (e1:if (fixnum:< x 0)
+      (fixedpoint:+ x fixedpoint:2pi)
+      x)))
+
+(e1:define (fixedpoint:sin x-anywhere)
+  (e1:let* ((x (sine:normalize-angle-in-0-2pi x-anywhere)))
+    ;; (fio:write "  ?" (f x-anywhere)
+    ;;            " -> " (f x)
+    ;;            ": range " (i (fixnum:/ x fixedpoint:pi/2))
+    ;;            "\n")
+    (e1:case (fixnum:/ x fixedpoint:pi/2)
+      ((0)
+       (sine:sine-in-0-pi/2 x))
+      ((1)
+       (sine:sine-in-0-pi/2 (fixnum:- fixedpoint:pi x)))
+      ((2)
+       (fixnum:- (sine:sine-in-0-pi/2 (fixnum:- x fixedpoint:pi))))
+      ((3)
+       (fixnum:- (sine:sine-in-0-pi/2 (fixnum:- fixedpoint:2pi x))))
+      (else
+       (e1:error "unreachable")))))
+
+
+;;;;; Other trigonometric functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (fixedpoint:cos x)
+  (fixedpoint:sin (fixnum:+ x fixedpoint:pi/2)))
+
+(e1:define (fixedpoint:tan x)
+  (fixedpoint:/ (fixedpoint:sin x)
+                (fixedpoint:cos x)))
+
+
 ;;;;; Guile-compatibility macro to help bootstrap
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

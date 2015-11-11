@@ -1,8 +1,8 @@
 ;;;;; This is -*- epsilon -*- (with very little Scheme).
 ;;;;; e0 global state, interpreter and macros defined in epsilon0 plus e1:define
 
-;;;;; Copyright (C) 2012 Université Paris 13
 ;;;;; Copyright (C) 2013, 2014, 2015 Luca Saiu
+;;;;; Copyright (C) 2012 Université Paris 13
 ;;;;; Written by Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
@@ -270,6 +270,22 @@
     (fixnum:log10-helper (fixnum:/ n (e0:value 10))
                          (fixnum:1+ acc))
     acc))
+
+;;; Fixnum square root.  The result is undefined if the argument is
+;;; negative.  This always returns the floor of the square root of n.
+(e1:define (fixnum:sqrt n)
+  (e0:if-in n (0)
+    n
+    ;; If I start with a guess which is strictly larger than the solution
+    ;; then Newton-Raphson converges monotonically.  FIXME: find a better
+    ;; first guess using a count-leading-zeros instruction.
+    (fixnum:sqrt-newton-raphson n n)))
+(e1:define (fixnum:sqrt-newton-raphson n guess)
+  (e0:let (next-guess)
+          (fixnum:half (fixnum:+ guess (fixnum:/ n guess)))
+    (e0:if-in (fixnum:>= next-guess guess) (#f)
+      (fixnum:sqrt-newton-raphson n next-guess)
+      guess)))
 
 
 ;;;;; Buffers

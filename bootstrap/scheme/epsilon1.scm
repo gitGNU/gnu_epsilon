@@ -5814,8 +5814,11 @@
        (e1:error "fixedpoint:sin: unreachable")))))
 
 
-;;;;; Other trigonometric functions
+;;;;; Easy fixed-point trascendental functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (fixedpoint:sqrt x)
+  (fixnum:sqrt (fixnum:left-shift x fixedpoint:fractional-bit-no)))
 
 (e1:define (fixedpoint:cos x)
   (fixedpoint:sin (fixnum:+ x fixedpoint:pi/2)))

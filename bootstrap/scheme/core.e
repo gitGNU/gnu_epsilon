@@ -1538,6 +1538,10 @@
 ;;; Basic arithmetic:
 (e1:define (fixedpoint:+ a b)
   (fixnum:+ a b))
+(e1:define (fixedpoint:1+ a)
+  (fixnum:+ a fixedpoint:1))
+(e1:define (fixedpoint:1- a)
+  (fixnum:- a fixedpoint:1))
 (e1:define (fixedpoint:negate a)
   (fixnum:negate a))
 (e1:define (fixedpoint:- a b)
@@ -1548,8 +1552,16 @@
   (fixnum:/ (fixnum:left-shift a fixedpoint:fractional-bit-no) b))
 (e1:define (fixedpoint:sign a)
   (fixnum:sign a))
+(e1:define (fixedpoint:half a)
+  (fixnum:half a))
+(e1:define (fixedpoint:double a)
+  (fixnum:double a))
+(e1:define (fixedpoint:square x)
+  (fixedpoint:* x x))
 
 ;;; Comparisons:
+(e1:define (fixedpoint:zero? a)
+  (fixnum:zero? a))
 (e1:define (fixedpoint:< a b)
   (fixnum:< a b))
 (e1:define (fixedpoint:> a b)

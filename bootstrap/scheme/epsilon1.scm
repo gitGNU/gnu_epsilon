@@ -5816,6 +5816,80 @@
        (e1:error "fixedpoint:sin: unreachable")))))
 
 
+;;;;; Load machine-generated tables for fixed-point procedures
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:load "fixedpoint-tables.e")
+
+
+;;;;; Fixed-point logarithm
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define fixedpoint:log-steps
+  fixedpoint:fractional-bit-no) ;; FIXME: is this always a good value?
+
+;;; This silently returns wrong results if x < 1.0.
+(e1:define (fixedpoint:log-of-at-least-1 x)
+  (fixedpoint:log-loop x 1 fixedpoint:1 fixedpoint:0))
+
+;;; Shift-and-add algorithm.
+(e1:define (fixedpoint:log-loop x k e acc)
+  ;;(fio:write "k: " (i k) "; e: " (f e) "; acc: " (f acc) "\n")
+  (e1:if (fixnum:> k fixedpoint:log-steps)
+    acc
+    (e0:let (e acc) (fixedpoint:log-inner-loop x k e acc)
+      (fixedpoint:log-loop x (fixnum:1+ k) e acc))))
+(e1:define (fixedpoint:log-inner-loop x k e acc)
+  (e1:let* ((u (fixedpoint:+ e (fixnum:logic-right-shift e k))))
+    ;;(fio:write "k: " (i k) "; e: " (f e) "; acc: " (f acc) "; u: " (f u) "\n")
+    (e1:if (fixedpoint:> u x)
+      (e1:bundle e acc)
+      (fixedpoint:log-inner-loop
+          x
+          k
+          u
+          (fixedpoint:+ acc (buffer:get fixedpoint-tables:logarithm-table k))))))
+
+;;; Slower error-checking procedure.
+(e1:define (fixedpoint:log x)
+  (e1:cond ((fixedpoint:>= x fixedpoint:1)
+            (fixedpoint:log-of-at-least-1 x))
+           ((fixedpoint:> x fixedpoint:0)
+            (fixedpoint:negate
+                (fixedpoint:log-of-at-least-1 (fixedpoint:/ fixedpoint:1 x))))
+           (else
+            (e1:error "logarithm: argument <= 0"))))
+
+;;; Version with a generic base.
+(e1:define (fixedpoint:log-with-base b x)
+  (fixedpoint:/ (fixedpoint:log x)
+                (fixedpoint:log b)))
+
+(e1:define fixedpoint:1/log2
+  (fixedpoint:/ fixedpoint:1 (fixedpoint:log fixedpoint:2)))
+(e1:define fixedpoint:1/log10
+  (fixedpoint:/ fixedpoint:1 (fixedpoint:log fixedpoint:10)))
+
+;;; Versions for common bases, optimized to only have a product instead
+;;; of a logarithm and a division.
+(e1:define (fixedpoint:log2 x)
+  (fixedpoint:* (fixedpoint:log x)
+                fixedpoint:1/log2))
+(e1:define (fixedpoint:log10 x)
+  (fixedpoint:* (fixedpoint:log x)
+                fixedpoint:1/log10))
+
+;;; Convenient variadic syntax.
+(e1:define-macro (fixedpoint:log . args)
+  (e1:case (sexpression:length args)
+    ((1)
+     `(e1:call fixedpoint:log ,@args))
+    ((2)
+     `(e1:call fixedpoint:log-with-base ,@args))
+    (else
+     `(e1:error "log: argument number not 1 or 2"))))
+
+
 ;;;;; Easy fixed-point trascendental functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

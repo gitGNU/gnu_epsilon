@@ -41,6 +41,11 @@ AM_LFLAGS = -s
 
 AM_CFLAGS = -Wall
 AM_CFLAGS += @WERROR_OR_NOTHING@
+
+BUILT_SOURCES =
+dist_noinst_SCRIPTS =
+dist_pkgdata_DATA =
+
 #AM_CFLAGS += -pthread
 #AM_CFLAGS += -static
 #AM_CFLAGS += -static-libgcc
@@ -145,6 +150,20 @@ EPSILON_UNDUMPED_SOURCE_FILES = \
   bootstrap/scheme/gc-tests.e \
   bootstrap/scheme/peano.e
 
+## This generated file is in $(EPSILON_DUMPED_SOURCE_FILES) which is part of
+## $(EPSILON_SOURCE_FILES) which is part of $(EXTRA_DIST), therefore is
+## distributed.
+## This is not really essential, but avoids a build dependency on bc for users
+## downloading a tarball.
+BUILT_SOURCES += \
+  $(srcdir)/bootstrap/scheme/fixedpoint-tables.e
+$(srcdir)/bootstrap/scheme/fixedpoint-tables.e: $(srcdir)/bootstrap/generate-fixedpoint-tables
+	echo "Generating number tables for fixed-point procedures..."
+	$(srcdir)/bootstrap/generate-fixedpoint-tables > $@
+	echo "  ...done."
+EXTRA_DIST += \
+  bootstrap/generate-fixedpoint-tables
+
 EPSILON_DUMPED_SOURCE_FILES = \
   bootstrap/scheme/core.e \
   bootstrap/scheme/unexec.e \
@@ -159,6 +178,7 @@ EPSILON_DUMPED_SOURCE_FILES = \
   bootstrap/scheme/debugging-stuff-for-guile.scm \
   bootstrap/scheme/export-toplevel-forms-to-guile.scm \
   bootstrap/scheme/fill-reflective-structures.scm \
+  bootstrap/scheme/fixedpoint-tables.e \
   bootstrap/scheme/toplevel-in-scheme.scm \
   bootstrap/scheme/conversion.scm \
   @abs_top_builddir@/bootstrap/scheme/configuration.e
@@ -170,7 +190,8 @@ EPSILON_SOURCE_FILES = \
 EXTRA_DIST += \
   $(EPSILON_SOURCE_FILES)
 
-## Some files are only useful to manually re-generate some code in core.e:
+## Some files are only useful to manually re-generate some code in core.e,
+## and are not automatically called by the build system.
 EXTRA_DIST += \
   bootstrap/scheme/generate-sum-type-from-scheme.scm \
   bootstrap/COMPRESS-WHITESPACE
@@ -217,9 +238,6 @@ noinst_LTLIBRARIES =
 #   include/epsilongc/config.h
 
 #nobase_nodist_hdir_include_HEADERS =
-BUILT_SOURCES =
-dist_noinst_SCRIPTS =
-dist_pkgdata_DATA =
 
 ## ##################################################### commodity scripts: begin
 dist_noinst_SCRIPTS += \

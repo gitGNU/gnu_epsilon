@@ -5713,6 +5713,12 @@
       (e1:load-helper file-name bp))))
 
 
+;;;;; Load machine-generated tables for fixed-point procedures
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:load "fixedpoint-tables.e")
+
+
 ;;;;; Fixed-point constants
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -5727,15 +5733,12 @@
 (e1:define fixedpoint:10
   (reader:string-in-simple-dot-notation->fixed-point "10.0"))
 
+;; These are machine-generated, with a lot of digits.
 (e1:define fixedpoint:e
-  (reader:string-in-simple-dot-notation->fixed-point
-   "2.718281828459045235360287471352662497757247093699959574966967627724076630353547594571382178525166427"))
-
+  fixedpoint-tables:e)
 (e1:define fixedpoint:pi
-  ;; I avoid using fixed-point literals just not to introduce more
-  ;; temporary Guile cruft...
-  (reader:string-in-simple-dot-notation->fixed-point
-   "3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117067"))
+  fixedpoint-tables:pi)
+
 (e1:define fixedpoint:-pi
   (fixnum:- fixedpoint:pi))
 (e1:define fixedpoint:2pi
@@ -5814,12 +5817,6 @@
                   (i (fixnum:/ x fixedpoint:pi/2))
                   "\n")
        (e1:error "fixedpoint:sin: unreachable")))))
-
-
-;;;;; Load machine-generated tables for fixed-point procedures
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(e1:load "fixedpoint-tables.e")
 
 
 ;;;;; Fixed-point logarithm

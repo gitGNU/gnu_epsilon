@@ -1,7 +1,7 @@
 ;;;;; Bootstrap driver in Guile -*- Scheme -*-.
 
 ;;;;; Copyright (C) 2012 Université Paris 13
-;;;;; Updated in 2013 and 2014 by Luca Saiu
+;;;;; Updated in 2013, 2014 and 2015 by Luca Saiu
 ;;;;; Written by Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
@@ -67,9 +67,3 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (load "unexec-repl.e")
-
-
-;;;;; Load the scratch file
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(load "scratch.e")

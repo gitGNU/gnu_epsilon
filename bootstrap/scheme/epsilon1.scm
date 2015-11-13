@@ -5822,17 +5822,26 @@
 ;;;;; Fixed-point logarithm
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:define fixedpoint:log-steps
-  fixedpoint:fractional-bit-no) ;; FIXME: is this always a good value?
-
 ;;; This silently returns wrong results if x < 1.0.
 (e1:define (fixedpoint:log-of-at-least-1 x)
   (fixedpoint:log-loop x 1 fixedpoint:1 fixedpoint:0))
 
+;;; Slower error-checking procedure.
+(e1:define (fixedpoint:log x)
+  (e1:cond ((fixedpoint:>= x fixedpoint:1)
+            (fixedpoint:log-of-at-least-1 x))
+           ((fixedpoint:> x fixedpoint:0)
+            (fixedpoint:negate
+                (fixedpoint:log-of-at-least-1 (fixedpoint:/ fixedpoint:1 x))))
+           (else
+            (e1:error "logarithm: argument <= 0"))))
+
 ;;; Shift-and-add algorithm.
+(e1:define fixedpoint:log-steps
+  fixedpoint:fractional-bit-no) ;; FIXME: is this always a good value?
 (e1:define (fixedpoint:log-loop x k e acc)
   ;;(fio:write "k: " (i k) "; e: " (f e) "; acc: " (f acc) "\n")
-  (e1:if (fixnum:> k fixedpoint:log-steps)
+  (e1:if (fixnum:>= k fixedpoint:log-steps)
     acc
     (e0:let (e acc) (fixedpoint:log-inner-loop x k e acc)
       (fixedpoint:log-loop x (fixnum:1+ k) e acc))))
@@ -5846,16 +5855,6 @@
           k
           u
           (fixedpoint:+ acc (buffer:get fixedpoint-tables:logarithm-table k))))))
-
-;;; Slower error-checking procedure.
-(e1:define (fixedpoint:log x)
-  (e1:cond ((fixedpoint:>= x fixedpoint:1)
-            (fixedpoint:log-of-at-least-1 x))
-           ((fixedpoint:> x fixedpoint:0)
-            (fixedpoint:negate
-                (fixedpoint:log-of-at-least-1 (fixedpoint:/ fixedpoint:1 x))))
-           (else
-            (e1:error "logarithm: argument <= 0"))))
 
 ;;; Version with a generic base.
 (e1:define (fixedpoint:log-with-base b x)
@@ -5885,6 +5884,68 @@
      `(e1:call fixedpoint:log-with-base ,@args))
     (else
      `(e1:error "log: argument number not 1 or 2"))))
+
+
+;;;;; Fixed-point exponential
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; This silently returns incorrect results for x < 0.
+(e1:define (fixedpoint:exp-of-at-least-0 x)
+  (fixedpoint:exp-loop x 1 fixedpoint:0 fixedpoint:1))
+
+;;; Slower more general version.
+(e1:define (fixedpoint:exp x)
+  (e1:if (fixedpoint:< x 0)
+    (fixedpoint:/ fixedpoint:1
+                  (fixedpoint:exp-of-at-least-0 (fixedpoint:negate x)))
+    (fixedpoint:exp-of-at-least-0 x)))
+
+;;; Another shift-and-add algorithm.
+(e1:define fixedpoint:exp-steps
+  fixedpoint:fractional-bit-no) ;; FIXME: is this always a good value?
+(e1:define (fixedpoint:exp-loop x k t acc)
+  (e1:if (fixnum:>= k fixedpoint:exp-steps)
+    acc
+    (e0:let (t acc) (fixedpoint:exp-inner-loop x k t acc)
+      (fixedpoint:exp-loop x (fixnum:1+ k) t acc))))
+(e1:define (fixedpoint:exp-inner-loop x k t acc)
+  (e1:let* ((u (fixedpoint:+ t (buffer:get fixedpoint-tables:logarithm-table k))))
+    (e1:if (fixedpoint:> u x)
+      (e1:bundle t acc)
+      (fixedpoint:exp-inner-loop
+          x
+          k
+          u
+          (fixedpoint:+ acc (fixnum:logic-right-shift acc k))))))
+
+;;; Exponentiation with a generic base.
+(e1:define (fixedpoint:pow b x)
+  (fixedpoint:exp (fixedpoint:* (fixedpoint:log b) x)))
+
+;;; Exponentiation with common bases, optimized to avoid the logarithm.
+(e1:define fixedpoint:log2 (fixedpoint:log fixedpoint:2))
+(e1:define fixedpoint:log10 (fixedpoint:log fixedpoint:10))
+(e1:define (fixedpoint:pow2 x)
+  (fixedpoint:exp (fixedpoint:* fixedpoint:log2 x)))
+(e1:define (fixedpoint:pow10 x)
+  (fixedpoint:exp (fixedpoint:* fixedpoint:log10 x)))
+
+;;; Aliases.  FIXME: do I really want these?
+(e1:define (fixedpoint:exp2 x)
+  (fixedpoint:pow2 x))
+(e1:define (fixedpoint:exp10 x)
+  (fixedpoint:pow10 x))
+
+;;; It might be convenient to be able to call exp with two arguments, just
+;;; like log.  The base comes first.
+(e1:define-macro (fixedpoint:exp . args)
+  (e1:case (sexpression:length args)
+    ((1)
+     `(e1:call fixedpoint:exp ,@args))
+    ((2)
+     `(e1:call fixedpoint:pow ,@args))
+    (else
+     `(e1:error "fixedpoint:exp: argument number not 1 or 2"))))
 
 
 ;;;;; Easy fixed-point trascendental functions

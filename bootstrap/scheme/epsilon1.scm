@@ -5085,16 +5085,18 @@
       (else
        (reader:string-in-simple-dot-notation->fixed-point-helper s 0 0)))))
 (e1:define (reader:string-in-simple-dot-notation->fixed-point-helper s i acc)
-  (e1:let ((c (string:get s i)))
-    (e1:if (whatever:eq? c #\.)
-      (e1:let ((integer-part (fixedpoint:fixnum->fixedpoint acc))
-               (fractional-part (fixedpoint:fractional-digits-string-to-bitmask s (fixnum:1+ i))))
-        (fixnum:bitwise-or integer-part fractional-part))
-      (e1:let ((c-digit (reader:character-value c 10)))
-        (reader:string-in-simple-dot-notation->fixed-point-helper
-         s
-         (fixnum:1+ i)
-         (fixnum:+ c-digit (fixnum:* acc 10)))))))
+  (e1:if (fixnum:= i (string:length s))
+    (fixedpoint:fixnum->fixedpoint acc) ;; also recognize an integer with no dot
+    (e1:let ((c (string:get s i)))
+      (e1:if (whatever:eq? c #\.)
+        (e1:let ((integer-part (fixedpoint:fixnum->fixedpoint acc))
+                 (fractional-part (fixedpoint:fractional-digits-string-to-bitmask s (fixnum:1+ i))))
+          (fixnum:bitwise-or integer-part fractional-part))
+        (e1:let ((c-digit (reader:character-value c 10)))
+          (reader:string-in-simple-dot-notation->fixed-point-helper
+           s
+           (fixnum:1+ i)
+           (fixnum:+ c-digit (fixnum:* acc 10))))))))
 
 ;;; This implementation is quite inefficient and not particularly beautiful.  It
 ;;; follows the usual doubling algorithm.

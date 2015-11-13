@@ -293,6 +293,16 @@
              result)))))
 
 
+;;;;; I want to be able to evaluate e1:load from Guile as well
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define-macro (e1:load file-name)
+  `(begin
+     (format #t "Loading ~s from Guile...\n" ,file-name)
+     (load ,file-name)
+     (format #t "... successfully loaded ~s from Guile.\n" ,file-name)))
+
+
 ;;;; We're done
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

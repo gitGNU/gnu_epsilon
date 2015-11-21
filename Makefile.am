@@ -157,8 +157,8 @@ EPSILON_UNDUMPED_SOURCE_FILES = \
 ## This is not really essential, but avoids a build dependency on bc for users
 ## downloading a tarball.
 BUILT_SOURCES += \
-  $(srcdir)/bootstrap/scheme/fixedpoint-tables.e
-$(srcdir)/bootstrap/scheme/fixedpoint-tables.e: $(srcdir)/bootstrap/generate-fixedpoint-tables
+  $(srcdir)/bootstrap/scheme/fixed-point-tables.e
+$(srcdir)/bootstrap/scheme/fixed-point-tables.e: $(srcdir)/bootstrap/generate-fixedpoint-tables
 	echo "Generating number tables for fixed-point procedures..."
 	$(srcdir)/bootstrap/generate-fixedpoint-tables > $@
 	echo "  ...done."
@@ -180,10 +180,11 @@ EPSILON_EARLY_DUMPED_SOURCE_FILES = \
 EPSILON_LATE_DUMPED_SOURCE_FILES = \
   bootstrap/scheme/unexec-repl.e \
   bootstrap/scheme/repl.e \
+  bootstrap/scheme/fixed-point.e \
   bootstrap/scheme/compiler.e \
   bootstrap/scheme/brainfuck.e \
   bootstrap/scheme/export-toplevel-forms-to-guile.scm \
-  bootstrap/scheme/fixedpoint-tables.e
+  bootstrap/scheme/fixed-point-tables.e
 
 EPSILON_DUMPED_SOURCE_FILES = \
   $(EPSILON_EARLY_DUMPED_SOURCE_FILES) \

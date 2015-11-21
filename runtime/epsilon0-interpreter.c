@@ -367,6 +367,9 @@ static epsilon_int e0_eval_expressions_with_stack(epsilon_value expressions, imp
 }
 
 epsilon_value epsilon_e0_eval_making_stacks(epsilon_value expression, epsilon_value local_environment_as_alist){
+  // FIXME: this would be the right thing to do, but it interferes with GC roots in
+  // Guile 1, which is still the most convenient one to use.
+#if 0
   /* Allocate imperative stacks.  By doing this on the heap I no longer require
      extreme ulimit -s settings. */
   epsilon_value *value_stack
@@ -374,6 +377,14 @@ epsilon_value epsilon_e0_eval_making_stacks(epsilon_value expression, epsilon_va
   struct imperative_environment_item *imperative_environment_stack
     = epsilon_xmalloc (sizeof (struct imperative_environment_item)
                        * EPSILON_EVAL_STACK_ELEMENT_NO);
+  GC_add_roots (value_stack, value_stack + EPSILON_EVAL_STACK_ELEMENT_NO);
+  GC_add_roots (imperative_environment_stack,
+                imperative_environment_stack + EPSILON_EVAL_STACK_ELEMENT_NO);
+#else
+  epsilon_value value_stack [EPSILON_EVAL_STACK_ELEMENT_NO];
+  struct imperative_environment_item
+    imperative_environment_stack [EPSILON_EVAL_STACK_ELEMENT_NO];
+#endif // #if 0
 
   /* Add local environment bindings: */
   imperative_environment_t imperative_environment = epsilon_mark_environment_end(imperative_environment_stack);
@@ -391,9 +402,15 @@ epsilon_value epsilon_e0_eval_making_stacks(epsilon_value expression, epsilon_va
   for(i = result_no - 1; i >= 0; i --)
     result = epsilon_value_cons(value_stack[i], result);
 
+  // See the comment above.x
+#if 0
   /* Destroy stacks. */
+  GC_remove_roots (value_stack, value_stack + EPSILON_EVAL_STACK_ELEMENT_NO);
+  GC_remove_roots (imperative_environment_stack,
+                imperative_environment_stack + EPSILON_EVAL_STACK_ELEMENT_NO);
   free (value_stack);
   free (imperative_environment_stack);
+#endif // #if 0
 
   return result;
 }

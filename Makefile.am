@@ -650,7 +650,7 @@ strip: all
 	rm -f "$@" # Remove the files we're about to generate, just in case we fail later.
 	rm -f "@abs_top_builddir@/dumps/repl.u"
 	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
-	ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
+	export GUILE_STACK_SIZE=10000000; ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
 	  "@abs_top_builddir@/bin/guile+whatever" \
 	  @GUILE_NO_AUTO_COMPILE@ \
 	  -l "@abs_top_srcdir@/bootstrap/scheme/bootstrap.scm" \
@@ -661,19 +661,19 @@ strip: all
 
 guile+whatever-repl: @abs_top_builddir@/dumps/quick-start.dump
 	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
-	ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
+	export GUILE_STACK_SIZE=10000000; ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
 	  "@abs_top_builddir@/bin/guile+whatever" \
 	  @GUILE_NO_AUTO_COMPILE@ \
 	  -l "@abs_top_srcdir@/bootstrap/scheme/quick-start.scm"
 
 repl: @abs_top_builddir@/dumps/repl.u
 	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
-	ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
+	export GUILE_STACK_SIZE=10000000; ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "@abs_top_builddir@/dumps/repl.u"
 
 # Run an existing REPL, without ever rebuilding it.
 quick-repl:
-	ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
+	export GUILE_STACK_SIZE=10000000; ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "@abs_top_builddir@/dumps/repl.u"
 ## ####################################################### interactive targets: end
 

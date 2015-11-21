@@ -171,6 +171,7 @@ static epsilon_int epsilon_e0_eval_with_stack(epsilon_value expression, imperati
   epsilon_int opcode = epsilon_value_to_epsilon_int(epsilon_load_with_epsilon_int_offset(expression, 0));
   switch(opcode){
   case e0_variable_opcode:{
+    // fprintf (stderr, "%s: variable\n", __func__);
     epsilon_value name = epsilon_load_with_epsilon_int_offset(expression, 2);
     if(epsilon_has_environment(local_environment, name)){
       *value_stack = epsilon_lookup_environment(local_environment, name);
@@ -187,14 +188,17 @@ static epsilon_int epsilon_e0_eval_with_stack(epsilon_value expression, imperati
     } // else
   }
   case e0_value_opcode:{
+    // fprintf (stderr, "%s: value\n", __func__);
     *value_stack = epsilon_load_with_epsilon_int_offset(expression, 2);
     return 1;
   }
   case e0_bundle_opcode:{
+    // fprintf (stderr, "%s: bundle\n", __func__);
     epsilon_value items = epsilon_load_with_epsilon_int_offset(expression, 2);
     return e0_eval_expressions_with_stack(items, local_environment, value_stack);
   }
   case e0_primitive_opcode:{
+    // fprintf (stderr, "%s: primitive\n", __func__);
     epsilon_value primitive_name = epsilon_load_with_epsilon_int_offset(expression, 2);
     epsilon_value primitive_descriptor = epsilon_load_with_epsilon_int_offset(primitive_name, 7);
     if(epsilon_value_is_zero(primitive_descriptor))
@@ -210,6 +214,7 @@ static epsilon_int epsilon_e0_eval_with_stack(epsilon_value expression, imperati
     return primitive_out_dimension;
   }
   case e0_let_opcode:{
+    // fprintf (stderr, "%s: let\n", __func__);
     epsilon_value bound_expression = epsilon_load_with_epsilon_int_offset(expression, 3);
     epsilon_int bound_expression_result_no =
       epsilon_e0_eval_with_stack(bound_expression, local_environment, value_stack, false);
@@ -227,6 +232,7 @@ static epsilon_int epsilon_e0_eval_with_stack(epsilon_value expression, imperati
     return epsilon_e0_eval_with_stack(body_expression, local_environment, value_stack, tail);
   }
   case e0_call_opcode:{
+    // fprintf (stderr, "%s: call\n", __func__);
 #ifdef EPSILON_RUNTIME_SMOB
     SCM_TICK; // Guile can be interrupted here; this single epsilon_value_TICK should be reachable periodically
 #endif // EPSILON_RUNTIME_SMOB
@@ -254,6 +260,7 @@ static epsilon_int epsilon_e0_eval_with_stack(epsilon_value expression, imperati
     return epsilon_e0_eval_with_stack(procedure_body, local_environment, value_stack, true);
   }
   case e0_call_indirect_opcode:{
+    // fprintf (stderr, "%s: call-indirect\n", __func__);
     epsilon_value procedure_expression = epsilon_load_with_epsilon_int_offset(expression, 2);
     epsilon_value procedure_name =
       e0_eval_out_dimension_1_expression_with_stack(procedure_expression, local_environment, value_stack);
@@ -280,6 +287,7 @@ static epsilon_int epsilon_e0_eval_with_stack(epsilon_value expression, imperati
     return epsilon_e0_eval_with_stack(procedure_body, local_environment, value_stack, true);
   }
   case e0_if_in_opcode:{
+    // fprintf (stderr, "%s: if-in\n", __func__);
     epsilon_value discriminand_expression = epsilon_load_with_epsilon_int_offset(expression, 2);
     epsilon_value discriminand_value =
       e0_eval_out_dimension_1_expression_with_stack(discriminand_expression,
@@ -292,6 +300,7 @@ static epsilon_int epsilon_e0_eval_with_stack(epsilon_value expression, imperati
       return epsilon_e0_eval_with_stack(epsilon_load_with_epsilon_int_offset(expression, 5), local_environment, value_stack, tail);
   }
   case e0_fork_opcode:{
+    // fprintf (stderr, "%s: fork\n", __func__);
     epsilon_value procedure_name = epsilon_load_with_epsilon_int_offset(expression, 2);
     epsilon_value actuals = epsilon_load_with_epsilon_int_offset(expression, 3);
     epsilon_int actual_value_no = e0_eval_expressions_with_stack(actuals, local_environment, value_stack);
@@ -325,6 +334,7 @@ static epsilon_int epsilon_e0_eval_with_stack(epsilon_value expression, imperati
     return 1;
   }
   case e0_join_opcode:{
+    // fprintf (stderr, "%s: join\n", __func__);
     epsilon_value future_expression = epsilon_load_with_epsilon_int_offset(expression, 2);
     epsilon_value future_value __attribute__((unused)) =
       e0_eval_out_dimension_1_expression_with_stack(future_expression,
@@ -357,9 +367,13 @@ static epsilon_int e0_eval_expressions_with_stack(epsilon_value expressions, imp
 }
 
 epsilon_value epsilon_e0_eval_making_stacks(epsilon_value expression, epsilon_value local_environment_as_alist){
-  /* Allocate and prepare imperative stacks (on the C stack): */
-  epsilon_value value_stack[EPSILON_EVAL_STACK_ELEMENT_NO];
-  struct imperative_environment_item imperative_environment_stack[EPSILON_EVAL_STACK_ELEMENT_NO];
+  /* Allocate imperative stacks.  By doing this on the heap I no longer require
+     extreme ulimit -s settings. */
+  epsilon_value *value_stack
+    = epsilon_xmalloc (sizeof (epsilon_value) * EPSILON_EVAL_STACK_ELEMENT_NO);
+  struct imperative_environment_item *imperative_environment_stack
+    = epsilon_xmalloc (sizeof (struct imperative_environment_item)
+                       * EPSILON_EVAL_STACK_ELEMENT_NO);
 
   /* Add local environment bindings: */
   imperative_environment_t imperative_environment = epsilon_mark_environment_end(imperative_environment_stack);
@@ -376,5 +390,10 @@ epsilon_value epsilon_e0_eval_making_stacks(epsilon_value expression, epsilon_va
   epsilon_int i;
   for(i = result_no - 1; i >= 0; i --)
     result = epsilon_value_cons(value_stack[i], result);
+
+  /* Destroy stacks. */
+  free (value_stack);
+  free (imperative_environment_stack);
+
   return result;
 }

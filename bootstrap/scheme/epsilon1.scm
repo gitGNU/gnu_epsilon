@@ -5861,6 +5861,8 @@
   (fixedpoint:/ (fixedpoint:log x)
                 (fixedpoint:log b)))
 
+;; FIXME: these could be computed in a different scale, so that they can be
+;; multiplied with fixnum:*, which avoids a shift.
 (e1:define fixedpoint:1/log2
   (fixedpoint:/ fixedpoint:1 (fixedpoint:log fixedpoint:2)))
 (e1:define fixedpoint:1/log10

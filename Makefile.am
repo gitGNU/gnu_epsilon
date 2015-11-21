@@ -181,6 +181,7 @@ EPSILON_LATE_DUMPED_SOURCE_FILES = \
   bootstrap/scheme/unexec-repl.e \
   bootstrap/scheme/repl.e \
   bootstrap/scheme/fixed-point.e \
+  bootstrap/scheme/analyses-and-optimizations.e \
   bootstrap/scheme/compiler.e \
   bootstrap/scheme/brainfuck.e \
   bootstrap/scheme/export-toplevel-forms-to-guile.scm \
@@ -653,12 +654,11 @@ strip: all
 	strip $(bin_PROGRAMS)
 
 ## ####################################################### interactive targets: begin
-#GUILE2_STACK_SIZE = 9000000000
-GUILE2_STACK_SIZE = 1000000
+GUILE2_STACK_SIZE = 5000000000
 @abs_top_builddir@/dumps/unexec-repl.u: $(bin_PROGRAMS) $(lib_LIBRARIES) $(EPSILON_EARLY_DUMPED_SOURCE_FILES)
 	rm -f "$@" # Remove the file we're about to generate, just in case we fail later.
 	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
-	echo export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
+	export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
 	  "@abs_top_builddir@/bin/guile+whatever" \
 	  @GUILE_NO_AUTO_COMPILE@ \
 	  -l "@abs_top_srcdir@/bootstrap/scheme/bootstrap.scm" \
@@ -668,18 +668,18 @@ GUILE2_STACK_SIZE = 1000000
 ## will avoid bootstrapping from Guile in many cases, making builds faster.
 @abs_top_builddir@/dumps/repl.u: bin/epsilon-image-interpreter-tagged @abs_top_builddir@/dumps/unexec-repl.u $(EPSILON_LATE_DUMPED_SOURCE_FILES)
 	rm -f "$@" # Remove the file we're about to generate, just in case we fail later.
-	echo export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
+	export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "@abs_top_builddir@/dumps/unexec-repl.u"
 
 repl: @abs_top_builddir@/dumps/repl.u
 	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
-	echo export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
+	export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "@abs_top_builddir@/dumps/repl.u"
 
 ## Run an existing REPL without rebuilding it, even when dependencies would require
 ## a rebuild.
 quick-repl: bin/epsilon-image-interpreter-tagged
-	echo export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
+	export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "@abs_top_builddir@/dumps/repl.u"
 
 ## The REPL should be built as a depencency of the default target, but not distributed

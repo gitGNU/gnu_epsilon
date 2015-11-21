@@ -1,4 +1,4 @@
-;;;;; Load advanced features and unexec an -*- epsilon -*- REPL.  No Guile.
+;;;;; Fixed-point numbers in -*- epsilon -*-.
 
 ;;;;; Copyright (C) 2013, 2014, 2015  Luca Saiu
 

@@ -1532,6 +1532,9 @@
 (e1:define fixedpoint:fractional-bitmask
   (fixnum:1- (fixnum:left-shift (e0:value 1) fixedpoint:fractional-bit-no)))
 
+(e1:define fixedpoint:fractional-bit-no/2
+  (fixnum:half fixedpoint:fractional-bit-no))
+
 (e1:define (fixedpoint:fixnum->fixedpoint fixnum)
   (fixnum:left-shift fixnum fixedpoint:fractional-bit-no))
 
@@ -1546,8 +1549,16 @@
   (fixnum:negate a))
 (e1:define (fixedpoint:- a b)
   (fixnum:- a b))
+
 (e1:define (fixedpoint:* a b)
   (fixnum:arithmetic-right-shift (fixnum:* a b) fixedpoint:fractional-bit-no))
+
+;; FIXME: this version is less subject to overflow but loses more information in
+;; the fractional part.  Shall I keep both?
+;; (e1:define (fixedpoint:* a b)
+;;   (fixnum:* (fixnum:arithmetic-right-shift a fixedpoint:fractional-bit-no/2)
+;;             (fixnum:arithmetic-right-shift b fixedpoint:fractional-bit-no/2)))
+
 (e1:define (fixedpoint:/ a b)
   (fixnum:/ (fixnum:left-shift a fixedpoint:fractional-bit-no) b))
 (e1:define (fixedpoint:sign a)

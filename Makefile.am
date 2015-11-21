@@ -646,11 +646,13 @@ strip: all
 	strip $(bin_PROGRAMS)
 
 ## ####################################################### interactive targets: begin
+#GUILE2_STACK_SIZE = 9000000000
+GUILE2_STACK_SIZE = 1000000
 @abs_top_builddir@/dumps/quick-start.dump: $(bin_PROGRAMS) $(lib_LIBRARIES) $(EPSILON_DUMPED_SOURCE_FILES)
 	rm -f "$@" # Remove the files we're about to generate, just in case we fail later.
 	rm -f "@abs_top_builddir@/dumps/repl.u"
 	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
-	export GUILE_STACK_SIZE=10000000; ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
+	echo export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
 	  "@abs_top_builddir@/bin/guile+whatever" \
 	  @GUILE_NO_AUTO_COMPILE@ \
 	  -l "@abs_top_srcdir@/bootstrap/scheme/bootstrap.scm" \
@@ -661,19 +663,19 @@ strip: all
 
 guile+whatever-repl: @abs_top_builddir@/dumps/quick-start.dump
 	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
-	export GUILE_STACK_SIZE=10000000; ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
+	echo export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
 	  "@abs_top_builddir@/bin/guile+whatever" \
 	  @GUILE_NO_AUTO_COMPILE@ \
 	  -l "@abs_top_srcdir@/bootstrap/scheme/quick-start.scm"
 
 repl: @abs_top_builddir@/dumps/repl.u
 	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
-	export GUILE_STACK_SIZE=10000000; ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
+	echo export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "@abs_top_builddir@/dumps/repl.u"
 
 # Run an existing REPL, without ever rebuilding it.
 quick-repl:
-	export GUILE_STACK_SIZE=10000000; ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
+	echo export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "@abs_top_builddir@/dumps/repl.u"
 ## ####################################################### interactive targets: end
 

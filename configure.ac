@@ -308,6 +308,7 @@ if $GUILE --no-auto-compile -q -c 42 &> /dev/null; then
    AC_SUBST(GUILE_NO_AUTO_COMPILE, "--no-auto-compile")
    AC_MSG_RESULT([yes])
    AC_MSG_WARN([due to my horrible macro abuses Guile 2 has to be used with --no-auto-compile, which is slow.])
+   AC_MSG_WARN([Support for Guile 2 might be flimsy: there's a stack overflow problem I've not correctly traced])
 else
    AC_SUBST(GUILE_NO_AUTO_COMPILE, "")
    AC_MSG_RESULT([no])

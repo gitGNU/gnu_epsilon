@@ -1,7 +1,8 @@
-;;;;; Bootstrap driver in Guile -*- Scheme -*-.
+;;;;; Bootstrap driver in Guile Scheme, of course with some -*- epsilon -*-.
 
+;;;;; Copyright (C) 2015 Luca Saiu
 ;;;;; Copyright (C) 2012 Université Paris 13
-;;;;; Updated in 2013, 2014 and 2015 by Luca Saiu
+;;;;; Updated in 2013 and 2014 by Luca Saiu
 ;;;;; Written by Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
@@ -28,42 +29,38 @@
 (load "unexec.e")
 (load "fill-reflective-structures.scm")
 (load "toplevel-in-scheme.scm")
+
+
+;;; This is the heavyweight definition of epsilon1 built on epsilon0.  It should
+;;; contain everything needed to unexec an image to be execed in an image
+;;; interpreter, with no Guile.
 (load "epsilon1.scm")
 
-;; Load configuration-dependant stuff.  This needs the
-;; EPSILON_BUILD_PATH environment variable to be defined.
+;;; Load configuration-dependant stuff.  This needs the
+;;; EPSILON_BUILD_PATH environment variable to be defined.
 (define epsilon-build-path (getenv "EPSILON_BUILD_PATH"))
 (unless epsilon-build-path
   (error "the environment variable EPSILON_BUILD_PATH is not defined"))
 (load (string-append epsilon-build-path "/bootstrap/scheme/configuration.e"))
 
-;; Load the configuration-dependant stuff again, this time into the
-;; epsilon1 state environments.  Now we can use configuration:abs_top_builddir,
-;; which was defined in the epsilon state environment from Guile.
-(e1:toplevel (e1:load (string:append configuration:abs_top_builddir
-                                     "/bootstrap/scheme/configuration.e")))
+;;; Unexec, so that the rest can be run faster after execing from the image
+;;; interpreter, without using Guile.
 
+(e1:toplevel
+ (e1:let ((file-name (string:append configuration:abs_top_builddir
+                                    configuration:dir_separator
+                                    "dumps/unexec-repl.u")))
+   (fio:write "Unexecing an epsilon1 image loading the rest into " (st file-name) "...\n")
+   (e1:unexec file-name
+     (fio:write "Still alive, working to unexec a REPL.  Hello from unexec-repl.e...\n")
+     (fio:write "About to load "
+                (st (string:append configuration:abs_top_srcdir
+                                   configuration:dir_separator
+                                   "bootstrap/scheme/unexec-repl.e"))
+                "\n")
+     (e1:load (string:append configuration:abs_top_srcdir
+                             configuration:dir_separator
+                             "bootstrap/scheme/unexec-repl.e")))
+   (fio:write "... done.\n")))
 
-;;;;; Bootstrap: load more advanced features
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(load "repl.e") ;; We need to load this late because it depends on source paths.
-(load "compiler.e")
-;(load "brainfuck.e")
-;(load "scratch-c64-demo.e")
-
-
-;;;;; Save the current state, to make quick-start.scm work:
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(format #t "Saving the state to make quick-start.scm work later...\n")
-(e1:toplevel (marshal:marshal (string:append configuration:abs_top_builddir
-                                             (e0:value "/dumps/quick-start.dump"))
-                              symbol:table))
-(format #t "...done\n")
-
-
-;;;;; Unexec a non-Guile REPL
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(load "unexec-repl.e")
+(display "Unexeced epsilon1.u.  We no longer need Guile from now on.\n")

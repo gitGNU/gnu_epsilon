@@ -1,5 +1,5 @@
+Copyright (C) 2013, 2014, 2015 Luca Saiu
 Copyright (C) 2012 Université Paris 13
-Copyright (C) 2013, 2014 Luca Saiu
 Written by Luca Saiu
 
 This file is part of GNU epsilon.
@@ -18,33 +18,42 @@ You should have received a copy of the GNU General Public License
 along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
-[FIXME: this is now moslty obsolete]
+Quick start
+-----------
+
+Due to my horrible abuse of Scheme macros epsilon bootstrap faster with Guile
+version 1 than with Guile version 2; with Guile 2 you need to disable the
+bytecode compiler; building and running the REPL thru make automatically do
+this.
+
+I currently recommend running the epsilon1 repl thru make, from the build
+directory.  Just run:
+
+  make repl
+
+.  This will bootstrap from Scheme and/or unexec the needed images, then start a
+native epsilon interactive REPL.
+
+Sometimes you may want to run a REPL without rebuilding it, which is to say
+ignoring its build dependencies.  In order to do this, just run
+
+  make quick-repl
+.
+
+
+A few notes about running the epsilon or Scheme REPLs without make
+------------------------------------------------------------------
+
+This is tricky, and the interface will change in the future.  You probably don't
+need this, and this information may rapidly get out of date.
 
 The Scheme files in bootstrap/scheme depend on guile+whatever.
 When linked against Guile 2.x, guile+whatever should always be called *with* the option
---no-auto-compile .  Setting the stack size to unlimited might be needed as well (under
+--no-auto-compile .  Setting the stack size to unlimited is probably needed as well (under
 GNU Bash, run
+
   ulimit -s unlimited
-in the interactive shell before launching guile+whatever).
 
-guile+whatever should always be called from the directory
-bootstrap/scheme -- hence *not* from the directory where its compiled
-executable file resides.
-
-From guile+whatever (using the load procedure or from the shell
-command line), you can load:
-
-* bootstrap.scm
-* quick-start.scm (same effect as bootstrap.scm but faster, using exec: it
-                   only works after bootstrap.scm has been run with success:
-                   bootstrap.scm also does unexec during startup)
-
-
-epsilon1
---------
-bootstrap.scm and quick-start.scm do not load the epsilon1 REPL, but
-epsilon1 expressions can be evaluated with the macro e1:toplevel.  For example:
-
-  (e1:toplevel (cons:cons 1 2))
-
-will return a whatever cons.
+in the interactive shell before launching guile+whatever).  You may also need to make the
+Scheme stack bigger if using Guile 2 to bootstrap, by setting the environment variable
+GUILE2_STACK_SIZE.

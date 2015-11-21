@@ -33,6 +33,7 @@
 ################## To do: this seems ugly. Is it still needed? Yes, it is.
 
 EXTRA_DIST =
+data_DATA =
 AM_LDFLAGS =
 AUTOMAKE_OPTIONS = subdir-objects
 
@@ -164,24 +165,29 @@ $(srcdir)/bootstrap/scheme/fixedpoint-tables.e: $(srcdir)/bootstrap/generate-fix
 EXTRA_DIST += \
   bootstrap/generate-fixedpoint-tables
 
-EPSILON_DUMPED_SOURCE_FILES = \
+EPSILON_EARLY_DUMPED_SOURCE_FILES = \
+  bootstrap/scheme/bootstrap.scm \
+  bootstrap/scheme/epsilon0-in-scheme.scm \
+  bootstrap/scheme/debugging-stuff-for-guile.scm \
+  bootstrap/scheme/conversion.scm \
   bootstrap/scheme/core.e \
   bootstrap/scheme/unexec.e \
-  bootstrap/scheme/unexec-repl.e \
+  bootstrap/scheme/fill-reflective-structures.scm \
+  bootstrap/scheme/toplevel-in-scheme.scm \
   bootstrap/scheme/epsilon1.scm \
+  @abs_top_builddir@/bootstrap/scheme/configuration.e
+
+EPSILON_LATE_DUMPED_SOURCE_FILES = \
+  bootstrap/scheme/unexec-repl.e \
   bootstrap/scheme/repl.e \
   bootstrap/scheme/compiler.e \
   bootstrap/scheme/brainfuck.e \
-  bootstrap/scheme/epsilon0-in-scheme.scm \
-  bootstrap/scheme/bootstrap.scm \
-  bootstrap/scheme/quick-start.scm \
-  bootstrap/scheme/debugging-stuff-for-guile.scm \
   bootstrap/scheme/export-toplevel-forms-to-guile.scm \
-  bootstrap/scheme/fill-reflective-structures.scm \
-  bootstrap/scheme/fixedpoint-tables.e \
-  bootstrap/scheme/toplevel-in-scheme.scm \
-  bootstrap/scheme/conversion.scm \
-  @abs_top_builddir@/bootstrap/scheme/configuration.e
+  bootstrap/scheme/fixedpoint-tables.e
+
+EPSILON_DUMPED_SOURCE_FILES = \
+  $(EPSILON_EARLY_DUMPED_SOURCE_FILES) \
+  $(EPSILON_LATE_DUMPED_SOURCE_FILES)
 
 EPSILON_SOURCE_FILES = \
   $(EPSILON_DUMPED_SOURCE_FILES) \
@@ -648,35 +654,37 @@ strip: all
 ## ####################################################### interactive targets: begin
 #GUILE2_STACK_SIZE = 9000000000
 GUILE2_STACK_SIZE = 1000000
-@abs_top_builddir@/dumps/quick-start.dump: $(bin_PROGRAMS) $(lib_LIBRARIES) $(EPSILON_DUMPED_SOURCE_FILES)
-	rm -f "$@" # Remove the files we're about to generate, just in case we fail later.
-	rm -f "@abs_top_builddir@/dumps/repl.u"
+@abs_top_builddir@/dumps/unexec-repl.u: $(bin_PROGRAMS) $(lib_LIBRARIES) $(EPSILON_EARLY_DUMPED_SOURCE_FILES)
+	rm -f "$@" # Remove the file we're about to generate, just in case we fail later.
 	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
 	echo export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
 	  "@abs_top_builddir@/bin/guile+whatever" \
 	  @GUILE_NO_AUTO_COMPILE@ \
 	  -l "@abs_top_srcdir@/bootstrap/scheme/bootstrap.scm" \
-	  -c '(begin (display "Successfully bootstrapped from Guile\n") (exit 0))'
+	  -c '(exit 0)'
 
-# The REPL is generated as a side effect.
-@abs_top_builddir@/dumps/repl.u: @abs_top_builddir@/dumps/quick-start.dump
-
-guile+whatever-repl: @abs_top_builddir@/dumps/quick-start.dump
-	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
-	echo export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; EPSILON_BUILD_PATH="@abs_top_builddir@" \
-	  "@abs_top_builddir@/bin/guile+whatever" \
-	  @GUILE_NO_AUTO_COMPILE@ \
-	  -l "@abs_top_srcdir@/bootstrap/scheme/quick-start.scm"
+## FIXME: add the relevant epsilon1 source dependencies, and only them.  This
+## will avoid bootstrapping from Guile in many cases, making builds faster.
+@abs_top_builddir@/dumps/repl.u: bin/epsilon-image-interpreter-tagged @abs_top_builddir@/dumps/unexec-repl.u $(EPSILON_LATE_DUMPED_SOURCE_FILES)
+	rm -f "$@" # Remove the file we're about to generate, just in case we fail later.
+	echo export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
+	  "@abs_top_builddir@/dumps/unexec-repl.u"
 
 repl: @abs_top_builddir@/dumps/repl.u
 	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
 	echo export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "@abs_top_builddir@/dumps/repl.u"
 
-# Run an existing REPL, without ever rebuilding it.
-quick-repl:
+## Run an existing REPL without rebuilding it, even when dependencies would require
+## a rebuild.
+quick-repl: bin/epsilon-image-interpreter-tagged
 	echo export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "@abs_top_builddir@/dumps/repl.u"
+
+## The REPL should be built as a depencency of the default target, but not distributed
+## pre-built.
+data_DATA += \
+  @abs_top_builddir@/dumps/repl.u
 ## ####################################################### interactive targets: end
 
 ## ####################################################### versioning: begin

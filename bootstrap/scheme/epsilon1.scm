@@ -4883,6 +4883,21 @@
 ;;; FIXME: update unexec to keep properties into account.
 
 
+;;;;; Assertions and requirements
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define-macro (e1:assert-or-require name e . messages)
+  `(e1:unless ,e
+     (fio:write "Error: " (st ,name) " " (se ',e) " violated. " ,@messages "\n")
+     (e1:error ,name)))
+
+(e1:define-macro (e1:assert e . messages)
+  `(e1:assert-or-require "assertion" ,e ,@messages))
+
+(e1:define-macro (e1:require e . messages)
+  `(e1:assert-or-require "requirement" ,e ,@messages))
+
+
 ;;;;; Source file loading
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

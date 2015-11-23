@@ -634,7 +634,8 @@
 ;;; Make e1:define and e1:define-macro as defined above also available
 ;;; from the Guile toplevel, so that we can avoid e1:toplevel most of
 ;;; the time from now on:
-(load "export-toplevel-forms-to-guile.scm")
+(when-guile
+  (load "export-toplevel-forms-to-guile.scm"))
 
 
 ;;;;; Multi-way discriminand conditional: case
@@ -3211,8 +3212,8 @@
 (e1:define (reader:unescape-symbol-literal escaped-string)
   (reader:unescape-possibly-quoted-string-literal escaped-string #f))
 
-(e1:define (st x) (reader:unescape-string-literal x))
-(e1:define (sy x) (reader:unescape-symbol-literal x))
+;;(e1:define (st x) (reader:unescape-string-literal x))
+;;(e1:define (sy x) (reader:unescape-symbol-literal x))
 
 ;;; Take a string with surrounding #\" characters, return a string
 ;;; without them.
@@ -3262,10 +3263,9 @@
                      character string)
   (string-hash:set! sexpression:character-unescape-table
                     string character)
-  (item-list:add-before! ;; better than add-after!: misbehavior will be more evident
+  (item-list:add-first! ;; better than add-after!: misbehavior will be more evident
      reader:atom-item-list-box
-     (e1:value unescaped-character)
-     (symbol:string->symbol string)
+     (symbol:string->symbol (string:append "escaped-character-" string))
      (reader:atom-case (regexp:sregexp->regexp (sexpression:inject-string
                                                    (string:append "#\\" string)))
                        (e1:lambda (_ locus)
@@ -4210,7 +4210,7 @@
    #\"))
 
 (e1:define-regexp sexpression:atom
-  (+ (\| (complement #\space
+  (\| (+ (complement #\space
                      #\tab
                      #\cr
                      #\newline
@@ -4219,23 +4219,23 @@
                      #\;
                      #\'
                      #\"
-                     #\,
-                     ;;#\# ;; this is used in some atoms
-                     )
-         (#\\ (\| #\space
-                  #\tab
-                  #\cr
-                  #\newline
-                  #\| ;; for Scheme compatibility
-                  #\(
-                  #\)
-                  #\;
-                  #\'
-                  #\"
-                  #\,
-                  ;;#\#
-                  ))
-         )))
+                     #\#
+                     #\\
+                     ))
+      (#\\ #\|) ;; currently only for Guile compatibility when bootstrapping.
+      (#\# (\| #\f #\t))
+      (#\# #\\ (complement #\space
+                           #\tab
+                           #\cr
+                           #\newline))
+      (#\# #\: (+ (complement #\space
+                              #\tab
+                              #\cr
+                              #\newline
+                              #\(
+                              #\)
+                              #\;
+                              #\\)))))
 
 
 ;;;;; Regexp recognizer [FIXME: this is tentative and must be made

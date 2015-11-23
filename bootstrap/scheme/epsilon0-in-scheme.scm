@@ -312,3 +312,10 @@
 
 (display "scheme-to-epsilon0.scm: STILL ALIVE AT THE END\n")
 ;(define (boo t a b) (dump t a b) (sleep 5) (cons a b))
+
+(define-macro (when-guile . forms)
+  `(begin
+     ,@forms))
+
+(define-macro (unless-guile . forms)
+  `(begin))

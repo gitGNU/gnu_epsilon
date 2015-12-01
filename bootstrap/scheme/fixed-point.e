@@ -516,7 +516,16 @@
 ;; FIXME: implement atan2
 ;; FIXME: add a macro letting the user call atan with either one or two arguments.
 
-;; FIXME: define asin and acos via atan.
+(e1:define (fixedpoint:asin x)
+  (fixedpoint:atan (fixedpoint:/ x
+                                 (fixedpoint:sqrt (fixedpoint:- fixedpoint:1
+                                                                (fixedpoint:square x))))))
+
+(e1:define (fixedpoint:acos x)
+  (fixedpoint:atan (fixedpoint:/ (fixedpoint:sqrt (fixedpoint:- fixedpoint:1
+                                                                (fixedpoint:square x)))
+                                 x)))
+
 
 ;;;;; Fixed-point hyperbolic functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -534,6 +543,22 @@
             (exp-x (fixedpoint:exp (fixedpoint:negate x))))
     (fixedpoint:/ (fixedpoint:- expx exp-x)
                   (fixedpoint:+ expx exp-x))))
+
+
+;;;;; Fixed-point reverse hyperbolic functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (fixedpoint:asinh x)
+  (fixedpoint:log (fixedpoint:+ x
+                                (fixedpoint:sqrt (fixedpoint:1+ (fixedpoint:square x))))))
+
+(e1:define (fixedpoint:acosh x)
+  (fixedpoint:log (fixedpoint:+ x
+                                (fixedpoint:sqrt (fixedpoint:1- (fixedpoint:square x))))))
+
+(e1:define (fixedpoint:atanh x)
+  (fixedpoint:half (fixedpoint:log (fixedpoint:/ (fixedpoint:1+ x)
+                                                 (fixedpoint:- fixedpoint:1 x)))))
 
 
 ;;;;; Other easy fixed-point trascendental functions

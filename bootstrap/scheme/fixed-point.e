@@ -457,7 +457,11 @@
 (e1:define (fixedpoint:pow10 x)
   (fixedpoint:exp (fixedpoint:* fixedpoint:log10 x)))
 
-;;; Aliases.  FIXME: do I really want these?
+;;; Aliases.
+(e1:define (fixedpoint:** b x)
+  (fixedpoint:pow b x))
+
+;;; Other aliases.  FIXME: do I really want these?
 (e1:define (fixedpoint:exp2 x)
   (fixedpoint:pow2 x))
 (e1:define (fixedpoint:exp10 x)
@@ -475,7 +479,52 @@
      `(e1:error "fixedpoint:exp: argument number not 1 or 2"))))
 
 
-;;;;; Easy fixed-point trascendental functions
+;;;;; Variadic versions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:toplevel
+  (variadic:define-associative fixedpoint:+ fixedpoint:+ fixedpoint:0)
+  (variadic:define-associative fixedpoint:* fixedpoint:* fixedpoint:1)
+  (variadic:define-right-deep fixedpoint:** fixedpoint:** fixedpoint:1))
+;;; FIXME: factor the logic of fixnum:- and fixnum:/ into a more general macro
+;;; and use it here as well for fixedpoint:- and fixedpoint:/
+
+;;; I don't even need to define min and max procedures for fixed-point numbers.
+;;; Shall I do the same for + and -?
+(e1:define-macro (fixedpoint:min . args)
+  `(fixnum:min ,@args))
+(e1:define-macro (fixedpoint:max . args)
+  `(fixnum:max ,@args))
+
+
+;;;;; Fixed-point average
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; FIXME: there's another way avoiding the possible overflow of the
+;;; intermediate result.
+(e1:define (fixedpoint:average x y)
+  (fixedpoint:half (fixedpoint:+ x y)))
+
+
+;;;;; Fixed-point hyperbolic functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (fixedpoint:sinh x)
+  (fixedpoint:half (fixedpoint:- (fixedpoint:exp x)
+                                 (fixedpoint:exp (fixedpoint:negate x)))))
+
+(e1:define (fixedpoint:cosh x)
+  (fixedpoint:average (fixedpoint:exp x)
+                      (fixedpoint:exp (fixedpoint:negate x))))
+
+(e1:define (fixedpoint:tanh x)
+  (e1:let* ((expx (fixedpoint:exp x))
+            (exp-x (fixedpoint:exp (fixedpoint:negate x))))
+    (fixedpoint:/ (fixedpoint:- expx exp-x)
+                  (fixedpoint:+ expx exp-x))))
+
+
+;;;;; Other easy fixed-point trascendental functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (e1:define (fixedpoint:sqrt x)

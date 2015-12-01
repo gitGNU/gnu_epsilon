@@ -506,6 +506,18 @@
   (fixedpoint:half (fixedpoint:+ x y)))
 
 
+;;;;; Fixed-point inverse trigonometric functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (fixedpoint:atan y)
+  (fixedpoint:atan2 y fixedpoint:1))
+
+;; FIXME: also implement hypot [https://en.wikipedia.org/wiki/Hypot ]
+;; FIXME: implement atan2
+;; FIXME: add a macro letting the user call atan with either one or two arguments.
+
+;; FIXME: define asin and acos via atan.
+
 ;;;;; Fixed-point hyperbolic functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

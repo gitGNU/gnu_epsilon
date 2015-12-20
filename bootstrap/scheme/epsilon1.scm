@@ -3258,13 +3258,17 @@
             (string:set! target target-i source-c)
             (reader:unescape-string-literal-helper target source (fixnum:1+ target-i) (fixnum:1+ source-i) source-limit))))
 
+;;; A character is allowed to have more than one character escape.  All will be
+;;; recognized when reading, and the last one to be added will be used for
+;;; printing.
 (e1:define (sexpression:set-character-escape! character string)
   (unboxed-hash:set! sexpression:character-escape-table
                      character string)
   (string-hash:set! sexpression:character-unescape-table
                     string character)
-  (item-list:add-first! ;; better than add-after!: misbehavior will be more evident
+  (item-list:add-before! ;; better than add-after!: misbehavior will be more evident
      reader:atom-item-list-box
+     (e1:value unescaped-character)
      (symbol:string->symbol (string:append "escaped-character-" string))
      (reader:atom-case (regexp:sregexp->regexp (sexpression:inject-string
                                                    (string:append "#\\" string)))
@@ -4183,14 +4187,15 @@
 
 (e1:define-regexp sexpression:comment
   (+ (#\;
-      (* (complement #\newline))
-      #\newline)))
+      (* (complement #\newline #\page))
+      (\| #\newline #\page))))
 
 (e1:define-regexp sexpression:whitespace
   (+ (union #\space
             #\tab
             #\cr
-            #\newline)))
+            #\newline
+            #\page)))
 
 (e1:define-regexp sexpression:ignorable
   (+ (\| sexpression:whitespace
@@ -4214,6 +4219,7 @@
                      #\tab
                      #\cr
                      #\newline
+                     #\page
                      #\(
                      #\)
                      #\;
@@ -4227,11 +4233,25 @@
       (#\# #\\ (complement #\space
                            #\tab
                            #\cr
-                           #\newline))
+                           #\newline
+                           #\page)
+               (* (complement #\space
+                              #\tab
+                              #\cr
+                              #\newline
+                              #\page
+                              #\(
+                              #\)
+                              #\;
+                              #\'
+                              #\"
+                              #\#
+                              #\\)))
       (#\# #\: (+ (complement #\space
                               #\tab
                               #\cr
                               #\newline
+                              #\page
                               #\(
                               #\)
                               #\;
@@ -4777,14 +4797,18 @@
   (sexpression:set-character-escape! #\space "space")
   (sexpression:set-character-escape! #\tab "tab")
   (sexpression:set-character-escape! #\newline "newline")
-  (sexpression:set-character-escape! #\cr "cr")
+  (sexpression:set-character-escape! #\page "page")
+  (sexpression:set-character-escape! #\cr "cr") ;; Guile accepts #\cr as a synonym of #\return
+  (sexpression:set-character-escape! #\return "return")
   (sexpression:set-character-escape! io:eof "eof")
 
   (sexpression:set-string-escape! #\" #\")
   (sexpression:set-string-escape! #\\ #\\)
   (sexpression:set-string-escape! #\tab #\t)
+  (sexpression:set-string-escape! #\page #\f)
   (sexpression:set-string-escape! #\newline #\n)
-  (sexpression:set-string-escape! #\cr #\c)
+  ;;(sexpression:set-string-escape! #\cr #\c) ;; FIXME: did I have a reason for this incompatibility with Scheme?...  I assume not.
+  (sexpression:set-string-escape! #\cr #\r) ;; ...this is more reasonable and is compatible with Guile.
   (sexpression:set-string-escape! #\| #\|) ;; for Guile compatibility only
 
   ;;; No, this is unsatisfactory.  It would be nice to be able to
@@ -4815,7 +4839,9 @@
            (bind (c (string:get s i)))
            ((e1:or (whatever:eq? c #\space)
                    (whatever:eq? c #\newline)
-                   (whatever:eq? c #\tab))
+                   (whatever:eq? c #\tab)
+                   (whatever:eq? c #\cr)
+                   (whatever:eq? c #\page))
             (string:trim-index-left-from s (fixnum:1+ i)))
            (else
             i)))
@@ -4829,7 +4855,9 @@
            (bind (c (string:get s i)))
            ((e1:or (whatever:eq? c #\space)
                    (whatever:eq? c #\newline)
-                   (whatever:eq? c #\tab))
+                   (whatever:eq? c #\tab)
+                   (whatever:eq? c #\cr)
+                   (whatever:eq? c #\page))
             (string:trim-index-right-from s (fixnum:1- i)))
            (else
             i)))

@@ -635,6 +635,7 @@ clean-local: clean-profile
 	       `find . -name '*.so'` `find . -name '*.la'`     \
 	       `find . -name '*.lo'`
 #	       `find . -name '*.deps'` `find . -name '*.libs'`
+	rm -f "@abs_top_builddir@/dumps/repl.u" "@abs_top_builddir@/dumps/unexec-repl.u"
 	rm -f translator/eamlscanner.[ch] translator/eamlparser.[ch]
 	rm -f epsilon-*.shar.gz epsilon-*.tar.gz epsilon-*.tar.bz2 epsilon-*.tar.lzma epsilon-*.zip
 #	rm -rf `find $(srcdir)/ -name prefixes.h`
@@ -654,7 +655,7 @@ strip: all
 	strip $(bin_PROGRAMS)
 
 ## ####################################################### interactive targets: begin
-GUILE2_STACK_SIZE = 5000000000
+GUILE2_STACK_SIZE = 10000000000
 @abs_top_builddir@/dumps/unexec-repl.u: $(bin_PROGRAMS) $(lib_LIBRARIES) $(EPSILON_EARLY_DUMPED_SOURCE_FILES)
 	rm -f "$@" # Remove the file we're about to generate, just in case we fail later.
 	mkdir @abs_top_builddir@/dumps 2> /dev/null || true

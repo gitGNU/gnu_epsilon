@@ -3314,6 +3314,13 @@
   ;; FIXME: shall I *also* unescape some other (Scheme-compatible) way?
   (printer:escaping-write-string port (symbol:symbol->string value) 0))
 
+;;; This is a redefinition.  Now that we have escaping we can print
+;;; symbols the right way, overriding the previous temporary definition.
+;;; FIXME: remove io:write-symbol altogether.  Shall I do the same with
+;;; other printers in the io namespace?
+(e1:define (io:write-symbol port value)
+  (printer:write-symbol port value))
+
 
 ;;;;; Simple debugging support for procedures and macros
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

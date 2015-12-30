@@ -907,7 +907,19 @@
       (vector:list->vector (list:reverse acc)))))
 
 (e1:define (io:write-symbol file symbol)
-  (io:write-string file (symbol:symbol->string symbol)))
+  (e0:let (symbol-name) (symbol:symbol->string symbol)
+    (e0:if-in (whatever:eq? (string-hash:get symbol:table symbol-name)
+                            symbol) (#f)
+      ;; The symbol is NOT interned in the (primary) symbol table.
+      (e0:let () (io:write-character file 27)
+        (e0:let () (io:write-string file "[0m")
+          (e0:let () (io:write-character file 27)
+            (e0:let () (io:write-string file "[31m")
+              (e0:let () (io:write-string file (symbol:symbol->string symbol))
+                (e0:let () (io:write-character file 27)
+                  (io:write-string file "[0m")))))))
+      ;; The symbol IS interned in the (primary) symbol table.
+      (io:write-string file (symbol:symbol->string symbol)))))
 
 (e1:define (io:write-fixnum file fixnum)
   (e0:if-in (fixnum:< fixnum (e0:value 0)) (#f)
@@ -1455,11 +1467,11 @@
         (e0:let () (buffer:set! symbol (e0:value 0) candidate-name)
           (string-hash:set! symbol:table candidate-name symbol))
         ;; Name collision (this should be rare); try again:
-        (symbol:intern-uninterned! symbol)))))
+        (symbol:intern-uninterned! symbol prefix)))))
 
 (e1:define (symbol:intern-when-uninterned! symbol)
   (e0:if-in (symbol:interned? symbol) (#f)
-            (symbol:intern-uninterned! symbol)
+            (symbol:intern-uninterned! symbol string:empty)
             (e0:bundle)))
 
 (e1:define (symbol:symbol->string symbol)
@@ -1481,8 +1493,9 @@
 
 ;;; The symbol table is a global box containing a list of <name,
 ;;; symbol> conses, one element per interned symbol.
-(e1:define symbol:table
-  (string-hash:make))
+(when-guile
+  (e1:define symbol:table
+    (string-hash:make)))
 
 (e1:define (symbol:interned-symbol-name? name-as-string)
   (string-hash:has? symbol:table name-as-string))
@@ -1526,20 +1539,20 @@
 ;;; this stage, we used Scheme to bootstrap.  Of course this generation
 ;;; will also be doable in epsilon1, after some language extension:
 
-#!
-;;; Definition source:
-(sum:define e0:expression
-  (variable handle name)
-  (value handle content)
-  (bundle handle items)
-  (primitive handle name actuals)
-  (let handle bound-variables bound-expression body)
-  (call handle procedure-name actuals)
-  (call-indirect handle procedure-expression actuals)
-  (if-in handle discriminand values then-branch else-branch)
-  (fork handle procedure-name actuals)
-  (join handle future))
-!#
+;; #!
+;; ;;; Definition source:
+;; (sum:define e0:expression
+;;   (variable handle name)
+;;   (value handle content)
+;;   (bundle handle items)
+;;   (primitive handle name actuals)
+;;   (let handle bound-variables bound-expression body)
+;;   (call handle procedure-name actuals)
+;;   (call-indirect handle procedure-expression actuals)
+;;   (if-in handle discriminand values then-branch else-branch)
+;;   (fork handle procedure-name actuals)
+;;   (join handle future))
+;; !#
 
 ;;; The definition above, automatically translated by
 ;;; generate-sum-type-from-scheme.scm piped to ../COMPRESS-WHITESPACE:

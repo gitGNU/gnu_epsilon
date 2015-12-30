@@ -35,22 +35,8 @@
                         "bootstrap/scheme/compiler.e"))
 
 
-;;;;; Load experimental stuff
+;;;;; Unexec a non-Guile REPL
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-#;(e1:load (string:append configuration:abs_top_srcdir
-                        configuration:dir_separator
-                        "bootstrap/scheme/brainfuck.e"))
-#;(e1:load (string:append configuration:abs_top_srcdir
-                        configuration:dir_separator
-                        "bootstrap/scheme/peano.e"))
-#;(e1:load (string:append configuration:abs_top_srcdir
-                        configuration:dir_separator
-                        "bootstrap/scheme/scratch-c64-demo.e"))
-
-
-;; ;;;;; Unexec a non-Guile REPL
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; Load the scratch file, which is not included into our
 ;;; automatically-built unexec dumps.
@@ -60,10 +46,9 @@
                           "bootstrap/scheme/scratch.e")))
 
 (e1:toplevel
-   (e1:let ((file-name (string:append configuration:abs_top_builddir
-                                      configuration:dir_separator
-                                      "dumps/repl.u")))
-     (fio:write "Unexecing an epsilon1 REPL into " (st file-name) "\n")
-     (e1:unexec file-name
-       (repl:load-scratch)
-       (repl:repl))))
+  (fio:write "Unexecing an epsilon1 REPL into "
+             (st bootstrap:repl-image-file-name)
+             "\n")
+  (e1:unexec bootstrap:repl-image-file-name
+    (repl:load-scratch)
+    (repl:repl)))

@@ -571,7 +571,8 @@
 ;;; written in Guile.
 (e1:define (e1:define-non-procedure-procedure name-as-symbol form-sequence-as-sexpression)
   (e0:let () (string:write "Defining the non-procedure ")
-    (e0:let () (string:write (symbol:symbol->string name-as-symbol))
+    ;;(e0:let () (string:write (symbol:symbol->string name-as-symbol))
+    (e0:let () (io:write-symbol (io:standard-output) name-as-symbol)
       (e0:let () (string:write "...\n")
         (e0:let (sexpression) (e1:macroexpand-sequence-into-sexpression form-sequence-as-sexpression)
           (e0:let (results) (repl:macroexpand-transform-and-execute sexpression)
@@ -591,7 +592,8 @@
 
 (e1:define (e1:define-procedure-procedure name-symbol formal-symbols body-forms-sexpression)
   (e0:let () (string:write "Defining the procedure ")
-    (e0:let () (string:write (symbol:symbol->string name-symbol))
+    ;;(e0:let () (string:write (symbol:symbol->string name-symbol))
+    (e0:let () (io:write-symbol (io:standard-output) name-symbol)
       (e0:let () (string:write "...\n")
         (e0:let (untransformed-body)
                 (e1:macroexpand-sequence-into-expression body-forms-sexpression)

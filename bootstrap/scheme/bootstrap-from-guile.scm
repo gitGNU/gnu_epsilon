@@ -46,21 +46,27 @@
 ;;; Unexec, so that the rest can be run faster after execing from the image
 ;;; interpreter, without using Guile.
 
+(e1:define bootstrap:unexec-repl-image-file-name
+  (string:append configuration:abs_top_builddir
+                 configuration:dir_separator
+                 "dumps/unexec-repl-from-guile.u"))
+(e1:define bootstrap:unexec-repl-source-file-name
+  (string:append configuration:abs_top_srcdir
+                 configuration:dir_separator
+                 "bootstrap/scheme/unexec-repl.e"))
+(e1:define bootstrap:repl-image-file-name
+  (string:append configuration:abs_top_builddir
+                 configuration:dir_separator
+                 "dumps/repl-from-guile.u"))
 (e1:toplevel
- (e1:let ((file-name (string:append configuration:abs_top_builddir
-                                    configuration:dir_separator
-                                    "dumps/unexec-repl.u")))
-   (fio:write "Unexecing an epsilon1 image loading the rest into " (st file-name) "...\n")
-   (e1:unexec file-name
-     (fio:write "Still alive, working to unexec a REPL.  Hello from unexec-repl.e...\n")
-     (fio:write "About to load "
-                (st (string:append configuration:abs_top_srcdir
-                                   configuration:dir_separator
-                                   "bootstrap/scheme/unexec-repl.e"))
+   (fio:write "Unexecing an epsilon1 image loading the rest into "
+              (st bootstrap:unexec-repl-image-file-name) "...\n")
+   (e1:unexec bootstrap:unexec-repl-image-file-name
+     (fio:write "Still alive, working to unexec a REPL.  Hello from "
+                (st bootstrap:unexec-repl-source-file-name)
                 "\n")
-     (e1:load (string:append configuration:abs_top_srcdir
-                             configuration:dir_separator
-                             "bootstrap/scheme/unexec-repl.e")))
-   (fio:write "... done.\n")))
+     (fio:write "About to load " (st bootstrap:unexec-repl-source-file-name) "\n")
+     (e1:load bootstrap:unexec-repl-source-file-name))
+   (fio:write "... done: " (st bootstrap:repl-image-file-name) " should now contain a working REPL image.\n"))
 
-(display "Unexeced epsilon1.u.  We no longer need Guile from now on.\n")
+(display "Unexeced.  We no longer need Guile from now on.\n")

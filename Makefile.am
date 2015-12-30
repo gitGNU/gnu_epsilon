@@ -679,7 +679,7 @@ repl-from-guile: @abs_top_builddir@/dumps/repl-from-guile.u
 	export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "$<"
 
-@abs_top_builddir@/dumps/unexec-repl-from-epsilon1.u: $(bin_PROGRAMS) $(lib_LIBRARIES) $(EPSILON_EARLY_DUMPED_SOURCE_FILES)
+@abs_top_builddir@/dumps/unexec-repl-from-epsilon1.u: $(bin_PROGRAMS) $(lib_LIBRARIES) $(EPSILON_EARLY_DUMPED_SOURCE_FILES) @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u
 	rm -f "$@" # Remove the file we're about to generate, just in case we fail later.
 	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
 	ulimit -s unlimited; echo '(e1:load (string:append configuration:abs_top_srcdir "/bootstrap/scheme/bootstrap-from-epsilon1.e"))' \
@@ -709,9 +709,15 @@ bootstrap-from-epsilon1: @abs_top_builddir@/dumps/repl-from-epsilon1.u
 # sources (with no previous image) and make that the bootstrap REPL.
 bootstrap-from-guile: @abs_top_builddir@/dumps/repl-from-guile.u
 	cp "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u" \
-	  "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.1"
+	  "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.1" || true
 	cp "@abs_top_builddir@/dumps/repl-from-guile.u" \
 	  "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u"
+
+# Only rebuild the bootstrap REPL image when it's not present (or when
+# explicitly requested with a boostrap target).
+@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u:
+	mkdir "@abs_top_srcdir@/bootstrap-dumps" || true
+	$(MAKE) bootstrap-from-guile
 
 # FIXME: switch to the native REPL by default
 repl: repl-from-guile

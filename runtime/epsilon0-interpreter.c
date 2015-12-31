@@ -202,7 +202,10 @@ static epsilon_int epsilon_e0_eval_with_stack(epsilon_value expression, imperati
     epsilon_value primitive_name = epsilon_load_with_epsilon_int_offset(expression, 2);
     epsilon_value primitive_descriptor = epsilon_load_with_epsilon_int_offset(primitive_name, 7);
     if(epsilon_value_is_zero(primitive_descriptor))
-      epsilon_runtime_appropriate_fail("epsilon_e0_eval_with_stack [primitive: unbound primitive name]");
+      {
+        epsilon_print_e0_symbol (primitive_name);
+        epsilon_runtime_appropriate_fail ("epsilon_e0_eval_with_stack [primitive: unbound primitive name]");
+      }
     epsilon_int primitive_in_dimension = epsilon_value_to_epsilon_int(epsilon_load_with_epsilon_int_offset(primitive_descriptor, 0));
     epsilon_value actuals = epsilon_load_with_epsilon_int_offset(expression, 3);
     epsilon_int actual_value_no = e0_eval_expressions_with_stack(actuals, local_environment, value_stack);

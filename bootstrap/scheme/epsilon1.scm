@@ -1,7 +1,7 @@
 ;;;;; This is -*- epsilon -*- (with some Scheme).
 ;;;;; Bootstrap driver
 
-;;;;; Copyright (C) 2013, 2014, 2015 Luca Saiu
+;;;;; Copyright (C) 2013, 2014, 2015, 2016 Luca Saiu
 ;;;;; Copyright (C) 2012 Université Paris 13
 ;;;;; Written by Luca Saiu
 

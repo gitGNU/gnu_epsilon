@@ -3312,9 +3312,21 @@
   (printer:escaping-write-string port value 0)
   (io:write-character port #\"))
 
-(e1:define (printer:write-symbol port value)
+(e1:define (printer:write-naked-symbol port value)
   ;; FIXME: shall I *also* unescape some other (Scheme-compatible) way?
   (printer:escaping-write-string port (symbol:symbol->string value) 0))
+
+(e1:define (printer:write-symbol port value)
+  (e1:if (symbol:interned-in? value symbol:table)
+    (printer:write-naked-symbol port value)
+    (e1:begin
+      (io:write-character port 27)
+      (io:write-string port "[0m")
+      (io:write-character port 27)
+      (io:write-string port "[35m")
+      (printer:write-naked-symbol port value)
+      (io:write-character port 27)
+      (io:write-string port "[0m"))))
 
 ;;; This is a redefinition.  Now that we have escaping we can print
 ;;; symbols the right way, overriding the previous temporary definition.

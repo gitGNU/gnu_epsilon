@@ -664,6 +664,22 @@
                (case:dispatch ,discriminand-name ,@(sexpression:cdr cases))))))
 
 
+;;;;; Unbundling
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; FIXME: use e1:unbundle in e1:let and e1:let* to transparently support
+;;; unbundling.  It can be done with a compatible extension of Lisp syntax.
+(e1:define-macro (e1:unbundle variable-or-variables bound-form . body-forms)
+  (e1:unless (e1:or (sexpression:symbol? variable-or-variables)
+                    (sexpression:symbol-list? variable-or-variables))
+    (e1:error "unbundle: variable-or-variables should be an s-symbol or an s-symbol s-list"))
+  `(e0:let ,(e1:if (sexpression:symbol? variable-or-variables)
+              (sexpression:list variable-or-variables)
+              variable-or-variables)
+           ,bound-form
+           (e1:begin ,@body-forms)))
+
+
 ;;;;; Simple block: let*
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -2728,12 +2744,9 @@
     (e1:error "e1:primitive: the primitive name isn't an s-symbol"))
   `(e0:primitive ,primitive-name ,@actuals))
 
-;;; We can't name this e1:let.  FIXME: name e1:let and e1:let* support
-;;; unbundling.
-(e1:define-macro (e1:unbundle variables bound-form . body-forms)
-  (e1:unless (sexpression:symbol-list? variables)
-    (e1:error "e1:unbundle: variables should be a symbol s-list"))
-  (e1:let ,variables ,bound-form (e1:begin ,@body-forms)))
+;;; e1:unbundle corresponds to e0:let; it's actually a compatible generalization.
+;;; We can't name it e1:let* because that's another form, with an incompatible
+;;; syntax.
 
 (e1:define-macro (e1:call procedure-name . actuals)
   (e1:unless (sexpression:symbol? procedure-name)

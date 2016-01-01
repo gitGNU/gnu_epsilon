@@ -2350,7 +2350,7 @@
 ;;; bind user names to the variables we introduced before.
 ;;; FIXME: remove trivial lets.
 
-;; Here we call "patterns" either an s-symbol or an s-symbol s-list used for unbunding.
+;; Here we call "pattern" either an s-symbol or an s-symbol s-list used for unbunding.
 (e1:define-macro (e1:non-named-let bindings . body-forms)
   (e1:let* ((patterns (sexpression:map-nonclosure (e0:value sexpression:car) bindings))
             (pattern-no (sexpression:length patterns))
@@ -2384,15 +2384,14 @@
 (e1:define (sexpression:right-pattern pattern)
   (e1:cond ((sexpression:symbol? pattern)
             pattern)
+           ((e1:not (sexpression:symbol-list? pattern))
+            (e1:error "sexpression:right-pattern: pattern not an s-symbol or an s-symbol s-list"))
            ;; This case is just an optimization to avoid a useless bundle
            ;; expression which would make compiler optimizations more difficult.
-           ((e1:and (sexpression:symbol-list? pattern)
-                    (sexpression:null? (sexpression:cdr pattern)))
+           ((sexpression:null? (sexpression:cdr pattern))
             (sexpression:car pattern))
-           ((sexpression:symbol-list? pattern)
-            (sexpression:cons 'e1:bundle pattern))
            (else
-            (e1:error "sexpression:right-pattern: pattern not an s-symbol or an s-symbol s-list"))))
+            (sexpression:cons 'e1:bundle pattern))))
 
 
 ;;;;; A multi-way conditional including local bindings

@@ -667,8 +667,19 @@
 ;;;;; Unbundling
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;; FIXME: use e1:unbundle in e1:let and e1:let* to transparently support
-;;; unbundling.  It can be done with a compatible extension of Lisp syntax.
+;;; A utility procedure which might come in handy elsewhere as well.
+;;; I don't want to define this too early, using only epsilon0.
+(e1:define (sexpression:symbol-list? sexpression)
+  (e1:cond ((sexpression:null? sexpression)
+            #t)
+           ((e1:not (sexpression:cons? sexpression))
+            #f)
+           ((sexpression:symbol? (sexpression:car sexpression))
+            (sexpression:symbol-list? (sexpression:cdr sexpression)))
+           (else
+            #f)))
+
+;;; This is mostly useful for defining our extended blocks.
 (e1:define-macro (e1:unbundle variable-or-variables bound-form . body-forms)
   (e1:unless (e1:or (sexpression:symbol? variable-or-variables)
                     (sexpression:symbol-list? variable-or-variables))
@@ -679,29 +690,28 @@
            ,bound-form
            (e1:begin ,@body-forms)))
 
+;;; FIXME: is it worth to use e1:unbundle in named lets as well?  I think I
+;;; should, if nothing else for symmetry's sake.
+
 
 ;;;;; Simple block: let*
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; ;;; Simple and readable -- but slow -- implementation:
-;; (e1:define-macro (e1:let* bindings . body-forms)
-;;   (e1:if (sexpression:null? bindings)
-;;     (sexpression:quasiquote (e1:begin ,@body-forms))
-;;     (sexpression:quasiquote (e0:let (,(sexpression:caar bindings)) (e1:begin ,@(sexpression:cdar bindings))
-;;                               (e1:let* ,(sexpression:cdr bindings) ,@body-forms)))))
+;;; epsilon blocks have the same syntax as Lisp blocks, with an extension:
+;;; within each binding the first element is also allowed to be an s-list
+;;; of s-symbols, in which case they are all bound to the result of their
+;;; definition, which is unbundled.
 
-;;; Optimized implementation:
-(e1:define (e1:macroexpand-expand-let*-into-expression bindings-as-sexpression body-as-expression)
-  (e1:if (sexpression:null? bindings-as-sexpression)
-    body-as-expression
-    (e0:let* (list:list1 (sexpression:eject-symbol (sexpression:caar bindings-as-sexpression)))
-             (e1:macroexpand-sequence-into-expression (sexpression:cdar bindings-as-sexpression))
-             (e1:macroexpand-expand-let*-into-expression (sexpression:cdr bindings-as-sexpression)
-                                                         body-as-expression))))
+;;; For example:
+;;; (e1:let* ((a 10) (b 20)) (list:list a b)) ;; Lisp-style
+;;; (e1:let* (((a b) (e1:bundle 10 20))) (list:list a b)) ;; extended style
 (e1:define-macro (e1:let* bindings . body-forms)
-  (sexpression:inject-expression (e1:macroexpand-expand-let*-into-expression
-                                    bindings
-                                    (e1:macroexpand-sequence-into-expression body-forms))))
+  (e1:if (sexpression:null? bindings)
+    (sexpression:quasiquote (e1:begin ,@body-forms))
+    (sexpression:quasiquote (e1:unbundle ,(sexpression:caar bindings)
+                                         (e1:begin ,@(sexpression:cdar bindings))
+                                         (e1:let* ,(sexpression:cdr bindings)
+                                           ,@body-forms)))))
 
 
 ;;;;; Generalization of binary procedures into variadic macros
@@ -2339,16 +2349,50 @@
 ;;; definitions sequentially in a let*; then, within the let* body,
 ;;; bind user names to the variables we introduced before.
 ;;; FIXME: remove trivial lets.
+
+;; Here we call "patterns" either an s-symbol or an s-symbol s-list used for unbunding.
 (e1:define-macro (e1:non-named-let bindings . body-forms)
-  (e1:let* ((variables (sexpression:map-nonclosure (e0:value sexpression:car) bindings))
-            (variable-no (sexpression:length variables))
-            (definitions (sexpression:map-nonclosure (e0:value sexpression:prepend-begin)
-                                                     (sexpression:map-nonclosure (e0:value sexpression:cdr)
-                                                                                 bindings)))
-            (fresh-variables (sexpression:fresh-symbols variable-no)))
-    `(e1:let* (,@(sexpression:zip fresh-variables definitions))
-       (e1:let* (,@(sexpression:zip variables fresh-variables))
-         ,@body-forms))))
+  (e1:let* ((patterns (sexpression:map-nonclosure (e0:value sexpression:car) bindings))
+            (pattern-no (sexpression:length patterns))
+            (definitions
+             (sexpression:map-nonclosure (e0:value sexpression:prepend-begin)
+                                         (sexpression:map-nonclosure (e0:value sexpression:cdr)
+                                                                     bindings)))
+            (fresh-patterns
+             (sexpression:map-nonclosure (e0:value sexpression:freshen-pattern)
+                                         patterns))
+            (right-fresh-patterns
+             (sexpression:map-nonclosure (e0:value sexpression:right-pattern)
+                                         fresh-patterns)))
+    `(e1:let* (,@(sexpression:zip fresh-patterns definitions)
+               ,@(sexpression:zip patterns right-fresh-patterns))
+       ,@body-forms)))
+
+;;; Given an s-symbol, return a fresh s-symbol; given an s-symbol s-list, return
+;;; an s-list of fresh s-symbols.
+(e1:define (sexpression:freshen-pattern pattern)
+  (e1:cond ((sexpression:symbol? pattern)
+            (sexpression:fresh-symbol))
+           ((sexpression:symbol-list? pattern)
+            (sexpression:fresh-symbols (sexpression:length pattern)))
+           (else
+            (e1:error "sexpression:freshen-pattern: pattern not an s-symbol or an s-symbol s-list"))))
+
+;;; Given a pattern of variables return an sexpression encoding an expression
+;;; which evaluates to a bundle containing the value of the same variables, in
+;;; order.  The result encodes expressions, not patterns.
+(e1:define (sexpression:right-pattern pattern)
+  (e1:cond ((sexpression:symbol? pattern)
+            pattern)
+           ;; This case is just an optimization to avoid a useless bundle
+           ;; expression which would make compiler optimizations more difficult.
+           ((e1:and (sexpression:symbol-list? pattern)
+                    (sexpression:null? (sexpression:cdr pattern)))
+            (sexpression:car pattern))
+           ((sexpression:symbol-list? pattern)
+            (sexpression:cons 'e1:bundle pattern))
+           (else
+            (e1:error "sexpression:right-pattern: pattern not an s-symbol or an s-symbol s-list"))))
 
 
 ;;;;; A multi-way conditional including local bindings
@@ -2715,18 +2759,6 @@
 ;;; these macros don't silently ignore extra arguments, as the
 ;;; bootstrapping versions in e0 do.
 ;;; As a bonus, an implicit e1:begin is added whenever practical.
-
-;;; A utility procedure which might come in handy elsewhere as well.
-;;; I don't want to define this too early, using only epsilon0.
-(e1:define (sexpression:symbol-list? sexpression)
-  (e1:cond ((sexpression:null? sexpression)
-            #t)
-           ((e1:not (sexpression:cons? sexpression))
-            #f)
-           ((sexpression:symbol? (sexpression:car sexpression))
-            (sexpression:symbol-list? (sexpression:cdr sexpression)))
-           (else
-            #f)))
 
 (e1:define-macro (e1:variable symbol)
   (e1:unless (sexpression:symbol? symbol)

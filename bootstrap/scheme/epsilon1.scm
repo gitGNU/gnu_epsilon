@@ -2206,6 +2206,59 @@
                 ((fixnum:= ,variable ,limit-variable-name) ,@result-forms)
            ,@body-forms)))))
 
+;;; Iterate on buffers.  Same syntax of e1:dovector, but this of course depends
+;;; on boxedness tags.
+(e1:define-macro (e1:dobuffer variable-buffer . body)
+  (e1:unless (fixnum:= (sexpression:length variable-buffer) 2)
+    (e1:error "dobuffer: ill-formed variable-buffer clause"))
+  (e1:let ((variable (sexpression:car variable-buffer))
+           (buffer (sexpression:cadr variable-buffer))
+           (buffer-variable-name (sexpression:fresh-symbol))
+           (index-variable-name (sexpression:fresh-symbol)))
+    `(e1:let ((,buffer-variable-name ,buffer))
+       (e1:dotimes (,index-variable-name (boxedness:buffer-length ,buffer-variable-name))
+         (e1:let* ((,variable (buffer:get ,buffer-variable-name ,index-variable-name)))
+           ,@body)))))
+
+;;; Alias.
+(e1:define-macro (e1:dostring . stuff)
+  `(e1:dobuffer ,@stuff))
+
+;;; Iterate on alists.  The first clause needs *two* variables, the first one for the key
+;;; and the second one for the associated datum; the third and last element of the clause
+;;; is the alist.
+(e1:define-macro (e1:doalist key-datum-alist . body)
+  (e1:unless (fixnum:= (sexpression:length key-datum-alist) 3)
+    (e1:error "doalist: ill-formed key-datum-hash clause"))
+  (e1:let ((key-variable-name (sexpression:car key-datum-alist))
+           (datum-variable-name (sexpression:cadr key-datum-alist))
+           (alist (sexpression:caddr key-datum-alist))
+           (pair-variable-name (sexpression:fresh-symbol)))
+    `(e1:dolist (,pair-variable-name ,alist)
+       (e1:let* ((,key-variable-name (cons:get-car ,pair-variable-name))
+                 (,datum-variable-name (cons:get-cdr ,pair-variable-name)))
+         ,@body))))
+
+;;; Alias.
+(e1:define-macro (e1:dosalist . stuff)
+  `(e1:doalist ,@stuff))
+
+;;; Iterate on hashes.  Same syntax as e1:doalist .
+(e1:define-macro (e1:dohash key-datum-hash . body)
+  (e1:unless (fixnum:= (sexpression:length key-datum-hash) 3)
+    (e1:error "dohash: ill-formed key-datum-hash clause"))
+  (e1:let ((key-variable-name (sexpression:car key-datum-hash))
+           (datum-variable-name (sexpression:cadr key-datum-hash))
+           (hash (sexpression:caddr key-datum-hash)))
+    `(e1:doalist (,key-variable-name ,datum-variable-name (hash:hash->list ,hash))
+       ,@body)))
+
+;;; Aliases.
+(e1:define-macro (e1:dounboxed-hash . stuff)
+  `(e1:dohash ,@stuff))
+(e1:define-macro (e1:dostring-hash . stuff)
+  `(e1:dohash ,@stuff))
+
 ;;; Pascal-style for loop, with optional step.  The syntax is my idea,
 ;;; and is not standard in Lisp.  Not terribly efficient: the thing
 ;;; works with both ascending and descending loops, but checks *two*

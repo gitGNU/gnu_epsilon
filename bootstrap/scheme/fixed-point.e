@@ -509,6 +509,9 @@
 ;;;;; Fixed-point inverse trigonometric functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+
+;; atan(x) = sum(0, oo, (-1)^n * z^(2n+1) / (2n + 1) for all z s.t. |z| <= 1, z <> +-i
+
 (e1:define (fixedpoint:atan y)
   (fixedpoint:atan2 y fixedpoint:1))
 

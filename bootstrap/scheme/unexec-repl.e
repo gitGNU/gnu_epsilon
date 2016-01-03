@@ -52,18 +52,6 @@
   (fio:write "Unexecing an epsilon1 REPL into "
              (st bootstrap:repl-image-file-name)
              "\n")
-  ;; ------------------
-  #;(fio:write "Destroying procedure macro names (2)...\n")
-  #;(e1:dohash (_ symbol symbol:table)
-    (state:invalidate-macro-procedure-name-cache-of! symbol))
-  #;(fio:write "...Still alive.\n")
-  ;; ------------------
-  ;; ------------------
-  #;(e1:unexec "/tmp/q-b.u"
-    (debug:print _closure-procedure3536 _closure-procedure3526 _closure-procedure3538 _closure-procedure3540 _closure-procedure3534 _closure-procedure3532 _closure-procedure3542 _closure-procedure3548 _closure-procedure3546 _closure-procedure3544 _closure-procedure3550 _closure-procedure3530 _closure-procedure3528 )
-    )
-  ;; ------------------
   (e1:unexec bootstrap:repl-image-file-name
     (repl:load-scratch)
-    (repl:repl)
-  ))
+    (repl:repl)))

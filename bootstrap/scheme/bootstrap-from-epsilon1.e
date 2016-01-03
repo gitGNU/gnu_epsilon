@@ -480,7 +480,3 @@
 (secondary:load (string:append configuration:abs_top_srcdir "/bootstrap/scheme/unexec.e"))
 (secondary:load (string:append configuration:abs_top_builddir "/bootstrap/scheme/configuration.e"))
 (secondary:load (string:append configuration:abs_top_srcdir "/bootstrap/scheme/bootstrap-from-epsilon1-secondary.e"))
-;; ------------------
-;; (e1:unexec "/tmp/q-a.u"
-;;   (debug:print _closure-procedure3536 _closure-procedure3526 _closure-procedure3538 _closure-procedure3540 _closure-procedure3534 _closure-procedure3532 _closure-procedure3542 _closure-procedure3548 _closure-procedure3546 _closure-procedure3544 _closure-procedure3550 _closure-procedure3530 _closure-procedure3528 ))
-;; ------------------

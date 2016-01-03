@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in -*-Makefile-*-
 
 ## This file is part of GNU epsilon
-## Copyright (C) 2006, 2007, 2008, 2013, 2014, 2015 Luca Saiu
+## Copyright (C) 2006, 2007, 2008, 2013, 2014, 2015, 2016 Luca Saiu
 ## (based on the eAM and NAUSEA Makefile.am files, both by Luca Saiu)
 ## Copyright (C) 2012 Université Paris 13
 ## Copyright (C) 2012 Luca Saiu
@@ -132,16 +132,12 @@ EXTRA_DIST += \
   svm/examples/float.s \
   svm/examples/q.s \
   svm/examples/euclid-c.c \
-  runtime/backend-specific/x86/backend-specific-c.c \
-  runtime/backend-specific/x86/backend-specific-s.S \
   runtime/backend-specific/x86_64/backend-specific-c.c \
   runtime/backend-specific/x86_64/backend-specific-s.S \
-  runtime/backend-specific/powerpc/backend-specific-c.c \
-  runtime/backend-specific/powerpc/backend-specific-s.S \
   runtime/backend-specific/mips/backend-specific-c.c \
   runtime/backend-specific/mips/backend-specific-s.S \
   runtime/backend-specific/c64/runtime.a \
-  runtime/backend-specific/always-fail runtime/backend-specific/i386 runtime/backend-specific/i486 runtime/backend-specific/i586 runtime/backend-specific/i686 runtime/backend-specific/mips runtime/backend-specific/mips64 runtime/backend-specific/mips64el runtime/backend-specific/mipsel runtime/backend-specific/powerpc runtime/backend-specific/ppc runtime/backend-specific/svm runtime/backend-specific/x86 runtime/backend-specific/x86_64 runtime/backend-specific/x86-64
+  runtime/backend-specific/always-fail runtime/backend-specific/__disabled__/i386 runtime/backend-specific/__disabled__/i486 runtime/backend-specific/__disabled__/i586 runtime/backend-specific/__disabled__/i686 runtime/backend-specific/mips runtime/backend-specific/mips64 runtime/backend-specific/mips64el runtime/backend-specific/mipsel runtime/backend-specific/__disabled__/powerpc runtime/backend-specific/__disabled__/ppc runtime/backend-specific/__disabled__/x86
 
 # Source files which are *not* dumped into unexeced images, so that
 # they can be modified without having to bootstrap.  These are just
@@ -175,7 +171,7 @@ EPSILON_EARLY_DUMPED_SOURCE_FILES = \
   bootstrap/scheme/fill-reflective-structures.scm \
   bootstrap/scheme/toplevel-in-scheme.scm \
   bootstrap/scheme/epsilon1.scm \
-  @abs_top_builddir@/bootstrap/scheme/configuration.e
+  @top_builddir@/bootstrap/scheme/configuration.e
 
 EPSILON_LATE_DUMPED_SOURCE_FILES = \
   bootstrap/scheme/unexec-repl.e \
@@ -330,7 +326,8 @@ lib_libepsilonruntime_smob_a_CPPFLAGS = -DEPSILON_RUNTIME_SMOB
 
 lib_LIBRARIES += lib/libepsilonruntime-tagged-egc.a
 lib_libepsilonruntime_tagged_egc_a_SOURCES = $(RUNTIME_SOURCES)
-lib_libepsilonruntime_tagged_egc_a_SOURCES += movinggc/movinggc.c
+lib_libepsilonruntime_tagged_egc_a_SOURCES += \
+  movinggc/movinggc.c movinggc/movinggc.h movinggc/features.h
 lib_libepsilonruntime_tagged_egc_a_CPPFLAGS = -DEPSILON_RUNTIME_TAGGED -DEPSILON_EGC
 
 lib_LIBRARIES += lib/libepsilondriver-c-untagged.a
@@ -377,8 +374,8 @@ EXTRA_DIST += \
   runtime/data-untagged.c \
   runtime/data-smob.c
 
-EXTRA_DIST += \
-  repl
+# EXTRA_DIST += \
+#   repl
 
 # A little sanity test for the utility functions:
 bin_PROGRAMS += \
@@ -406,7 +403,7 @@ bin_epsilon_test_jit_tagged_LDADD = \
   lib/libepsilonruntime-tagged.a lib/libepsilonutility.a
 bin_epsilon_test_jit_tagged_CPPFLAGS = -DEPSILON_RUNTIME_TAGGED
 
-# Currently disabled
+# Currently unused
 bin_PROGRAMS += \
   bin/epsilon-svm
 bin_epsilon_svm_CPPFLAGS = -DEPSILON_RUNTIME_UNTAGGED
@@ -639,7 +636,7 @@ clean-local: clean-profile
 	       `find . -name '*.lo'`
 #	       `find . -name '*.deps'` `find . -name '*.libs'`
 	rm -f "@abs_top_builddir@/dumps/repl-from-guile.u" "@abs_top_builddir@/dumps/repl-from-epsilon1.u"
-	rm -f "@abs_top_builddir@/dumps/unexec-repl-from-guile.u" "@abs_top_builddir@/dumps/unexec-repl-from-epsilon1.u"
+	rm -f "@abs_top_builddir@/dumps/unexec-repl-from-guile.u"
 	rm -f translator/eamlscanner.[ch] translator/eamlparser.[ch]
 	rm -f epsilon-*.shar.gz epsilon-*.tar.gz epsilon-*.tar.bz2 epsilon-*.tar.lzma epsilon-*.zip
 #	rm -rf `find $(srcdir)/ -name prefixes.h`
@@ -648,7 +645,7 @@ maintainer-clean-local:
 distclean-local: clean-doc clean-profile
 	rm -f $(BUILT_SOURCES)
 	rm -f "@abs_top_builddir@/dumps/"*
-	rm -f "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.1"
+	rm -f "@abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u.old"*
 	rm -rf autom4te.cache config.log
 ## ####################################################### cleaning: end
 
@@ -679,12 +676,12 @@ GUILE2_STACK_SIZE = 10000000000
 	export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "@abs_top_builddir@/dumps/unexec-repl-from-guile.u"
 
-@abs_top_builddir@/dumps/repl-from-epsilon1.u: $(bin_PROGRAMS) $(lib_LIBRARIES) $(EPSILON_EARLY_DUMPED_SOURCE_FILES) @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u
+@abs_top_builddir@/dumps/repl-from-epsilon1.u: $(bin_PROGRAMS) $(lib_LIBRARIES) $(EPSILON_EARLY_DUMPED_SOURCE_FILES) @abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u
 	rm -f "$@" # Remove the file we're about to generate, just in case we fail later.
 	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
 	ulimit -s unlimited; echo '(e1:load (string:append configuration:abs_top_srcdir "/bootstrap/scheme/bootstrap-from-epsilon1.e"))' \
 	  | "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
-	    "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u"
+	    "@abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u"
 
 repl-from-guile: @abs_top_builddir@/dumps/repl-from-guile.u
 	export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
@@ -696,75 +693,71 @@ repl-from-epsilon1: @abs_top_builddir@/dumps/repl-from-epsilon1.u
 # Make a backup of the previous bootstrap REPL, and replace it with the
 # one generated from epsilon1.
 bootstrap-repl-from-epsilon1: @abs_top_builddir@/dumps/repl-from-epsilon1.u
-	cp "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.old" \
-	  "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.old.1"
-	cp "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u" \
-	  "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.old"
+	cp "@abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u.old" \
+	  "@abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u.old.1" || true
+	cp "@abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u" \
+	  "@abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u.old" || true
 	cp "@abs_top_builddir@/dumps/repl-from-epsilon1.u" \
-	  "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u"
+	  "@abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u" || true
 	echo "Bootstrapped."
 
 # Regenerate a bootstrap REPL from Guile.  As long as the sources are
 # correct and newer than the bootstrap REPL, this also works when the
-# bootstrap REPL are broken.
+# bootstrap REPL is broken.
 bootstrap-repl-from-guile: @abs_top_builddir@/dumps/repl-from-guile.u
-	cp "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.old" \
-	  "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.old.1"
-	cp "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u" \
-	  "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.old"
+	cp "@abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u.old" \
+	  "@abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u.old.1" || true
+	cp "@abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u" \
+	  "@abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u.old" || true
 	cp "@abs_top_builddir@/dumps/repl-from-guile.u" \
-	  "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u"
+	  "@abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u" || true
 	echo "Replaced the bootstrap REPL."
+
+bootstrap-repl: bootstrap-repl-from-epsilon1
 
 # Get the bootstrap REPL by uncompressing the one which is distributed.  File
 # modification times will ensure that the uncompressed file isn't overwritten
 # when it's been intentionally replaced by a newer version -- the compressed
 # version will be older in that case.
-@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u: @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz
+@abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u: @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz
+	mkdir @abs_top_builddir@/bootstrap-dumps/ || true
 	unxz - < "$<" > "$@"
 
-# In order to avoid a dependency loop we don't say that the compressed REPL loop
-# is obtained from the uncompressed REPL loop: we only do that at dist time,
-# when the compressed version is used.  This is also useful for preparing a new
-# compressed file to be committed to git.
-compress-bootstrap-repl: @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u
-	xz -9 - < @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u \
-	    > @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz
+## In order to avoid a dependency loop we don't say that the compressed REPL loop
+## is obtained from the uncompressed REPL loop: we only do that at dist time,
+## when the compressed version is used.  This is also useful for preparing a new
+## compressed file to be committed to git.
+compress-bootstrap-repl: @abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u
+	xz -9 - < "$<" > @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz
 EXTRA_DIST += \
   bootstrap-dumps/bootstrap-repl.u.xz
 dist-hook: compress-bootstrap-repl
 
-# FIXME: switch to the native REPL by default
+## This is convenient to run the REPL from the build directory.
 repl: repl-from-epsilon1
-# FIXME: rename the bootstrap directory and use "bootstrap" with no trailing
-# underscore as a target.
-bootstrap_: @abs_top_builddir@/dumps/repl-from-epsilon1.u
-#bootstrap_: bootstrap-from-guile ##
-
 
 ## Run an existing REPL without rebuilding it, even when dependencies would require
 ## a rebuild.
 quick-repl: bin/epsilon-image-interpreter-tagged
-	export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
-	  "@abs_top_builddir@/dumps/repl-from-guile.u"
+	ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
+	  "@abs_top_builddir@/dumps/repl-from-epsilon1.u"
 
 ## The REPL should be built as a depencency of the default target, but not distributed
-## pre-built.
+## pre-built.  Notice that we don't build the REPL bootstrapped from Guile by default.
 data_DATA += \
-  @abs_top_builddir@/dumps/repl-from-guile.u \
   @abs_top_builddir@/dumps/repl-from-epsilon1.u
 ## ####################################################### interactive targets: end
 
 ## ####################################################### versioning: begin
 EXTRA_DIST += \
 	$(top_srcdir)/build-aux/get-version-from-git \
-	$(top_srcdir)/.version $(top_srcdir)/.tarball_version
+	$(top_srcdir)/.version $(top_srcdir)/.tarball-version
 BUILT_SOURCES += \
 	$(top_srcdir)/.version
 $(top_srcdir)/.version:
 	echo $(VERSION) > $@-t && mv $@-t $@
 
-# Fail if .tarball-version, which is supposed to be manually-written,
+# Fail if .tarball-version, which is supposed to be manually written,
 # doesn't exist.
 dist-hook: .tarball-version
 

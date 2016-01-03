@@ -25,6 +25,12 @@
 ;; ;;;;; Scratch
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;; Poor man's sleep
+(e1:define (sleep)
+  ;;(e1:dotimes (i 10000000))
+  42
+  )
+
 ;; (e1:define (t)
 ;;   (e1:let* ((input-port (input-port:readline-input-port))
 ;;             (backtrackable-input-port
@@ -42,41 +48,7 @@
 ;;   (secondary:load "/home/luca/repos/epsilon/bootstrap/scheme/test.e"))
 
 
-;;;;; Symbols as epsilon1 records.  FIXME: move this to epsilon1.[scm,e]
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(e1:define-record symbol:symbol
-  name
-  is-global
-  global-value
-  formals
-  body
-  macro
-  macro-procedure-name
-  primitive-descriptor
-  compiled-procedure
-  compiled-procedure-data
-  user-defined)
-
-(e1:define (symbol:intern-in-table table name)
-  (e1:if (string-hash:has? table name)
-    (string-hash:get table name)
-    (e1:let* ((name (vector:shallow-clone name))
-              (s (symbol:symbol #:name                    name
-                                #:is-global               #f
-                                #:global-value            127
-                                #:formals                 0
-                                #:body                    0
-                                #:macro                   0
-                                #:macro-procedure-name    0
-                                #:primitive-descriptor    0
-                                #:compiled-procedure      0
-                                #:compiled-procedure-data 0
-                                #:user-defined            0)))
-      (string-hash:set! table name s)
-      s)))
-
-;;; FIXME: use symbol:intern-in-table for primary symbols as well.
+(e1:define is-guile #f) ;; FIXME: remove this crap
 
 
 ;;;;; Secondary symbol table
@@ -138,7 +110,9 @@
   (e1:require (secondary:secondary-symbol? name))
   (fio:write "Defining macro " (sy name) " as " (se definition) "\n")
   (symbol:symbol-set-macro-procedure-name! name 0)
-  (symbol:symbol-set-macro! name definition))
+  (symbol:symbol-set-macro! name definition)
+  (sleep)
+  #;(e1:error "stop"))
 
 ;;; FIXME: Do I really want this?  The idea is perverse and possibly confusing,
 ;;; but I think it simplifies bootstrap.
@@ -226,15 +200,28 @@
 
 ;;; FIXME: this and e1:load should probably be factored.
 
+#;(string-hash:set! secondary:symbol-table
+                  "reader:item-list-box"
+                  (e1:value secondary:item-list-box)) ;;; FIXME: this is *very* tentative.
+
+(e1:define secondary:item-list-box
+  (box:make item-list:nil))
+
+#;(e1:define (secondary:read-bp bp)
+  (reader:read-bp-helper (box:get secondary:item-list-box) bp))
+
 (e1:define (secondary:load file-name)
   (e1:let* ((f (io:open-file file-name io:read-mode))
             (p (input-port:file->input-port f))
-            (bp (backtrackable-port:input-port->backtrackable-port
+            ;; FIXME: I renamed bp into bp-from-secondary just for debugging
+            (bp-from-secondary (backtrackable-port:input-port->backtrackable-port
                     p
                     (option:option-some file-name))))
-    (secondary:load-helper file-name bp)))
-(e1:define (secondary:load-helper file-name bp)
-  (e1:let* ((unflipped-s (reader:read-bp bp))
+    (secondary:load-helper file-name bp-from-secondary)))
+;; FIXME: I renamed bp into bp-from-secondary2 just for debugging
+(e1:define (secondary:load-helper file-name bp-from-secondary2)
+  (e1:let* ((unflipped-s #;(secondary:read-bp bp-from-secondary2)
+             (reader:read-bp bp-from-secondary2))
             (s (secondary:primary-sexp->secondary-sexp unflipped-s)))
     (e1:unless (sexpression:eof-object? s)
       (fio:write "  secondary:load: just read " (se s) ".  Evaluating it...\n")
@@ -243,8 +230,8 @@
         (e0:eval-ee e))
       ;;(repl:macroexpand-transform-and-execute s)
       (bootstrap:eval-sexpr s)
-      (fio:write "  secondary:load: evaluated with success.\n\n")
-      (secondary:load-helper file-name bp))))
+      ;;(fio:write "  secondary:load: evaluated with success.\n\n")
+      (secondary:load-helper file-name bp-from-secondary2))))
 
 
 ;;;;; epsilon1 form interpreter, working on secondary s-expressions
@@ -262,6 +249,11 @@
             (fio:write "Evaluating the toplevel form " (se sexp) "\n")
             (bootstrap:eval-scons-with-symbol-scar sexp))))
 
+(e1:define (bootstrap:eval-sexprs sexps)
+  (e1:unless (sexpression:null? sexps)
+    (bootstrap:eval-sexpr (sexpression:car sexps))
+    (bootstrap:eval-sexprs (sexpression:cdr sexps))))
+
 (e1:define (bootstrap:eval-scons-with-symbol-scar sexp)
   (e1:let ((car-symbol (sexpression:eject-symbol (sexpression:car sexp)))
            (s-cdr (sexpression:cdr sexp)))
@@ -274,14 +266,14 @@
         (bootstrap:eval-non-definition-sexpr sexp))
       (e1:case (secondary:secondary-symbol->primary-symbol car-symbol)
         ((e1:define)
-         (fio:write "Evaluating procedure definition\n")
+         (fio:write "Trivially evaluating procedure definition\n")
          (bootstrap:eval-definition-sexpr s-cdr))
         ((e1:trivial-define-macro)
-         (fio:write "Evaluating macro definition\n")
+         (fio:write "Trivially evaluating macro definition\n")
          (bootstrap:eval-macro-definition-sexpr s-cdr))
         ((e1:toplevel)
-         (fio:write "Evaluating non-definition\n")
-         (bootstrap:eval-non-definition-sexprs s-cdr))
+         (fio:write "Trivially evaluating toplevel form\n")
+         (bootstrap:eval-sexprs s-cdr))
         (else
          (fio:write "Evaluating non-definition without an explicit e1:toplevel\n")
          (bootstrap:eval-non-definition-sexpr sexp))))))
@@ -298,9 +290,9 @@
             (e1:error "ill-formed non-definition sexprs"))))
 
 (e1:define (bootstrap:eval-non-definition-sexpr sexp)
-  (fio:write "Evaluating non-definition " (se sexp) "\n")
+  (fio:write "Trivially evaluating non-definition " (se sexp) "\n")
   (e1:let ((e (repl:macroexpand-and-transform sexp)))
-    (fio:write "Evaluating " (e e) "\n")
+    (fio:write "Trivially evaluating " (e e) "\n")
     (e1:let* ((e-results (e0:eval-ee e))
               (res (e1:if (fixnum:> (list:length e-results) 0)
                      (list:head e-results)
@@ -344,7 +336,10 @@
   (e1:let* ((formals (sexpression:eject-symbols formals-sexps))
             ;;; FIXME: this doesn't support transforms!!!
             (body (e1:macroexpand-sequence-into-expression body-sexps)))
-    (fio:write "defining " (sy name) " of [omitted] as " (e body) "\n")
+    (fio:write "trivially defining " (sy name) " of [ ")
+    (e1:dolist (formal formals)
+      (fio:write (sy formal) " "))
+    (fio:write "] as " (e body) "\n")
     (secondary:procedure-define! name formals body)))
 
 (e1:define (bootstrap:eval-macro-definition-sexpr s-cdr)
@@ -359,7 +354,7 @@
     (secondary:macro-define! name body)))
 
 
-;;;;; Trivial macros defined with powerful macros
+;;;;; Trivial macros defined with powerful macros [or in some other way?]
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; This is useful for loading epsilon1.scm from epsilon1.
@@ -380,11 +375,14 @@
 ;;              ;;(e0:value ,macro-name)
 ;;              (e0:bundle)))))))) ;; don't return anything
 
+(e1:define-macro (e1:toplevel . forms)
+  `(e1:begin ,@forms))
+
 (e1:define-macro (when-guile . forms)
   `(e1:bundle))
 
 (e1:define-macro (unless-guile . forms)
-  `(e1:bundle ,@forms))
+  `(e1:begin ,@forms))
 
 
 ;;;;; Secondary primitives
@@ -474,8 +472,15 @@
 ;;;;; Bootstrap and unexec into unexec-repl-bootstrapped.u
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(secondary:define symbol-stage 2)
+(secondary:define is-guile #f)
+
 (secondary:load (string:append configuration:abs_top_srcdir "/bootstrap/scheme/core.e"))
 (secondary:load (string:append configuration:abs_top_srcdir "/bootstrap/scheme/epsilon1.scm"))
 (secondary:load (string:append configuration:abs_top_srcdir "/bootstrap/scheme/unexec.e"))
 (secondary:load (string:append configuration:abs_top_builddir "/bootstrap/scheme/configuration.e"))
 (secondary:load (string:append configuration:abs_top_srcdir "/bootstrap/scheme/bootstrap-from-epsilon1-secondary.e"))
+;; ------------------
+;; (e1:unexec "/tmp/q-a.u"
+;;   (debug:print _closure-procedure3536 _closure-procedure3526 _closure-procedure3538 _closure-procedure3540 _closure-procedure3534 _closure-procedure3532 _closure-procedure3542 _closure-procedure3548 _closure-procedure3546 _closure-procedure3544 _closure-procedure3550 _closure-procedure3530 _closure-procedure3528 ))
+;; ------------------

@@ -128,7 +128,7 @@
     ((e0:expression-call h procedure-name actuals)
      (trivial-compiler:expression-call h procedure-name (trivial-compiler:resolve-expressions actuals formals locals)))
     ((e0:expression-call-indirect h procedure-expression actuals)
-     (e1:let ((name (symbol:fresh))
+     (e1:let ((name (symbol:fresh-with-prefix "call-indirect-something"))
               (h1 (e0:fresh-handle)))
        (trivial-compiler:expression-let
           h1
@@ -1433,7 +1433,7 @@ epsilon_main_entry_point:
 ;;; Define a zero-argument procedure executing the given forms, which
 ;;; may refer nonlocals.  Return the procedure name.
 (e1:define (macroexpand:procedure-name-using-nonlocals forms-as-sexpression-list)
-  (e1:let ((procedure-name (symbol:fresh)))
+  (e1:let ((procedure-name (symbol:fresh-with-prefix "procedure-with-nonlocals")))
     (state:procedure-set! procedure-name
                           list:nil
                           (macroexpand:expression-using-nonlocals forms-as-sexpression-list))

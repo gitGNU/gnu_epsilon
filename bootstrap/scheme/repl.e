@@ -76,7 +76,8 @@ under the terms of the GNU General Public License, version 3 or later.  Enter
 ;;; Define a REPL command named ,NAME-AS-STRING, calling PROCEDURE-NAME
 ;;; with one s-expression parameter.
 (e1:define-macro (repl:define-command name-as-string procedure-name)
-  (e1:let ((macro-name (sexpression:fresh-symbol)))
+  (e1:let ((macro-name (sexpression:fresh-symbol-with-prefix (string:append "command-macro-"
+                                                                            name-as-string))))
     `(e1:begin
        (e1:define-macro (,macro-name argument)
          `(,',procedure-name ',argument)) ;; Pass argument as a literal s-expression.

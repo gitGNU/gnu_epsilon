@@ -1,7 +1,7 @@
 ;;;;; This is -*- epsilon -*- (with very little Scheme).
 ;;;;; e0 global state, interpreter and macros defined in epsilon0 plus e1:define
 
-;;;;; Copyright (C) 2013, 2014, 2015 Luca Saiu
+;;;;; Copyright (C) 2013, 2014, 2015, 2016 Luca Saiu
 ;;;;; Copyright (C) 2012 Université Paris 13
 ;;;;; Written by Luca Saiu
 
@@ -297,6 +297,9 @@
 (e1:define (buffer:make element-no)
   (e0:primitive buffer:make element-no))
 
+(e1:define (buffer:make-uninitialized element-no)
+  (e0:primitive buffer:make-uninitialized element-no))
+
 (e1:define (buffer:destroy buffer)
   (e0:primitive buffer:destroy buffer))
 
@@ -354,9 +357,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (e1:define (cons:make car cdr)
-  (e0:let (result) (buffer:make (e0:value 2))
-    (e0:let () (buffer:set! result (e0:value 0) car)
-      (e0:let () (buffer:set! result (e0:value 1) cdr)
+  (e0:let (result) (buffer:make-uninitialized (e0:value 2))
+    (e0:let () (buffer:initialize! result (e0:value 0) car)
+      (e0:let () (buffer:initialize! result (e0:value 1) cdr)
         result))))
 
 (e1:define (cons:get-car cons)
@@ -620,18 +623,22 @@
 ;;; the number of its payload elements.
 (e1:define (vector:make element-no)
   (e0:let (result) (buffer:make (fixnum:1+ element-no))
-    (e0:let () (buffer:set! result (e0:value 0) element-no)
+    (e0:let () (buffer:initialize! result (e0:value 0) element-no)
+      result)))
+
+(e1:define (vector:make-uninitialized element-no)
+  (e0:let (result) (buffer:make-uninitialized (fixnum:1+ element-no))
+    (e0:let () (buffer:initialize! result (e0:value 0) element-no)
       result)))
 
 (e1:define (vector:make-initialized element-no element-value)
-  (e0:let (result) (vector:make element-no)
-    (e0:let () (vector:fill-from-header! result (e0:value 1) element-no element-value)
+  (e0:let (result) (vector:make-uninitialized element-no)
+    (e0:let () (vector:initializing-fill-from-header! result (e0:value 1) element-no element-value)
       result)))
-
-(e1:define (vector:fill-from-header! vector header-based-index element-no element-value)
+(e1:define (vector:initializing-fill-from-header! vector header-based-index element-no element-value)
   (e0:if-in (fixnum:> header-based-index element-no) (#f)
-    (e0:let () (vector:set-from-header! vector header-based-index element-value)
-      (vector:fill-from-header! vector (fixnum:1+ header-based-index) element-no element-value))
+    (e0:let () (vector:initialize-from-header! vector header-based-index element-value)
+      (vector:initializing-fill-from-header! vector (fixnum:1+ header-based-index) element-no element-value))
     (e0:bundle)))
 
 (e1:define (vector:destroy vector)
@@ -644,6 +651,8 @@
   (buffer:get vector header-based-index))
 (e1:define (vector:set-from-header! vector header-based-index new-element)
   (buffer:set! vector header-based-index new-element))
+(e1:define (vector:initialize-from-header! vector header-based-index new-element)
+  (buffer:initialize! vector header-based-index new-element))
 
 (e1:define (vector:get vector index)
   (vector:get-from-header vector (fixnum:1+ index)))
@@ -907,19 +916,17 @@
       (vector:list->vector (list:reverse acc)))))
 
 (e1:define (io:write-symbol file symbol)
-  (e0:let (symbol-name) (symbol:symbol->string symbol)
-    (e0:if-in (whatever:eq? (string-hash:get symbol:table symbol-name)
-                            symbol) (#f)
-      ;; The symbol is NOT interned in the (primary) symbol table.
-      (e0:let () (io:write-character file 27)
-        (e0:let () (io:write-string file "[0m")
-          (e0:let () (io:write-character file 27)
-            (e0:let () (io:write-string file "[31m")
-              (e0:let () (io:write-string file (symbol:symbol->string symbol))
-                (e0:let () (io:write-character file 27)
-                  (io:write-string file "[0m")))))))
-      ;; The symbol IS interned in the (primary) symbol table.
-      (io:write-string file (symbol:symbol->string symbol)))))
+  (e0:if-in (symbol:interned-in? symbol symbol:table) (#f)
+    ;; The symbol is NOT interned in the (primary) symbol table.
+    (e0:let () (io:write-character file 27)
+      (e0:let () (io:write-string file "[0m")
+        (e0:let () (io:write-character file 27)
+          (e0:let () (io:write-string file "[35m")
+            (e0:let () (io:write-string file (symbol:symbol->string symbol))
+              (e0:let () (io:write-character file 27)
+                (io:write-string file "[0m")))))))
+    ;; The symbol IS interned in the (primary) symbol table.
+    (io:write-string file (symbol:symbol->string symbol))))
 
 (e1:define (io:write-fixnum file fixnum)
   (e0:if-in (fixnum:< fixnum (e0:value 0)) (#f)
@@ -1443,13 +1450,15 @@
                   (e0:let () (buffer:initialize! result (e0:value 7) (e0:value 0)) ; primitive descriptor or 0
                     (e0:let () (buffer:initialize! result (e0:value 8) (e0:value 0)) ; bytecode procedure or 0
                       (e0:let () (buffer:initialize! result (e0:value 9) (e0:value 0)) ; native procedure or 0
-                        (e0:let () (buffer:initialize! result (e0:value 10) alist:nil) ; extensions
+                        (e0:let () (buffer:initialize! result (e0:value 10) symbol-stage) ;;FIXME: the (e0:value 1) is for debugging! ;;alist:nil) ; extensions
                           result)))))))))))))
 
-(e1:define (symbol:fresh)
+(e1:define (symbol:fresh-with-prefix prefix)
   (e0:let (result) (symbol:make-uninterned)
-    (e0:let () (symbol:intern-uninterned! result string:empty)
+    (e0:let () (symbol:intern-uninterned! result prefix)
       result)))
+(e1:define (symbol:fresh)
+  (symbol:fresh-with-prefix ""))
 
 (e1:define symbol:gensym-box
   (box:make-0-initialized))
@@ -1480,6 +1489,15 @@
 (e1:define (symbol:interned? symbol)
   ;; The symbol is interned iff its name isn't nil
   (symbol:symbol->string symbol))
+
+(e1:define (symbol:interned-in? symbol table)
+  (e0:let (symbol-name) (symbol:symbol->string symbol)
+    (e0:if-in symbol-name (0)
+      #f
+      (e0:if-in (string-hash:has? table symbol-name) (#f)
+        #f
+        (whatever:eq? (string-hash:get table symbol-name)
+                      symbol)))))
 
 ;;; Return non-#f iff the given object, which must be a symbol, is a
 ;;; non-procedure name.
@@ -1516,13 +1534,16 @@
   (symbol:intern name-as-string))
 
 (e1:define (symbol:fresh-symbols how-many)
-  (symbol:fresh-symbols-acc how-many list:nil))
-(e1:define (symbol:fresh-symbols-acc how-many acc)
+  (symbol:fresh-symbols-with-prefix how-many ""))
+(e1:define (symbol:fresh-symbols-with-prefix how-many prefix)
+  (symbol:fresh-symbols-with-prefix-acc how-many prefix list:nil))
+(e1:define (symbol:fresh-symbols-with-prefix-acc how-many prefix acc)
   (e0:if-in how-many (0)
-    acc
-    (e0:let (new-symbol) (symbol:fresh)
-        (symbol:fresh-symbols-acc (fixnum:1- how-many)
-                                       (list:cons new-symbol acc)))))
+    (list:reverse acc) ;; return identifiers with ascending numbers
+    (e0:let (new-symbol) (symbol:fresh-with-prefix prefix)
+      (symbol:fresh-symbols-with-prefix-acc (fixnum:1- how-many)
+                                            prefix
+                                            (list:cons new-symbol acc)))))
 
 (e1:define (symbol:write s)
   (string:write (symbol:symbol->string s)))
@@ -1563,7 +1584,9 @@
 (e1:define e0:handle-generator-box
   (box:make-initialized (e0:value 0)));;(e0:value 1000000)))
 (e1:define (e0:fresh-handle)
-  (box:bump-and-get! e0:handle-generator-box))
+  (e0:value -1) ;; FIXME: this is only for debugging
+  ;;(box:bump-and-get! e0:handle-generator-box)
+  )
 
 ;;; User-friendly procedural constructors:
 (e1:define (e0:variable* name)
@@ -1816,7 +1839,7 @@
 (e1:define (state:eval-given-primitive-into-list* primitive-name actual-values-list-expression)
   (e0:let (in-dimension) (state:primitive-get-in-dimension primitive-name)
     (e0:let (out-dimension) (state:primitive-get-out-dimension primitive-name)
-      (e0:let (result-names) (symbol:fresh-symbols out-dimension)
+      (e0:let (result-names) (symbol:fresh-symbols-with-prefix out-dimension "results")
         (e0:let* result-names
                         (e0:primitive* primitive-name
                                               (state:extract-arguments* actual-values-list-expression in-dimension))
@@ -2345,10 +2368,10 @@
 ;;;; dynamically-typed object.
 
 (e1:define (sexpression:make-with-locus tag value locus)
-  (e0:let (result) (buffer:make (e0:value 3))
-    (e0:let () (buffer:set! result (e0:value 0) tag)
-      (e0:let () (buffer:set! result (e0:value 1) value)
-        (e0:let () (buffer:set! result (e0:value 2) locus)
+  (e0:let (result) (buffer:make-uninitialized (e0:value 3))
+    (e0:let () (buffer:initialize! result (e0:value 0) tag)
+      (e0:let () (buffer:initialize! result (e0:value 1) value)
+        (e0:let () (buffer:initialize! result (e0:value 2) (e0:value 0));;locus) ;; FIXME: the 0 locus is for debugging only!
           result)))))
 (e1:define (sexpression:make-without-locus tag value)
   (sexpression:make-with-locus tag value (e0:value 0)))
@@ -2495,18 +2518,25 @@
     sexpression:nil
     (sexpression:cons (sexpression:inject-symbol (list:head symbols))
                       (sexpression:inject-symbols (list:tail symbols)))))
+(e1:define (sexpression:fresh-symbol-with-prefix prefix-string)
+  (sexpression:inject-symbol (symbol:fresh-with-prefix prefix-string)))
 (e1:define (sexpression:fresh-symbol)
-  (sexpression:inject-symbol (symbol:fresh)))
+  (sexpression:fresh-symbol-with-prefix ""))
 
-;;; Return an s-list of fresh s-symbols:
+;;; Return an s-list of fresh s-symbols.  The prefix is a string
 (e1:define (sexpression:fresh-symbols how-many)
-  (sexpression:fresh-symbols-acc how-many sexpression:nil))
-(e1:define (sexpression:fresh-symbols-acc how-many acc)
+  (sexpression:fresh-symbols-with-prefix how-many ""))
+
+(e1:define (sexpression:fresh-symbols-with-prefix how-many prefix)
+  (sexpression:fresh-symbols-with-prefix-acc how-many prefix sexpression:nil))
+(e1:define (sexpression:fresh-symbols-with-prefix-acc how-many prefix acc)
   (e0:if-in how-many (0)
-    acc
-    (e0:let (sexpression) (sexpression:fresh-symbol)
-      (sexpression:fresh-symbols-acc (fixnum:1- how-many)
-                                     (sexpression:cons sexpression acc)))))
+    (sexpression:reverse acc) ;; return identifiers with ascending numbers
+    (e0:let (sexpression) (sexpression:fresh-symbol-with-prefix prefix)
+      (sexpression:fresh-symbols-with-prefix-acc (fixnum:1- how-many)
+                                                 prefix
+                                                 (sexpression:cons sexpression
+                                                                   acc)))))
 
 ;;; Make an s-list of expression sexpressions from a list of expressions:
 (e1:define (sexpression:inject-expressions expressions)
@@ -2699,7 +2729,7 @@
 ;;; the procedure name:
 (e1:define (state:macro-get-macro-procedure-name-ignoring-cache macro-name)
   (e0:let (body-as-sexpression) (state:macro-get-body macro-name)
-    (e0:let (untransformed-name) (symbol:fresh)
+    (e0:let (untransformed-name) (symbol:fresh-with-prefix "macro-procedure")
       (e0:let (untransformed-formals) state:arguments-list
   ;; (e0:let () (string:write "+ Caching ")
   ;; (e0:let () (string:write (symbol:symbol->string macro-name))

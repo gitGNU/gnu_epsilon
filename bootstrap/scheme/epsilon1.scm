@@ -487,7 +487,7 @@
 ;;; This will be useful soon below, to define a friendlier macroexpand.
 
 (e1:define (e1:destructuring-bind* pattern structure body-forms)
-  (e0:let (variable) (symbol:fresh)
+  (e0:let (variable) (symbol:fresh-with-prefix "macroexpanded-structure")
     (sexpression:inject-expression
       (e0:let* (list:list1 variable) (e1:macroexpand structure)
         (e1:macroexpand (e1:destructuring-bind-variable*s pattern
@@ -504,8 +504,8 @@
             (sexpression:quasiquote (e0:let (,pattern) ,variable
                                       ,body-form)))
            ((sexpression:cons? pattern)
-            (e0:let (car-name) (sexpression:fresh-symbol)
-              (e0:let (cdr-name) (sexpression:fresh-symbol)
+            (e0:let (car-name) (sexpression:fresh-symbol-with-prefix "car")
+              (e0:let (cdr-name) (sexpression:fresh-symbol-with-prefix "cdr")
                 (sexpression:quasiquote (e1:if (sexpression:cons? ,variable)
                                           (e0:let (,car-name) (sexpression:car ,variable)
                                             ,(e1:destructuring-bind-variable*s
@@ -585,6 +585,10 @@
 ;;; execution time, not at the time of the macroexpansion of
 ;;; e1:define, e1:define-procedure and e1:define-non-procedure.
 
+;;; Make a version of e1:toplevel available to epsilon1 as well.
+(e1:toplevel (e1:define-macro (e1:toplevel . forms)
+  `(e1:begin ,@forms)))
+
 ;;; Macro version of the above.
 (e1:toplevel (e1:define-macro (e1:define-non-procedure name . forms)
                `(e1:define-non-procedure-procedure (e0:value ,name)
@@ -647,7 +651,7 @@
 ;;; on unboxed data.
 
 (e1:define-macro (e1:case discriminand . cases)
-  (e0:let (discriminand-name) (sexpression:fresh-symbol)
+  (e0:let (discriminand-name) (sexpression:fresh-symbol-with-prefix "discriminand")
     `(e0:let (,discriminand-name) ,discriminand
        (case:dispatch ,discriminand-name ,@cases))))
 
@@ -883,7 +887,7 @@
 (e1:define-macro (e1:begin1 first-form . more-forms)
   (e1:if (sexpression:null? more-forms)
     first-form
-    (e1:let* ((first-form-result-name (sexpression:fresh-symbol)))
+    (e1:let* ((first-form-result-name (sexpression:fresh-symbol-with-prefix "begin1-result")))
       `(e1:let* ((,first-form-result-name ,first-form))
          ,@more-forms
          ,first-form-result-name))))
@@ -1051,7 +1055,7 @@
 ;;; select, destructively or non-destructively update tuples.
 
 (e1:define-macro (tuple:make . elements)
-  (e1:let* ((result-name (sexpression:fresh-symbol))
+  (e1:let* ((result-name (sexpression:fresh-symbol-with-prefix "tuple"))
             (element-no (sexpression:inject-fixnum (sexpression:length elements))))
     `(e1:let* ((,result-name (buffer:make ,element-no)))
        ,@(tuple:initialize-from!*s result-name 0 elements)
@@ -1069,7 +1073,7 @@
                                   (sexpression:cdr elements)))))
 
 (e1:define-macro (tuple:explode-from tuple first-index element-no)
-  (e1:let* ((tuple-name (sexpression:fresh-symbol)))
+  (e1:let* ((tuple-name (sexpression:fresh-symbol-with-prefix "tuple")))
     `(e1:let* ((,tuple-name ,tuple))
        (e0:bundle ,@(tuple:explode-elements*s tuple-name
                                               (sexpression:eject-fixnum first-index)
@@ -1092,7 +1096,7 @@
 
 ;;; Non-destructive substitution
 (e1:define-macro (tuple:with tuple element-no index new-element)
-  (e1:let* ((tuple-name (sexpression:fresh-symbol)))
+  (e1:let* ((tuple-name (sexpression:fresh-symbol-with-prefix "tuple")))
     `(e1:let* ((,tuple-name ,tuple))
        (tuple:make ,@(tuple:substitution-elements*s tuple-name
                                                     (sexpression:eject-fixnum element-no)
@@ -1278,7 +1282,7 @@
   (e1:let* ((procedure-name (sexpression:car procedure-and-table))
             (table (sexpression:cdr procedure-and-table))
             ;;(all-args-name (sexpression:fresh-symbol "all-args")))
-            (all-args-name (sexpression:fresh-symbol)))
+            (all-args-name (sexpression:fresh-symbol-with-prefix "all-args")))
     `(e1:begin
       ;; Define the keyword syntax *first*: it could be used
       ;; recursively in the body, or we may have to undo a previous
@@ -1428,8 +1432,8 @@
                       ,(sexpression:inject-string (symbol:symbol->string (sexpression:eject-symbol sum-name)))
                       (sum:descriptor #f ',cases))))
 (e1:define-macro (sum:extend-open sum-name . new-cases)
-  (e1:let* ((old-cases-name (sexpression:fresh-symbol))
-            (descriptor-name (sexpression:fresh-symbol)))
+  (e1:let* ((old-cases-name (sexpression:fresh-symbol-with-prefix "old-cases"))
+            (descriptor-name (sexpression:fresh-symbol-with-prefix "descriptor")))
     `(e1:let* ((,old-cases-name (sum:name->cases (e0:value ,sum-name)))
                (,descriptor-name (sum:name->descriptor (e0:value ,sum-name))))
       (sum:descriptor-set-cases-sexpression! ,descriptor-name (sexpression:append ,old-cases-name ',new-cases))
@@ -1764,7 +1768,7 @@
            ((e0:expression-call-closure? e) ;; Notice that this would have worked as a macro as well
             (e1:let* ((closure-expression (e0:expression-call-closure-get-closure-expression e))
                       (actuals (e0:expression-call-closure-get-actuals e))
-                      (transformed-closure-name (symbol:fresh)))
+                      (transformed-closure-name (symbol:fresh-with-prefix "transformed-closure")))
               (e0:let* (list:singleton transformed-closure-name)
                        (closure:closure-convert closure-expression bounds)
                        (e0:call-indirect* (e0:primitive* (e0:value buffer:get)
@@ -1862,8 +1866,8 @@
 ;;; do this in order not to introduce a circular dependency.  Of
 ;;; course it's important that the returned code be efficient.
 (e1:define (closure:make* nonlocal-names nonlocal-expressions formals body-expression)
-  (e1:let* ((procedure-name (symbol:fresh))
-            (closure-name (symbol:fresh))) ; we also use this as the closure hidden parameter name
+  (e1:let* ((procedure-name (symbol:fresh-with-prefix "closure-procedure"))
+            (closure-name (symbol:fresh-with-prefix "closure"))) ; we also use this as the closure hidden parameter name
     (e1:unless (fixnum:= (list:length nonlocal-names) (list:length nonlocal-expressions))
       (e1:error "closure:make*: nonlocal-names and nonlocal-expressions have different sizes"))
     (e1:begin
@@ -1964,7 +1968,7 @@
 ;;; naming its associated procedure.
 
 (e1:define-macro (e1:nonclosure formals . body-forms)
-  (e1:let* ((procedure-name (sexpression:fresh-symbol)))
+  (e1:let* ((procedure-name (sexpression:fresh-symbol-with-prefix "nonclosure")))
     ;; Define once and for all, at macroexpansion time, the procedure:
     (state:procedure-set! (sexpression:eject-symbol procedure-name)
                           (sexpression:eject-symbols formals)
@@ -2028,6 +2032,13 @@
 ;;;;; S-expression macro utilities
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;; The result is a string.
+(e1:define (sexpression:symbol-name ssymbol)
+  (symbol:symbol->string (sexpression:eject-symbol ssymbol)))
+
+(e1:define (sexpression:symbol-sname ssymbol)
+  (sexpression:inject-string (sexpression:symbol-name ssymbol)))
+
 ;;; This comes in handy for many macros who have to work on s-lists,
 ;;; such as the ones encoding let bindings.
 (e1:define (sexpression:map-nonclosure procedure-name s-list)
@@ -2065,6 +2076,17 @@
                                                                                (sexpression:car list-b))
                                                              acc)))))
 
+(e1:define (sexpression:fresh-symbols-from-ssymbols slist)
+  (sexpression:fresh-symbols-from-ssymbols-helper slist '()))
+(e1:define (sexpression:fresh-symbols-from-ssymbols-helper slist sacc)
+  (e1:if (sexpression:null? slist)
+    (sexpression:reverse sacc)
+    (sexpression:fresh-symbols-from-ssymbols-helper
+       (sexpression:cdr slist)
+       (sexpression:cons (sexpression:fresh-symbol-with-prefix (sexpression:symbol-name (sexpression:car slist)))
+                         sacc))))
+
+
 ;;;;; Loops
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -2082,8 +2104,8 @@
 ;;; eta-conversion and build an explicit lambda; for example:
 ;;; (e1:named-let loop ((n 1)) (display n) (e1:lambda (n) (loop n)))
 (e1:define-macro (e1:named-let loop-name bindings . body-forms)
-  (e1:let* ((next-name (sexpression:fresh-symbol))
-            (auto-applicator-name (sexpression:fresh-symbol))
+  (e1:let* ((next-name (sexpression:fresh-symbol-with-prefix "next"))
+            (auto-applicator-name (sexpression:fresh-symbol-with-prefix "auto-applicator"))
             (variable-names (sexpression:map-nonclosure (e0:value sexpression:car) bindings))
             (variable-initial-values (sexpression:map-nonclosure (e0:value sexpression:prepend-begin)
                                                                  (sexpression:map-nonclosure (e0:value sexpression:cdr)
@@ -2114,8 +2136,8 @@
 
 ;;; In our do loop next-value expressions are mandatory
 (e1:define-macro (e1:do bindings termination . body-forms)
-  (e1:let* ((loop-name (sexpression:fresh-symbol))
-            (auto-applicator-name (sexpression:fresh-symbol))
+  (e1:let* ((loop-name (sexpression:fresh-symbol-with-prefix "loop"))
+            (auto-applicator-name (sexpression:fresh-symbol-with-prefix "auto-applicator"))
             (variables (sexpression:map-nonclosure (e0:value sexpression:car) bindings))
             (initial-values (sexpression:map-nonclosure (e0:value sexpression:cadr)
                                                         bindings))
@@ -2189,8 +2211,8 @@
 ;;; Generalization of Common Lisp-style dolist.  Differently from
 ;;; Common Lisp, we can have more than one result forms.
 (e1:define-macro (e1:doiterator make-iterator-name get-name next-name end?-name (variable structure-expression . result-forms) . body-forms)
-  (e1:let* ((structure-variable-name (sexpression:fresh-symbol))
-            (iterator-variable-name (sexpression:fresh-symbol)))
+  (e1:let* ((structure-variable-name (sexpression:fresh-symbol-with-prefix "do-structure"))
+            (iterator-variable-name (sexpression:fresh-symbol-with-prefix "iterator-variable")))
     `(e1:let* ((,structure-variable-name ,structure-expression))
        (e1:do ((,iterator-variable-name (,make-iterator-name ,structure-variable-name)
                                         (,next-name ,structure-variable-name ,iterator-variable-name)))
@@ -2225,7 +2247,7 @@
 ;;; Common Lisp-style dotimes.  Differently from Common Lisp, we can
 ;;; have more than one result forms.
 (e1:define-macro (e1:dotimes (variable iteration-no . result-forms) . body-forms)
-  (e1:let* ((limit-variable-name (sexpression:fresh-symbol)))
+  (e1:let* ((limit-variable-name (sexpression:fresh-symbol-with-prefix "dotimes-limit")))
     `(e1:let* ((,limit-variable-name ,iteration-no))
        (e1:when (fixnum:> ,limit-variable-name 0)
          (e1:do ((,variable 0 (fixnum:1+ ,variable)))
@@ -2239,8 +2261,8 @@
     (e1:error "dobuffer: ill-formed variable-buffer clause"))
   (e1:let ((variable (sexpression:car variable-buffer))
            (buffer (sexpression:cadr variable-buffer))
-           (buffer-variable-name (sexpression:fresh-symbol))
-           (index-variable-name (sexpression:fresh-symbol)))
+           (buffer-variable-name (sexpression:fresh-symbol-with-prefix "do-buffer"))
+           (index-variable-name (sexpression:fresh-symbol-with-prefix "do-buffer-index")))
     `(e1:let ((,buffer-variable-name ,buffer))
        (e1:dotimes (,index-variable-name (boxedness:buffer-length ,buffer-variable-name))
          (e1:let* ((,variable (buffer:get ,buffer-variable-name ,index-variable-name)))
@@ -2259,7 +2281,7 @@
   (e1:let ((key-variable-name (sexpression:car key-datum-alist))
            (datum-variable-name (sexpression:cadr key-datum-alist))
            (alist (sexpression:caddr key-datum-alist))
-           (pair-variable-name (sexpression:fresh-symbol)))
+           (pair-variable-name (sexpression:fresh-symbol-with-prefix "doalist-pair")))
     `(e1:dolist (,pair-variable-name ,alist)
        (e1:let* ((,key-variable-name (cons:get-car ,pair-variable-name))
                  (,datum-variable-name (cons:get-cdr ,pair-variable-name)))
@@ -2290,10 +2312,10 @@
 ;;; works with both ascending and descending loops, but checks *two*
 ;;; bounds per iteration.
 (e1:define-macro (e1:for1 (variable initial-value final-value step . result-forms) . body-forms)
-  (e1:let* ((loop-name (sexpression:fresh-symbol))
-            (initial-value-name (sexpression:fresh-symbol))
-            (final-value-name (sexpression:fresh-symbol))
-            (step-name (sexpression:fresh-symbol)))
+  (e1:let* ((loop-name (sexpression:fresh-symbol-with-prefix "for1-loop"))
+            (initial-value-name (sexpression:fresh-symbol-with-prefix "for1-initial"))
+            (final-value-name (sexpression:fresh-symbol-with-prefix "for1-final"))
+            (step-name (sexpression:fresh-symbol-with-prefix "for1-step")))
     `(e1:let* ((,initial-value-name ,initial-value)
                (,final-value-name ,final-value)
                (,step-name ,step))
@@ -2372,9 +2394,9 @@
 ;;; an s-list of fresh s-symbols.
 (e1:define (sexpression:freshen-pattern pattern)
   (e1:cond ((sexpression:symbol? pattern)
-            (sexpression:fresh-symbol))
+            (sexpression:fresh-symbol-with-prefix (sexpression:symbol-name pattern)))
            ((sexpression:symbol-list? pattern)
-            (sexpression:fresh-symbols (sexpression:length pattern)))
+            (sexpression:fresh-symbols-from-ssymbols pattern))
            (else
             (e1:error "sexpression:freshen-pattern: pattern not an s-symbol or an s-symbol s-list"))))
 
@@ -2606,14 +2628,16 @@
            ((pattern:tuple? pattern)
             (e1:let* ((subpatterns (sexpression:inject-sexpressions (pattern:tuple-get-subpatterns pattern)))
                       (element-no (sexpression:length subpatterns))
-                      (subexpression-variables (sexpression:fresh-symbols element-no)))
+                      (subexpression-variables (sexpression:fresh-symbols-with-prefix element-no
+                                                                                      "tuple-element")))
               `(e0:let ,subexpression-variables
                        (tuple:explode ,discriminand-variable ,(sexpression:inject-fixnum element-no))
                        ,(pattern-matching:check-expressions*s subexpression-variables subpatterns))))
            ((pattern:sum? pattern)
             (e1:let* ((constructor (sexpression:inject-symbol (pattern:sum-get-constructor pattern)))
                       (subpatterns (sexpression:inject-sexpressions (pattern:sum-get-subpatterns pattern)))
-                      (subexpression-variables (sexpression:fresh-symbols (sexpression:length subpatterns))))
+                      (subexpression-variables (sexpression:fresh-symbols-with-prefix (sexpression:length subpatterns)
+                                                                                      "sum-elements")))
               `(e1:and  (,(sexpression:append-symbols constructor (sexpression:inject-symbol (e0:value ?)))
                          ,discriminand-variable)
                         (e0:let ,subexpression-variables
@@ -2669,14 +2693,16 @@
            ((pattern:tuple? pattern)
             (e1:let* ((subpatterns (sexpression:inject-sexpressions (pattern:tuple-get-subpatterns pattern)))
                       (element-no (sexpression:length subpatterns))
-                      (subexpression-variables (sexpression:fresh-symbols element-no)))
+                      (subexpression-variables (sexpression:fresh-symbols-with-prefix element-no
+                                                                                      "tuple-elements")))
               `(e0:let ,subexpression-variables
                        (tuple:explode ,discriminand-variable ,(sexpression:inject-fixnum element-no))
                  ,(pattern-matching:bind-expressions*s subexpression-variables subpatterns body-form))))
            ((pattern:sum? pattern)
             (e1:let* ((constructor (sexpression:inject-symbol (pattern:sum-get-constructor pattern)))
                       (subpatterns (sexpression:inject-sexpressions (pattern:sum-get-subpatterns pattern)))
-                      (subexpression-variables (sexpression:fresh-symbols (sexpression:length subpatterns))))
+                      (subexpression-variables (sexpression:fresh-symbols-with-prefix (sexpression:length subpatterns)
+                                                                                      "sum-elements")))
               `(e0:let ,subexpression-variables
                        (,(sexpression:append-symbols constructor
                                                      (sexpression:inject-symbol e1:word-separator)
@@ -2721,7 +2747,7 @@
 
 ;;; ML-style multi-way match syntax.
 (e1:define-macro (pattern-matching:match discriminand . cases)
-  (e1:let* ((discriminand-variable (sexpression:fresh-symbol)))
+  (e1:let* ((discriminand-variable (sexpression:fresh-symbol-with-prefix "discriminand")))
     `(e0:let (,discriminand-variable)
              ,discriminand
        (pattern-matching:match-discriminand-variable ,discriminand-variable ,@cases))))
@@ -2852,7 +2878,7 @@
        (fio:write-to-evaluating-port ,port ,@(sexpression:cdr stuff)))))
 
 (e1:define-macro (fio:write-to port . stuff)
-  (e1:let ((port-name (sexpression:fresh-symbol)))
+  (e1:let ((port-name (sexpression:fresh-symbol-with-prefix "port")))
     `(e1:let* ((,port-name ,port))
        (fio:write-to-evaluating-port ,port-name ,@stuff))))
 
@@ -3115,6 +3141,20 @@
 ;;; FIXME: add other procedure when needed.
 
 
+;;;;; Other hash utilities
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Return the hash keys as a list, in some unspecified order.
+(e1:define (hash:keys h)
+  (alist:keys (hash:hash->list h)))
+
+;;; Aliases
+(e1:define (unboxed-hash:keys h)
+  (hash:keys h))
+(e1:define (string-hash:keys h)
+  (hash:keys h))
+
+
 ;;;;; Symbol recognition with boxedness tags
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -3234,6 +3274,64 @@
   (list:head (list:tail (list:tail (list:tail x)))))
 (e1:define (list:fifth x)
   (list:head (list:tail (list:tail (list:tail (list:tail x))))))
+
+
+;;;;; Buffer variadic macros
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Just a convenience alias.
+(e1:define-macro (buffer:buffer . elements)
+  `(tuple:make ,@elements))
+
+
+;;;;; Vector variadic macros
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; FIXME: use this technique, correctly using buffer:initialize!, also for tuples:
+;;; it will be much more efficient GC-wise with the new collector.
+;;; Actually I should change this into the tuple definition, and define vector:vector
+;;; as a tuple with one more initial element.
+
+(e1:define-macro (vector:vector . elements)
+  (e1:let* ((element-no (sexpression:length elements))
+            (slot-no (fixnum:1+ element-no))
+            (vector-variable (sexpression:fresh-symbol-with-prefix "vector"))
+            (element-variables
+             (sexpression:fresh-symbols-with-prefix element-no "vector-element")))
+    `(e1:let* (,@(sexpression:zip element-variables elements)
+               (,vector-variable
+                (buffer:make-uninitialized ,(sexpression:inject-fixnum slot-no))))
+       (buffer:initialize! ,vector-variable 0 ,(sexpression:inject-fixnum element-no))
+       (vector:initialize-from! ,vector-variable 1 ,@element-variables)
+       ,vector-variable)))
+(e1:define-macro (vector:initialize-from! vector-variable index . remaining-elements)
+  (e1:if (sexpression:null? remaining-elements)
+    '(e1:begin)
+    `(e1:begin
+       (buffer:initialize! ,vector-variable ,index ,(sexpression:car remaining-elements))
+       (vector:initialize-from! ,vector-variable
+                                ,(sexpression:1+ index)
+                                ,@(sexpression:cdr remaining-elements)))))
+
+
+;;;;; S-list utilities
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; FIXME: move this somewhere reasonable.
+(e1:define (sexpression:inject-fixnums fixnums)
+  (sexpression:inject-fixnums-helper fixnums '()))
+(e1:define (sexpression:inject-fixnums-helper fixnums sacc)
+  (e1:if (list:null? fixnums)
+    (sexpression:reverse sacc)
+    (sexpression:inject-fixnums-helper
+       (list:tail fixnums)
+       (sexpression:cons (sexpression:inject-fixnum (list:head fixnums))
+                         sacc))))
+
+(e1:define (sexpression:range fixnum-from fixnum-to)
+  (sexpression:inject-fixnums (list:range fixnum-from fixnum-to)))
+(e1:define (sexpression:iota fixnum-size)
+  (sexpression:inject-fixnums (list:iota fixnum-size)))
 
 
 ;;;;; S-expression printing (the printer subsystem)
@@ -3458,6 +3556,35 @@
   (e1:let ((p (io:standard-output)))
     (printer:write-symbol p (state:macro-get-macro-procedure-name macro-name))
     (io:write-string p "\n")))
+
+;;; This is very convenient to use interactively, so I'll make it work as a
+;;; macro as well to avoid the need for typing "(e1:value".
+(e1:define-macro (debug:print . stuff)
+  (e1:if (sexpression:null? stuff)
+    `(e1:begin)
+    `(e1:begin
+       (debug:print1 ,(sexpression:car stuff))
+       ,@(e1:if (sexpression:null? (sexpression:cdr stuff))
+           '((fio:write "\n"))
+           '())
+       (debug:print ,@(sexpression:cdr stuff)))))
+(e1:define-macro (debug:print1 x)
+  (e1:if (sexpression:symbol? x)
+    `(debug:print* (e1:value ,x))
+    `(debug:print* ,x)))
+
+(e1:define (debug:print* symbol)
+  (e1:unless (symbol:interned-in? symbol symbol:table)
+    (fio:write "* " (sy symbol) " is NOT interned in the primary symbol table\n"))
+  (e1:when (state:global? symbol)
+    (fio:write "* " (sy symbol) " is a global:\n"
+               (i (state:global-get symbol)) "\n"))
+  (e1:when (state:procedure? symbol)
+    (fio:write "* " (sy symbol) " is a procedure:\n")
+    (debug:print-procedure-definition symbol))
+  (e1:when (state:macro? symbol)
+    (fio:write "* " (sy symbol) " is a macro:\n")
+    (debug:print-macro-definition symbol)))
 
 (e1:define (debug:macroexpand sexpression)
   (e1:let ((p (io:standard-output)))
@@ -4754,7 +4881,34 @@
       ((reader:result-success _)
        (e1:error "eat-ignorables: not supposed to succeed")))))
 
-(e1:toplevel
+;; (e1:define (XXXXXXXXXXXXXXXXXXXXXXXXXXX) 42)
+;; (e1:define (ZZZZZZZZZZZZZZZZZZZZ)
+;;   (item-list:add-first!
+;;      reader:ignore-item-list-box
+;;      (e1:value ignorable-regexp)
+;;      (e1:lambda (bp)
+;;        (e1:match (regexp:read-regexp bp regexp:ignorable)
+;;          ((regexp:result-success _ _ _ _ _)
+;;           (reader:result-ignore))
+;;          ((regexp:result-failure)
+;;           (reader:result-failure)))))
+
+;;   (item-list:add-last!
+;;      reader:ignore-item-list-box
+;;      (e1:value comment-prefix)
+;;      (e1:lambda (bp)
+;;        (e1:match (regexp:read-regexp bp regexp:comment-prefix)
+;;          ((regexp:result-success _ _ _ _ _)
+;;           (reader:read-bp bp) ;; eat and ignore this
+;;           (reader:result-ignore))
+;;          ((regexp:result-failure)
+;;           (reader:result-failure)))))
+;; )
+
+;;; The following is a procedure only because of a stupid bootstrapping problem
+;;; I need to work around until I finally break compatibility with my naive
+;;; Scheme implementation.
+(e1:define (a-procedure-to-be-called-once-with-should-be-a-toplevel-sequence)
   (item-list:add-first!
      reader:item-list-box
      (e1:value ignorable)
@@ -4905,6 +5059,8 @@
                                                       (symbol:string->symbol
                                                        (reader:unescape-symbol-literal string))
                                                       locus)))))
+(e1:toplevel (a-procedure-to-be-called-once-with-should-be-a-toplevel-sequence))
+
 
 ;;;;; Character and string escaping
 ;;;;; FIXME: move the rest of the implementation here.
@@ -4981,6 +5137,46 @@
             i)))
 
 
+;;;;; Clean symbol implementation
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Reimplement symbols with epsilon1 records instead of using the clunky
+;;; definitions from core.e.
+
+(e1:define-record symbol:symbol
+  name
+  is-global
+  global-value
+  formals
+  body
+  macro
+  macro-procedure-name
+  primitive-descriptor
+  compiled-procedure
+  compiled-procedure-data
+  user-defined)
+
+(e1:define symbol-stage 2)
+
+(e1:define (symbol:intern-in-table table name)
+  (e1:if (string-hash:has? table name)
+    (string-hash:get table name)
+    (e1:let* ((name (vector:shallow-clone name))
+              (s (symbol:symbol #:name                    name
+                                #:is-global               #f
+                                #:global-value            127
+                                #:formals                 0
+                                #:body                    0
+                                #:macro                   0
+                                #:macro-procedure-name    0
+                                #:primitive-descriptor    0
+                                #:compiled-procedure      0
+                                #:compiled-procedure-data 0
+                                #:user-defined            symbol-stage))) ;; FIXME: the 2 is only for debugging
+      (string-hash:set! table name s)
+      s)))
+
+
 ;;;;; Object properties
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -5021,7 +5217,7 @@
 ;;; Attach the given property to the object which is being built, and
 ;;; return it.
 (e1:define-macro (state:with-property key value . forms)
-  (e1:let ((result-name (sexpression:fresh-symbol)))
+  (e1:let ((result-name (sexpression:fresh-symbol-with-prefix "with-property-result")))
     `(e1:let ((,result-name ,@forms))
        (state:set-property! ,result-name ,key ,value)
        ,result-name)))

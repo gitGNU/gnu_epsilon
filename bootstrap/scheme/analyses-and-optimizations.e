@@ -1,6 +1,6 @@
 ;;;;; epsilon0 analyses and optimizations in -*- epsilon -*- -- actually in epsilon1.
 
-;;;;; Copyright (C) 2014, 2015 Luca Saiu
+;;;;; Copyright (C) 2014, 2015, 2016 Luca Saiu
 ;;;;; Written by Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
@@ -77,6 +77,7 @@
 ;;; Update the given call graph by adding the given procedure, and its
 ;;; callees.
 (e1:define (call-graph:add-procedure! call-graph procedure-name)
+  ;; (fio:write "CG: adding the new procedure " (sy procedure-name) "\n")
   (call-graph:build-helper call-graph (list:list procedure-name)))
 
 (e1:define (call-graph:build-helper call-graph worklist)
@@ -84,15 +85,22 @@
     call-graph
     (e1:let ((first (list:head worklist))
              (rest (list:tail worklist)))
+      ;; (fio:write " (the worklist has " (i (list:length worklist)) " elements)\n")
       (e1:if (e1:or (fixnum:zero? first)
                     (unboxed-hash:has? call-graph first))
-        (e1:unless (unboxed-hash:has? call-graph first)
-          (call-graph:add-procedure! cg first)) ;; Make sure the procedure is known.
         (call-graph:build-helper call-graph rest)
-        (e1:let ((worklist (list:append (call-graph:add-procedure!-internal call-graph first)
-                                        rest)))
+        (e1:begin
           (unboxed-hash:ensure-non-empty! call-graph first)
-          (call-graph:build-helper call-graph worklist))))))
+          (e1:let* ((first-callees (e1:if (fixnum:zero? first)
+                                     list:nil
+                                     (call-graph:add-procedure!-internal call-graph first)))
+                    (worklist (list:append-reversed first-callees rest)))
+            ;; (fio:write "  Found: ")
+            ;; (e1:dolist (x first-callees)
+            ;;   (e1:unless (fixnum:zero? x)
+            ;;     (fio:write (sy x) " ")))
+            ;; (fio:write "\n")
+            (call-graph:build-helper call-graph worklist)))))))
 
 ;;; Return the set-as-list of direct callees.
 (e1:define (call-graph:add-main-expression!-internal call-graph expression)
@@ -100,9 +108,14 @@
 
 ;;; Return the set-as-list of direct callees.
 (e1:define (call-graph:add-procedure!-internal call-graph procedure-name)
-  (call-graph:add-expression-direct-callees!-internal call-graph
-                                                      procedure-name
-                                                      (state:procedure-get-body procedure-name)))
+  (e1:if (state:procedure? procedure-name)
+    (call-graph:add-expression-direct-callees!-internal call-graph
+                                                        procedure-name
+                                                        (state:procedure-get-body procedure-name))
+    (e1:begin
+      (fio:write "Warning: " (sy procedure-name) " isn't defined as a procedure.  Marking it as calling any procedure.\n")
+      (unboxed-hash:add-to-set-as-list! call-graph procedure-name 0)
+      (list:list 0))))
 
 ;;; Return the set-as-list of direct callees.
 (e1:define (call-graph:add-expression-direct-callees!-internal call-graph procedure-name expression)
@@ -146,6 +159,14 @@
     (set-as-list:union
      (call-graph:add-expression-direct-callees!-internal call-graph procedure-name (list:head expressions))
      (call-graph:add-expressions-direct-callees!-internal call-graph procedure-name (list:tail expressions)))))
+
+;;; Return a call graph containing every procedure in the symbol table.
+(e1:define (call-graph:call-graph)
+  (e1:let ((cg (unboxed-hash:make)))
+    (e1:dohash (_ symbol symbol:table)
+      (e1:when (state:procedure? symbol)
+        (call-graph:add-procedure! cg symbol)))
+    cg))
 
 
 ;;; Call graph debug.
@@ -356,7 +377,7 @@
      (e0:primitive* name (e0:alpha-convert-expressions-with actuals a)))
     ((e0:expression-let _ bound-variables bound-expression body)
      (e1:let* ((variable-no (list:length bound-variables))
-               (new-bound-variables (symbol:fresh-symbols variable-no))
+               (new-bound-variables (symbol:fresh-symbols-with-prefix variable-no "bound-variable"))
                (new-a (alist:bind-lists a bound-variables new-bound-variables)))
        (e0:let* new-bound-variables
                 (e0:alpha-convert-expression-with bound-expression a)
@@ -364,7 +385,7 @@
     ((e0:expression-call _ procedure-name actuals)
      (e0:call* procedure-name (e0:alpha-convert-expressions-with actuals a)))
     ((e0:expression-call-indirect _ procedure-expression actuals)
-     (e0:call-indirect* (e0:alpha-convert-expression-with procedure-expression m)
+     (e0:call-indirect* (e0:alpha-convert-expression-with procedure-expression a)
                         (e0:alpha-convert-expressions-with actuals a)))
     ((e0:expression-if-in _ discriminand values then-branch else-branch)
      (e0:if-in* (e0:alpha-convert-expression-with discriminand a)
@@ -382,7 +403,7 @@
                (e0:alpha-convert-expressions-with (list:tail es) a))))
 
 (e1:define (e0:alpha-convert-procedure-definition formals body)
-  (e1:let* ((new-formals (symbol:fresh-symbols (list:length formals)))
+  (e1:let* ((new-formals (symbol:fresh-symbols-with-prefix (list:length formals) "formal"))
             (a (alist:bind-lists alist:nil formals new-formals)))
     (e1:bundle new-formals
                (e0:alpha-convert-expression-with body a))))

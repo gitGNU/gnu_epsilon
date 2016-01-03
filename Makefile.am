@@ -187,6 +187,7 @@ EPSILON_LATE_DUMPED_SOURCE_FILES = \
   bootstrap/scheme/export-toplevel-forms-to-guile.scm \
   bootstrap/scheme/bootstrap-from-epsilon1.e \
   bootstrap/scheme/bootstrap-from-epsilon1-secondary.e \
+  bootstrap/scheme/check-for-spills.e \
   bootstrap/scheme/fixed-point-tables.e
 
 EPSILON_DUMPED_SOURCE_FILES = \
@@ -642,6 +643,8 @@ clean-local: clean-profile
 	rm -f translator/eamlscanner.[ch] translator/eamlparser.[ch]
 	rm -f epsilon-*.shar.gz epsilon-*.tar.gz epsilon-*.tar.bz2 epsilon-*.tar.lzma epsilon-*.zip
 #	rm -rf `find $(srcdir)/ -name prefixes.h`
+maintainer-clean-local:
+	rm $(srcdir)/bootstrap/scheme/fixed-point-tables.e
 distclean-local: clean-doc clean-profile
 	rm -f $(BUILT_SOURCES)
 	rm -f "@abs_top_builddir@/dumps/"*

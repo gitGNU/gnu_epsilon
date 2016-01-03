@@ -318,4 +318,8 @@
      ,@forms))
 
 (define-macro (unless-guile . forms)
-  `(begin))
+  '(begin 42))
+
+(define symbol-stage (e0:value 1))
+(e1:define symbol-stage symbol-stage)
+(e1:define is-guile (e0:value #t))

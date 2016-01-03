@@ -1,6 +1,7 @@
 ;;;;; epsilon1 REPL
 
 ;;;;; Copyright (C) 2013, 2014  Luca Saiu
+;;;;; Updated in 2015 and 2016 by Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
 
@@ -77,7 +78,7 @@ under the terms of the GNU General Public License, version 3 or later.  Enter
 ;;; with one s-expression parameter.
 (e1:define-macro (repl:define-command name-as-string procedure-name)
   (e1:let ((macro-name (sexpression:fresh-symbol-with-prefix (string:append "command-macro-"
-                                                                            name-as-string))))
+                                                                            (sexpression:eject-string name-as-string)))))
     `(e1:begin
        (e1:define-macro (,macro-name argument)
          `(,',procedure-name ',argument)) ;; Pass argument as a literal s-expression.

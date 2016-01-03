@@ -1,7 +1,7 @@
 # -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-## Copyright (C) 2002, 2003, 2005, 2006, 2007, 2008, 2014 Luca Saiu
+## Copyright (C) 2002, 2003, 2005, 2006, 2007, 2008, 2014, 2015 Luca Saiu
 ## Copyright (C) 2012 Université Paris 13
 ## minor updates by Luca Saiu in 2004 and 2013
 
@@ -229,6 +229,22 @@ if test "x$HAS_ACME" = "xyes"; then
 else
   AC_MSG_WARN([ACME cross-assembler not found: 6502 systems will not be supported])
   AC_SUBST(has_acme, "f")
+fi
+
+# We need xz to be able to uncompressed a bootstrapping REPL image.
+AC_CHECK_PROG(HAS_UNXZ, unxz, yes, no)
+if test "x$HAS_UNXZ" = "xyes"; then
+  AC_SUBST(has_unxz, "t")
+else
+  AC_MSG_ERROR([You need the XZ utilities to uncompress the bootstrap REPL])
+fi
+AC_CHECK_PROG(HAS_XZ, xz, yes, no)
+if test "x$HAS_XZ" = "xyes"; then
+  AC_SUBST(has_xz, "t")
+else
+  AC_MSG_WARN([Strage, you have unxz but not xz.  Going on, but you won't be
+  able to compress a new bootstrap REPL without the XZ utilities])
+  AC_SUBST(has_xz, "f")
 fi
 
 # Checks that required libraries are installed:

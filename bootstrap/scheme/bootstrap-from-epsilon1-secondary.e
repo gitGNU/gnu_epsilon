@@ -101,11 +101,19 @@
 (check-for-spills)
 (fio:write "Still alive after checking for spills.  Good!\n")
 
-(e1:unexec bootstrap:unexec-repl-image-file-name
-  (fio:write "About to load " (st bootstrap:unexec-repl-source-file-name) "\n")
-  (e1:load bootstrap:unexec-repl-source-file-name))
-(fio:write "Now please run "
-           (st bootstrap:unexec-repl-image-file-name)
-           " to generate "
-           (st bootstrap:repl-image-file-name)
-           " .\n")
+;;; I previously did this two-step bootstrapping, like for Guile: first I
+;;; unexeced into a REPL generator, which when executed unexeced into a REPL.
+;;; When bootstrapping from epsilon1 that's not really necessary, so instead of
+;;; unexecing an e1:load form I just run it here, and unexec the REPL in a
+;;; single step.  I'm keeping the old code here in this comment for the time
+;;; being, but I mean to remove it.
+;; (e1:unexec bootstrap:unexec-repl-image-file-name
+;;   (fio:write "About to load " (st bootstrap:unexec-repl-source-file-name) "\n")
+;;   (e1:load bootstrap:unexec-repl-source-file-name))
+;; (fio:write "Now please run "
+;;            (st bootstrap:unexec-repl-image-file-name)
+;;            " to generate "
+;;            (st bootstrap:repl-image-file-name)
+;;            " .\n")
+(e1:load bootstrap:unexec-repl-source-file-name)
+(fio:write "Still alive after unexecing the REPL from epsilon1, using the secondary symbol table.  Good!\n")

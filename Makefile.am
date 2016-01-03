@@ -678,58 +678,68 @@ GUILE2_STACK_SIZE = 10000000000
 	rm -f "$@" # Remove the file we're about to generate, just in case we fail later.
 	export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "@abs_top_builddir@/dumps/unexec-repl-from-guile.u"
-repl-from-guile: @abs_top_builddir@/dumps/repl-from-guile.u
-	export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
-	  "$<"
 
-@abs_top_builddir@/dumps/unexec-repl-from-epsilon1.u: $(bin_PROGRAMS) $(lib_LIBRARIES) $(EPSILON_EARLY_DUMPED_SOURCE_FILES) @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u
+@abs_top_builddir@/dumps/repl-from-epsilon1.u: $(bin_PROGRAMS) $(lib_LIBRARIES) $(EPSILON_EARLY_DUMPED_SOURCE_FILES) @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u
 	rm -f "$@" # Remove the file we're about to generate, just in case we fail later.
 	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
 	ulimit -s unlimited; echo '(e1:load (string:append configuration:abs_top_srcdir "/bootstrap/scheme/bootstrap-from-epsilon1.e"))' \
 	  | "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	    "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u"
-## FIXME: add the relevant epsilon1 source dependencies, and only them.  This
-## will avoid bootstrapping from Guile in many cases, making builds faster.
-@abs_top_builddir@/dumps/repl-from-epsilon1.u: bin/epsilon-image-interpreter-tagged @abs_top_builddir@/dumps/unexec-repl-from-epsilon1.u $(EPSILON_LATE_DUMPED_SOURCE_FILES)
-	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
-	rm -f "$@" # Remove the file we're about to generate, just in case we fail later.
-	ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
-	  "@abs_top_builddir@/dumps/unexec-repl-from-epsilon1.u"
+
+repl-from-guile: @abs_top_builddir@/dumps/repl-from-guile.u
+	export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
+	  "$<"
 repl-from-epsilon1: @abs_top_builddir@/dumps/repl-from-epsilon1.u
 	ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "$<"
 
-# Make a backup of the previous bootstrap REPL, and replace it with the generated one
-# from epsilon1.
-bootstrap-from-epsilon1: @abs_top_builddir@/dumps/repl-from-epsilon1.u
+# Make a backup of the previous bootstrap REPL, and replace it with the
+# one generated from epsilon1.
+bootstrap-repl-from-epsilon1: @abs_top_builddir@/dumps/repl-from-epsilon1.u
+	cp "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.old" \
+	  "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.old.1"
 	cp "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u" \
-	  "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.1"
+	  "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.old"
 	cp "@abs_top_builddir@/dumps/repl-from-epsilon1.u" \
 	  "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u"
 	echo "Bootstrapped."
 
-# Backup the current bootstrap REPL, then generate a REPL from Guile using the
-# sources (with no previous image) and make that the bootstrap REPL.
-bootstrap-from-guile: @abs_top_builddir@/dumps/repl-from-guile.u
+# Regenerate a bootstrap REPL from Guile.  As long as the sources are
+# correct and newer than the bootstrap REPL, this also works when the
+# bootstrap REPL are broken.
+bootstrap-repl-from-guile: @abs_top_builddir@/dumps/repl-from-guile.u
+	cp "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.old" \
+	  "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.old.1"
 	cp "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u" \
-	  "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.1" || true
+	  "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.old"
 	cp "@abs_top_builddir@/dumps/repl-from-guile.u" \
 	  "@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u"
+	echo "Replaced the bootstrap REPL."
 
-# Only rebuild the bootstrap REPL image when it's not present (or when
-# explicitly requested with a boostrap target).
-@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u:
-	mkdir "@abs_top_srcdir@/bootstrap-dumps" || true
-	$(MAKE) bootstrap-from-guile
+# Get the bootstrap REPL by uncompressing the one which is distributed.  File
+# modification times will ensure that the uncompressed file isn't overwritten
+# when it's been intentionally replaced by a newer version -- the compressed
+# version will be older in that case.
+@abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u: @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz
+	unxz - < "$<" > "$@"
+
+# In order to avoid a dependency loop we don't say that the compressed REPL loop
+# is obtained from the uncompressed REPL loop: we only do that at dist time,
+# when the compressed version is used.  This is also useful for preparing a new
+# compressed file to be committed to git.
+compress-bootstrap-repl: @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u
+	xz -9 - < @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u \
+	    > @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz
+EXTRA_DIST += \
+  bootstrap-dumps/bootstrap-repl.u.xz
+dist-hook: compress-bootstrap-repl
 
 # FIXME: switch to the native REPL by default
-repl: repl-from-guile
-# FIXME: rename the bootstrap directory, and use "bootstrap" with no trailing
+repl: repl-from-epsilon1
+# FIXME: rename the bootstrap directory and use "bootstrap" with no trailing
 # underscore as a target.
-bootstrap_: bootstrap-from-guile
-
-EXTRA_DIST += \
-  bootstrap-dumps/bootstrap-repl.u
+bootstrap_: @abs_top_builddir@/dumps/repl-from-epsilon1.u
+#bootstrap_: bootstrap-from-guile ##
 
 
 ## Run an existing REPL without rebuilding it, even when dependencies would require

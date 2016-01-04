@@ -56,7 +56,7 @@
 
 (e1:define (repl:print-banner)
   (fio:write "GNU epsilon " (st version:string) "
-Copyright (C) 2012-2015  Luca Saiu
+Copyright (C) 2012-2016  Luca Saiu
 Copyright (C) 2012  Universit" (c 233) ;; FIXME: do it the obvious way after bootstrapping away from Guile -- actually, Guile 1.8
 " Paris 13
 

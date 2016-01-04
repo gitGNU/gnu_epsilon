@@ -239,7 +239,7 @@
 ;;;;; Load machine-generated tables for fixed-point procedures
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:load (string:append configuration:abs_top_srcdir
+(e1:load (string:append configuration:abs_top_builddir
                         configuration:dir_separator
                         "bootstrap/scheme/fixed-point-tables.e"))
 

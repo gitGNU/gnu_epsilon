@@ -247,6 +247,14 @@ else
   AC_SUBST(has_xz, "f")
 fi
 
+# We need bc to generate fixed-point tables.
+AC_CHECK_PROG(HAS_BC, bc, yes, no)
+if test "x$HAS_BC" = "xyes"; then
+  AC_SUBST(has_bc, "t")
+else
+  AC_MSG_ERROR([You need the Unix bc util.  You're building on some weird system])
+fi
+
 # Checks that required libraries are installed:
 AC_LANG(C) # We're looking for C libraries:
 
@@ -645,6 +653,6 @@ AM_SILENT_RULES([no])
 AC_CACHE_SAVE
 # ######################### Command-line options: end #########################
 
-# ######################### Output config.h: begin ############################
+# ######################### Output generated files: begin ############################
 AC_OUTPUT
-# ######################### Output config.h: end ##############################
+# ######################### Output generated files: end ##############################

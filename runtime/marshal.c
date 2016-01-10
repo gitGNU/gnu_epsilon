@@ -1,7 +1,7 @@
 /* Textual dumping and binary marshalling and unmarshalling.
 
    Copyright (C) 2012 Université Paris 13
-   Copyright (C) 2012 Luca Saiu
+   Copyright (C) 2012, 2016 Luca Saiu
    Written by Luca Saiu
 
    This file is part of GNU epsilon.
@@ -34,6 +34,59 @@
 #define NOTHING "\033[0m"
 
 epsilon_int epsilon_dump_maximum_depth = 2;
+
+
+/* The magic number used as the first word of binary dumps file, 32-bit
+   big-endian.  I picked a random number fitting in 16 bits signed, for easier
+   portability to (hypothetical) small machines without a C compiler where I
+   still want to exec an image. */
+#define EPSILON_DUMP_MAGIC   32410
+
+/* After the magic number there are five bytes encoding in ASCII.  The first
+   four encode the used format version as a nonnegative integer, left-padded
+   with zeroes; the fifth one is a single '\n' character. */
+#define EPSILON_DUMP_VERSION 0
+
+/* Right after the magic number there is exactly ASCII comment line, terminated
+   by a single \n character.  There's no escaping. */
+
+static void
+epsilon_write_header (FILE *file, char *comment)
+{
+  write_32bit_bigendian (file, EPSILON_DUMP_MAGIC);
+  fprintf (file, "%04u\n", EPSILON_DUMP_VERSION);
+  char *p;
+  for (p = comment; *p != '\0'; p ++)
+    if (*p == '\n')
+      epsilon_fatal ("the dump comment cannot contain newlines");
+
+  fprintf (file, "%s\n", comment);
+}
+
+/* Return the version if successful.  Fail fatally if the format is incorrect
+   or the version is not supported. */
+static long
+epsilon_read_header (FILE *file)
+{
+  int32_t magic = read_32bit_bigendian (file);
+  if (magic != EPSILON_DUMP_MAGIC)
+    epsilon_fatal ("incorrect magic in dump");
+  char version_string[5];
+
+  /* Right now we only support one possible version. */
+  fscanf (file, "%4s\n", version_string);
+  long version = atol (version_string);
+  if (version != EPSILON_DUMP_VERSION)
+    epsilon_fatal ("unsupported dump version %li", version);
+
+  /* Skip past the comment. */
+  char c;
+  do
+    fread (&c, 1, 1, file);
+  while (c != '\n');
+
+  return version;
+}
 
 /* We use a stack to check whether we already saw some pointer: every
    new pointer is pushed to the stack once. */
@@ -83,8 +136,9 @@ void epsilon_dump_value(epsilon_value value, FILE *file){
   epsilon_stack_destroy(stack);
 }
 
-
 void epsilon_marshal_value(epsilon_value object, FILE *file_star){
+  epsilon_write_header (file_star, "Written by epsilon_marshal_value");
+
   /* As an auxiliary data structure, we need a table mapping pointers
      (wrapped into epsilon_value smobs) into unique identifiers, and a stack of
      pointers to be treated.  In this case the pointers in the stack
@@ -187,6 +241,8 @@ void epsilon_marshal_value(epsilon_value object, FILE *file_star){
 }
 
 epsilon_value epsilon_unmarshal_value(FILE *file_star){
+  epsilon_read_header (file_star);
+
   /* Read the buffer element no; this is enough to dimension several
      structures: */
   size_t nontrivial_buffer_no =

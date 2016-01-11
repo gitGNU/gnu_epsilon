@@ -305,7 +305,7 @@
           ;; The condition is the else symbol
           (e1:if (sexpression:null? (sexpression:cdr cases))
             (e1:macroexpand-sequence-into-sexpression case-forms)
-            (e1:error (e0:value "cond: else condition is not terminal")))
+            (e0:call e1:error (e0:value "cond: else condition is not terminal")))
           ;; The condition is not the else symbol:
           (e1:if* condition
                   (e1:macroexpand-sequence-into-sexpression case-forms)
@@ -325,11 +325,11 @@
 
 (e1:trivial-define-macro sexpression:quote
   (e1:cond ((sexpression:null? arguments)
-            (e1:error (e0:value "sexpression:quote: zero arguments")))
+            (e0:call e1:error (e0:value "sexpression:quote: zero arguments")))
            ((sexpression:null? (sexpression:cdr arguments))
             (sexpression:quote-into-sexpression (sexpression:car arguments)))
            (else
-            (e1:error (e0:value "sexpression:quote: more tha one argument")))))
+            (e0:call e1:error (e0:value "sexpression:quote: more tha one argument")))))
 
 (e1:define (sexpression:quote-into-sexpression x)
   (sexpression:inject-expression (sexpression:quoter x)))
@@ -356,7 +356,7 @@
 (e1:trivial-define-macro sexpression:quasiquote
   (e1:if (e1:and (sexpression:cons? arguments)
                  (e1:not (sexpression:null? (sexpression:cdr arguments))))
-         (e1:error (e0:value "quasiquote has more than one argument"))
+         (e0:call e1:error (e0:value "quasiquote has more than one argument"))
          (sexpression:quasiquoter (sexpression:car arguments) (e0:value 0))))
 
 ;;; Dispatch to the specific case, looking at the quasiquoter
@@ -422,9 +422,9 @@
                               (sexpression:null? (sexpression:cdr cdr)))
                       (sexpression:car cdr))
                      ((sexpression:null? cdr)
-                      (e1:error (e0:value "unquoting form with zero parameters")))
+                      (e0:call e1:error (e0:value "unquoting form with zero parameters")))
                      (else
-                      (e1:error (e0:value "splicing unquote form in a non-splicing context")))))
+                      (e0:call e1:error (e0:value "splicing unquote form in a non-splicing context")))))
            (else
             ;;`(sexpression:append2 ,(sexpression:list-quasiquoter car depth) ,(sexpression:quasiquoter cdr depth)))
             (sexpression:list3 sexpression:append2-sexpression
@@ -499,7 +499,7 @@
   (e1:cond ((sexpression:null? pattern)
             (sexpression:quasiquote (e1:if (sexpression:null? ,variable)
                                       ,body-form
-                                      (e1:error (e0:value "e1:destructuring-bind: no match for ()")))))
+                                      (e0:call e1:error (e0:value "e1:destructuring-bind: no match for ()")))))
            ((sexpression:symbol? pattern)
             (sexpression:quasiquote (e0:let (,pattern) ,variable
                                       ,body-form)))
@@ -515,9 +515,9 @@
                                                                              ,(e1:destructuring-bind-variable*s (sexpression:cdr pattern)
                                                                                                                 cdr-name
                                                                                                                 body-form)))))
-                                          (e1:error (e0:value "e1:destructuring-bind: no match for cons")))))))
+                                          (e0:call e1:error (e0:value "e1:destructuring-bind: no match for cons")))))))
            (else
-             (e1:error (e0:value "e1:destructuring-bind: ill-formed pattern")))))
+             (e0:call e1:error (e0:value "e1:destructuring-bind: ill-formed pattern")))))
 
 (e1:define (e1:destructuring-bind-of-arguments* arguments)
   (e1:destructuring-bind* (sexpression:car arguments)
@@ -661,7 +661,7 @@
            ((sexpression:else-symbol? (sexpression:caar cases))
             (e1:if (sexpression:null? (sexpression:cdr cases))
                    `(e1:begin ,@(sexpression:cdar cases))
-                   (e1:error "e1:case: the else case is not the last one")))
+                   (e0:call e1:error "e1:case: the else case is not the last one")))
            (else
             `(e0:if-in ,discriminand-name ,(sexpression:caar cases)
                (e1:begin ,@(sexpression:cdar cases))
@@ -687,7 +687,7 @@
 (e1:define-macro (e1:unbundle variable-or-variables bound-form . body-forms)
   (e1:unless (e1:or (sexpression:symbol? variable-or-variables)
                     (sexpression:symbol-list? variable-or-variables))
-    (e1:error "unbundle: variable-or-variables should be an s-symbol or an s-symbol s-list"))
+    (e0:call e1:error "unbundle: variable-or-variables should be an s-symbol or an s-symbol s-list"))
   `(e0:let ,(e1:if (sexpression:symbol? variable-or-variables)
               (sexpression:list variable-or-variables)
               variable-or-variables)
@@ -894,7 +894,7 @@
 
 (e1:define-macro (e1:begin-index index . forms)
   (e1:cond ((fixnum:< (sexpression:eject-fixnum index) 1)
-            (e1:error "e1:begin-index: index less than 1"))
+            (e0:call e1:error "e1:begin-index: index less than 1"))
            ((fixnum:= (sexpression:eject-fixnum index) 1)
             `(e1:begin1 ,@forms))
            (else
@@ -912,7 +912,7 @@
 
 (e1:define-macro (e1:begin-index-from-the-end index . forms)
   (e1:cond ((fixnum:< (sexpression:length forms) (sexpression:eject-fixnum index))
-            (e1:error "e1:begin-index-from-the-end: too few forms"))
+            (e0:call e1:error "e1:begin-index-from-the-end: too few forms"))
            ((fixnum:= (sexpression:length forms) (sexpression:eject-fixnum index))
             `(e1:begin1 ,@forms))
            (else
@@ -1216,7 +1216,7 @@
   (e1:case (string:get (symbol:symbol->string s) 0)
     ((#\#) (keyword:more-clumsy-keyword->symbol s))
     ((#\:) (keyword:less-clumsy-keyword->symbol s))
-    (else (e1:error "not a keyword"))))
+    (else (e0:call e1:error "not a keyword"))))
 
 (e1:define (keyword:make-argument-alist-acc table actuals acc)
   (e1:cond ((sexpression:null? actuals)
@@ -1224,15 +1224,15 @@
            ((sexpression:keyword? (sexpression:car actuals))
             (e1:let* ((symbol (keyword:keyword->symbol (sexpression:eject-symbol (sexpression:car actuals)))))
               (e1:cond ((alist:has? acc symbol)
-                        (e1:error "keyword argument ~s supplied twice" symbol))
+                        (e0:call e1:error "keyword argument ~s supplied twice" symbol))
                        ((keyword:is-in-table? symbol table)
                         (keyword:make-argument-alist-acc table
                                                          (sexpression:cddr actuals)
                                                          (alist:bind acc symbol (sexpression:cadr actuals))))
                        (else
-                        (e1:error "unknown keyword argument ~s" symbol)))))
+                        (e0:call e1:error "unknown keyword argument ~s" symbol)))))
            (else
-            (e1:error "invalid keyword syntax ~s" actuals))))
+            (e0:call e1:error "invalid keyword syntax ~s" actuals))))
 (e1:define (keyword:make-argument-alist table actuals)
   (keyword:make-argument-alist-acc table actuals alist:nil))
 
@@ -1246,7 +1246,7 @@
             (e1:if (alist:has? alist (sexpression:eject (sexpression:car table)))
               `(,(alist:lookup alist (sexpression:eject (sexpression:car table)))
                 ,@(keyword:adapt-args-recursive (sexpression:cdr table) alist))
-              (e1:error "missing non-optional parameter ~s" (sexpression:car table))))
+              (e0:call e1:error "missing non-optional parameter ~s" (sexpression:car table))))
            (else
             `(,(e1:if (alist:has? alist (sexpression:eject (sexpression:caar table)))
                  (alist:lookup alist (sexpression:eject (sexpression:caar table)))
@@ -1273,7 +1273,7 @@
            ((e1:or (e1:not (sexpression:cons? (sexpression:car table)))
                    (sexpression:null? (sexpression:cdar table))
                    (e1:not (sexpression:null? (sexpression:cddar table))))
-            (e1:error "ill-formed default parameter ~s" (sexpression:car table)))
+            (e0:call e1:error "ill-formed default parameter ~s" (sexpression:car table)))
            (else
             (sexpression:cons (sexpression:caar table)
                               (keyword:table->formals (sexpression:cdr table))))))
@@ -1684,7 +1684,7 @@
            ((e0:expression-join? e)
             (e0:free-variables (e0:expression-join-get-future e)))
            (else
-            (e1:error "e0:free-variables: unknown extended or invalid expression"))))
+            (e0:call e1:error "e0:free-variables: unknown extended or invalid expression"))))
 (e1:define (e0:free-variables-of-expressions es)
   (e0:free-variables-of-expressions-acc es set-as-list:empty))
 (e1:define (e0:free-variables-of-expressions-acc es acc)
@@ -1779,7 +1779,7 @@
             (string:write "About the tag ")
             (fixnum:write (buffer:get e 0))
             (string:write "\n")
-            (e1:error "closure:closure-convert-expression: unknown extended or invalid expression"))))
+            (e0:call e1:error "closure:closure-convert-expression: unknown extended or invalid expression"))))
 (e1:define (closure:closure-convert-expressions es bounds)
   (e1:if (list:null? es)
     list:nil
@@ -1869,7 +1869,7 @@
   (e1:let* ((procedure-name (symbol:fresh-with-prefix "closure-procedure"))
             (closure-name (symbol:fresh-with-prefix "closure"))) ; we also use this as the closure hidden parameter name
     (e1:unless (fixnum:= (list:length nonlocal-names) (list:length nonlocal-expressions))
-      (e1:error "closure:make*: nonlocal-names and nonlocal-expressions have different sizes"))
+      (e0:call e1:error "closure:make*: nonlocal-names and nonlocal-expressions have different sizes"))
     (e1:begin
       ;; Define the procedure once, at generation time:
       (state:procedure-set! procedure-name
@@ -2066,9 +2066,9 @@
   (e1:cond ((sexpression:null? list-a)
             (e1:if (sexpression:null? list-b)
                    acc
-                   (e1:error "sexpression:zip-and-reverse: first argument os shorter")))
+                   (e0:call e1:error "sexpression:zip-and-reverse: first argument os shorter")))
            ((sexpression:null? list-b)
-            (e1:error "sexpression:zip-and-reverse: second argument os shorter"))
+            (e0:call e1:error "sexpression:zip-and-reverse: second argument os shorter"))
            (else
             (sexpression:reversed-zip-into (sexpression:cdr list-a)
                                            (sexpression:cdr list-b)
@@ -2258,7 +2258,7 @@
 ;;; on boxedness tags.
 (e1:define-macro (e1:dobuffer variable-buffer . body)
   (e1:unless (fixnum:= (sexpression:length variable-buffer) 2)
-    (e1:error "dobuffer: ill-formed variable-buffer clause"))
+    (e0:call e1:error "dobuffer: ill-formed variable-buffer clause"))
   (e1:let ((variable (sexpression:car variable-buffer))
            (buffer (sexpression:cadr variable-buffer))
            (buffer-variable-name (sexpression:fresh-symbol-with-prefix "do-buffer"))
@@ -2277,7 +2277,7 @@
 ;;; is the alist.
 (e1:define-macro (e1:doalist key-datum-alist . body)
   (e1:unless (fixnum:= (sexpression:length key-datum-alist) 3)
-    (e1:error "doalist: ill-formed key-datum-hash clause"))
+    (e0:call e1:error "doalist: ill-formed key-datum-hash clause"))
   (e1:let ((key-variable-name (sexpression:car key-datum-alist))
            (datum-variable-name (sexpression:cadr key-datum-alist))
            (alist (sexpression:caddr key-datum-alist))
@@ -2294,7 +2294,7 @@
 ;;; Iterate on hashes.  Same syntax as e1:doalist .
 (e1:define-macro (e1:dohash key-datum-hash . body)
   (e1:unless (fixnum:= (sexpression:length key-datum-hash) 3)
-    (e1:error "dohash: ill-formed key-datum-hash clause"))
+    (e0:call e1:error "dohash: ill-formed key-datum-hash clause"))
   (e1:let ((key-variable-name (sexpression:car key-datum-hash))
            (datum-variable-name (sexpression:cadr key-datum-hash))
            (hash (sexpression:caddr key-datum-hash)))
@@ -2342,13 +2342,13 @@
 (e1:define (for:clause->clause-with-step clause)
   (e1:case (sexpression:length clause)
            ((0 1 2)
-            (e1:error "e1:for: clause too short"))
+            (e0:call e1:error "e1:for: clause too short"))
            ((3) ;; step omitted: the default is one
             (sexpression:append clause '(1)))
            ((4) ;; the step is alredy there
             clause)
            (else
-            (e1:error "e1:for: clause too long"))))
+            (e0:call e1:error "e1:for: clause too long"))))
 
 ;;; Example: (e1:for ((i 1 3) (j 1 3)) (fixnum:print (fixnum:* i j)))
 ;;; (e1:toplevel (e1:for ((i 1 3) (j 1 3) (k 1 3)) (fixnum:print i) (fixnum:print j) (string:write "\n")))
@@ -2398,7 +2398,7 @@
            ((sexpression:symbol-list? pattern)
             (sexpression:fresh-symbols-from-ssymbols pattern))
            (else
-            (e1:error "sexpression:freshen-pattern: pattern not an s-symbol or an s-symbol s-list"))))
+            (e0:call e1:error "sexpression:freshen-pattern: pattern not an s-symbol or an s-symbol s-list"))))
 
 ;;; Given a pattern of variables return an sexpression encoding an expression
 ;;; which evaluates to a bundle containing the value of the same variables, in
@@ -2407,7 +2407,7 @@
   (e1:cond ((sexpression:symbol? pattern)
             pattern)
            ((e1:not (sexpression:symbol-list? pattern))
-            (e1:error "sexpression:right-pattern: pattern not an s-symbol or an s-symbol s-list"))
+            (e0:call e1:error "sexpression:right-pattern: pattern not an s-symbol or an s-symbol s-list"))
            ;; This case is just an optimization to avoid a useless bundle
            ;; expression which would make compiler optimizations more difficult.
            ((sexpression:null? (sexpression:cdr pattern))
@@ -2441,14 +2441,14 @@
   (e1:if (sexpression:null? cond-items)
     '(e1:bundle)
     (e1:if (e1:not (sexpression:cons? (sexpression:car cond-items)))
-      (e1:error "cond item is not a cons")
+      (e0:call e1:error "cond item is not a cons")
       (e1:let ((caar (sexpression:caar cond-items))
                (cdar (sexpression:cdar cond-items))
                (cdr (sexpression:cdr cond-items)))
         (e1:if (sexpression:eq? caar 'else)
           (e1:if (sexpression:null? cdr)
             `(e1:begin ,@cdar)
-            (e1:error "else cond item not at the end"))
+            (e0:call e1:error "else cond item not at the end"))
           (e1:if (sexpression:eq? caar 'bind)
             `(e1:let (,@cdar)
                (e1:cond ,@cdr))
@@ -2664,14 +2664,14 @@
                                                   subpattern
                                                   `(e1:and ,@conditions))))
            (else
-             (e1:error "pattern-matching:check-expression*s: ill-formed pattern"))))
+             (e0:call e1:error "pattern-matching:check-expression*s: ill-formed pattern"))))
 (e1:define (pattern-matching:check-expressions*s discriminand-variables patterns)
   (e1:cond ((e1:and (sexpression:null? discriminand-variables)
                     (sexpression:null? patterns))
             '#t)
            ((e1:or (sexpression:null? discriminand-variables)
                    (sexpression:null? patterns))
-            (e1:error "pattern-matching:check-expression*s: different lengths"))
+            (e0:call e1:error "pattern-matching:check-expression*s: different lengths"))
            (else
             `(e1:and ,(pattern-matching:check-expression*s (sexpression:car discriminand-variables)
                                                            (sexpression:car patterns))
@@ -2716,7 +2716,7 @@
            ((pattern:or? pattern)
             (e1:let* ((subpatterns (sexpression:inject-sexpressions (pattern:or-get-subpatterns pattern))))
               (e1:if (sexpression:null? subpatterns)
-                '(e1:error "pattern-matching:bind-expression*s: the or pattern doesn't really match")
+                '(e0:call e1:error "pattern-matching:bind-expression*s: the or pattern doesn't really match")
                 `(e1:if ,(pattern-matching:check-expression*s discriminand-variable (sexpression:car subpatterns))
                    ,(pattern-matching:bind-expression*s discriminand-variable (sexpression:car subpatterns) body-form)
                    ,(pattern-matching:bind-expression*s discriminand-variable
@@ -2727,14 +2727,14 @@
               ;; The conditions are true if we arrived here, and we can ignore them
               (pattern-matching:bind-expression*s discriminand-variable subpattern body-form)))
            (else
-             (e1:error "pattern-matching:bind-expression*s: ill-formed pattern"))))
+             (e0:call e1:error "pattern-matching:bind-expression*s: ill-formed pattern"))))
 (e1:define (pattern-matching:bind-expressions*s discriminand-variables patterns body-form)
   (e1:cond ((e1:and (sexpression:null? discriminand-variables)
                     (sexpression:null? patterns))
             body-form)
            ((e1:or (sexpression:null? discriminand-variables)
                    (sexpression:null? patterns))
-            (e1:error "pattern-matching:bind-expression*s: different lengths"))
+            (e0:call e1:error "pattern-matching:bind-expression*s: different lengths"))
            (else
             (pattern-matching:bind-expression*s (sexpression:car discriminand-variables)
                                                 (sexpression:car patterns)
@@ -2754,12 +2754,12 @@
 
 (e1:define-macro (pattern-matching:match-discriminand-variable discriminand-variable . cases)
   (e1:cond ((sexpression:null? cases)
-            `(e1:error "pattern-matching:match: no match")) ;; FIXME: I should probably just return an empty bundle instead
+            `(e0:call e1:error "pattern-matching:match: no match")) ;; FIXME: I should probably just return an empty bundle instead
            ((e1:and (sexpression:symbol? (sexpression:caar cases))
                     (whatever:eq? (e0:value else) (sexpression:eject (sexpression:caar cases))))
             (e1:if (sexpression:null? (sexpression:cdr cases))
               `(e1:begin ,@(sexpression:cdar cases))
-              (e1:error "pattern-matching:match: else isn't the last case")))
+              (e0:call e1:error "pattern-matching:match: else isn't the last case")))
            (else
             `(e1:if ,(pattern-matching:check-expression*s discriminand-variable
                                                           (sexpression:caar cases))
@@ -2787,7 +2787,7 @@
 
 (e1:define-macro (e1:variable symbol)
   (e1:unless (sexpression:symbol? symbol)
-    (e1:error "e1:variable: not an s-symbol"))
+    (e0:call e1:error "e1:variable: not an s-symbol"))
   `(e0:variable ,symbol))
 
 (e1:define-macro (e1:value value)
@@ -2798,7 +2798,7 @@
 
 (e1:define-macro (e1:primitive primitive-name . actuals)
   (e1:unless (sexpression:symbol? primitive-name)
-    (e1:error "e1:primitive: the primitive name isn't an s-symbol"))
+    (e0:call e1:error "e1:primitive: the primitive name isn't an s-symbol"))
   `(e0:primitive ,primitive-name ,@actuals))
 
 ;;; e1:unbundle corresponds to e0:let; it's actually a compatible generalization.
@@ -2807,7 +2807,7 @@
 
 (e1:define-macro (e1:call procedure-name . actuals)
   (e1:unless (sexpression:symbol? procedure-name)
-    (e1:error "e1:call: the procedure name isn't an s-symbol"))
+    (e0:call e1:error "e1:call: the procedure name isn't an s-symbol"))
   `(e0:call ,procedure-name ,@actuals))
 
 (e1:define-macro (e1:call-indirect procedure . actuals)
@@ -2815,7 +2815,7 @@
 
 (e1:define-macro (e1:if-in discriminand values then-branch else-branch)
   (e1:unless (sexpression:list? values)
-    (e1:error "e1:if-in: values should be an s-list"))
+    (e0:call e1:error "e1:if-in: values should be an s-list"))
   `(e0:if-in ,discriminand ,values ,then-branch ,else-branch))
 
 (e1:define-macro (e1:fork procedure-name . actuals)
@@ -2866,9 +2866,9 @@
                 ((b)
                  `(io:write-boolean ,port ,@args))
                 (else
-                 (e1:error "unknown format")))))
+                 (e0:call e1:error "unknown format")))))
            (else
-            (e1:error "unknown case"))))
+            (e0:call e1:error "unknown case"))))
 
 (e1:define-macro (fio:write-to-evaluating-port port . stuff)
   (e1:if (sexpression:null? stuff)
@@ -2884,6 +2884,26 @@
 
 (e1:define-macro (fio:write . stuff)
   `(fio:write-to (io:standard-output) ,@stuff))
+
+
+;;;;; Better fatal error reporting
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; This is a compatible extension of the function e1:error as defined
+;;; in core.e .
+
+(e1:define-macro (e1:error . stuff)
+  ;; Considering this case separately lets me avoid some explicit e1:call's
+  ;; in code actually reachable from the expansion of fio:write, which would
+  ;; make macroexpansion loop.
+  (e1:if (e1:and (sexpression:list? stuff)
+                 (fixnum:= (sexpression:length stuff) 1)
+                 (e1:or (sexpression:string? (sexpression:car stuff))
+                        (sexpression:symbol? (sexpression:car stuff))))
+    `(e0:call e1:error ,@stuff)
+    `(e1:begin
+       (fio:write "Fatal error: " ,@stuff ".\n")
+       (e0:call e1:error "fatal"))))
 
 
 ;;;;; Ad-hoc polymorphic operations using boxedness tags
@@ -3341,7 +3361,7 @@
 ;;; by Jérémie Koenig.  This should be a little faster, but is mostly
 ;;; interesting for its simplicity.
 
-(e1:define (io:write-sexpression sexpression port)
+(e1:define (io:write-sexpression sexpression port) ;; FIXME: swap formals!
   (printer:write-sexpression sexpression port))
 
 (e1:define (sexpression:write sexpression)
@@ -5245,6 +5265,8 @@
 
 (e1:define (e1:load file-name)
   (e1:let* ((f (io:open-file file-name io:read-mode))
+            (() (e1:when (fixnum:zero? f)
+                  (e1:error "could not open file " (st file-name))))
             (p (input-port:file->input-port f))
             (bp (backtrackable-port:input-port->backtrackable-port
                     p

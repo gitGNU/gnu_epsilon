@@ -176,7 +176,7 @@ AC_SUBST(alignof_long, "$ac_cv_alignof_long")
 AC_SUBST(alignof_void_p, "$ac_cv_alignof_void_p")
 
 AC_C_BIGENDIAN
-if test "x$WORDS_BIGENDIAN" = "x"; then
+if test "x$WORDS_BIGENDIAN" = "xyes"; then
   AC_SUBST(words_bigendian, "t")
 else
   AC_SUBST(words_bigendian, "f")

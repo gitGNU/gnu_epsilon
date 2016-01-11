@@ -1584,8 +1584,8 @@
 (e1:define e0:handle-generator-box
   (box:make-initialized (e0:value 0)));;(e0:value 1000000)))
 (e1:define (e0:fresh-handle)
-  (e0:value -1) ;; FIXME: this is only for debugging
-  ;;(box:bump-and-get! e0:handle-generator-box)
+  ;;(e0:value -1) ;; FIXME: this is only for debugging
+  (box:bump-and-get! e0:handle-generator-box)
   )
 
 ;;; User-friendly procedural constructors:
@@ -2371,7 +2371,9 @@
   (e0:let (result) (buffer:make-uninitialized (e0:value 3))
     (e0:let () (buffer:initialize! result (e0:value 0) tag)
       (e0:let () (buffer:initialize! result (e0:value 1) value)
-        (e0:let () (buffer:initialize! result (e0:value 2) (e0:value 0));;locus) ;; FIXME: the 0 locus is for debugging only!
+        (e0:let () (buffer:initialize! result (e0:value 2)
+                                       ;;(e0:value 0)) ;; FIXME: the 0 locus is for debugging only!
+                                       locus)
           result)))))
 (e1:define (sexpression:make-without-locus tag value)
   (sexpression:make-with-locus tag value (e0:value 0)))

@@ -39,10 +39,10 @@
 (e1:load (string:append configuration:abs_top_srcdir
                         configuration:dir_separator
                         "bootstrap/scheme/repl.e"))
-#;(e1:load (string:append configuration:abs_top_srcdir
+(e1:load (string:append configuration:abs_top_srcdir
                         configuration:dir_separator
                         "bootstrap/scheme/compiler.e"))
-#;(e1:load (string:append configuration:abs_top_srcdir
+(e1:load (string:append configuration:abs_top_srcdir
                         configuration:dir_separator
                         "bootstrap/scheme/analyses-and-optimizations.e"))
 

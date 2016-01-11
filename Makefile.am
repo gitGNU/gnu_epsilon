@@ -41,8 +41,10 @@ esrc_pkgdatadir = $(pkgdatadir)/src
 edump_pkgdatadir = $(pkgdatadir)/dumps
 ## ##################################################### installation paths: end
 
+nobase_nodist_data_DATA =
 EXTRA_DIST =
 data_DATA =
+nodist_data_DATA =
 AM_LDFLAGS =
 AUTOMAKE_OPTIONS = subdir-objects
 
@@ -53,6 +55,8 @@ AM_CFLAGS = -Wall
 AM_CFLAGS += @WERROR_OR_NOTHING@
 
 BUILT_SOURCES =
+nodist_BUILT_SOURCES =
+nodist_nobase_BUILT_SOURCES =
 dist_noinst_SCRIPTS =
 dist_pkgdata_DATA =
 edump_pkgdata_DATA =
@@ -156,23 +160,18 @@ EXTRA_DIST += \
 EPSILON_UNDUMPED_SOURCE_FILES = \
   bootstrap/scheme/scratch.e \
   bootstrap/scheme/gc-tests.e \
+  bootstrap/scheme/brainfuck.e \
   bootstrap/scheme/peano.e
 
-## This generated file is in $(EPSILON_DUMPED_SOURCE_FILES) which is part of
-## $(EPSILON_SOURCE_FILES) which is part of $(EXTRA_DIST), therefore is
-## distributed.
-## This is not really essential, but avoids a build dependency on bc for users
-## downloading a tarball.
-BUILT_SOURCES += \
-  bootstrap/scheme/fixed-point-tables.e
-bootstrap/scheme/fixed-point-tables.e: $(srcdir)/bootstrap/generate-fixedpoint-tables
+FIXED_POINT_TABLES = @top_builddir@/bootstrap/scheme/fixed-point-tables.e
+$(FIXED_POINT_TABLES): $(srcdir)/bootstrap/generate-fixedpoint-tables
 	echo "Generating number tables for fixed-point procedures..."
 	$(srcdir)/bootstrap/generate-fixedpoint-tables > $@
 	echo "  ...done."
 EXTRA_DIST += \
   bootstrap/generate-fixedpoint-tables
 
-EPSILON_EARLY_DUMPED_SOURCE_FILES = \
+EPSILON_EARLY_DUMPED_NON_GENERATED_SOURCE_FILES = \
   bootstrap/scheme/bootstrap-from-guile.scm \
   bootstrap/scheme/epsilon0-in-scheme.scm \
   bootstrap/scheme/debugging-stuff-for-guile.scm \
@@ -181,32 +180,41 @@ EPSILON_EARLY_DUMPED_SOURCE_FILES = \
   bootstrap/scheme/unexec.e \
   bootstrap/scheme/fill-reflective-structures.scm \
   bootstrap/scheme/toplevel-in-scheme.scm \
-  bootstrap/scheme/epsilon1.scm \
+  bootstrap/scheme/epsilon1.scm
+EPSILON_EARLY_DUMPED_SOURCE_FILES = \
+  $(EPSILON_EARLY_DUMPED_NON_GENERATED_SOURCE_FILES) \
   @top_builddir@/bootstrap/scheme/configuration.e
 
-EPSILON_LATE_DUMPED_SOURCE_FILES = \
+EPSILON_LATE_DUMPED_NON_GENERATED_SOURCE_FILES = \
   bootstrap/scheme/unexec-repl.e \
   bootstrap/scheme/repl.e \
   bootstrap/scheme/fixed-point.e \
   bootstrap/scheme/analyses-and-optimizations.e \
   bootstrap/scheme/compiler.e \
-  bootstrap/scheme/brainfuck.e \
   bootstrap/scheme/export-toplevel-forms-to-guile.scm \
   bootstrap/scheme/bootstrap-from-epsilon1.e \
   bootstrap/scheme/bootstrap-from-epsilon1-secondary.e \
-  bootstrap/scheme/check-for-spills.e \
-  bootstrap/scheme/fixed-point-tables.e
+  bootstrap/scheme/check-for-spills.e
+EPSILON_LATE_DUMPED_SOURCE_FILES = \
+  $(EPSILON_LATE_DUMPED_NON_GENERATED_SOURCE_FILES) \
+  $(FIXED_POINT_TABLES)
 
 EPSILON_DUMPED_SOURCE_FILES = \
   $(EPSILON_EARLY_DUMPED_SOURCE_FILES) \
   $(EPSILON_LATE_DUMPED_SOURCE_FILES)
 
+EPSILON_NON_GENERATED_SOURCE_FILES = \
+  $(EPSILON_EARLY_DUMPED_NON_GENERATED_SOURCE_FILES) \
+  $(EPSILON_LATE_DUMPED_NON_GENERATED_SOURCE_FILES) \
+  $(EPSILON_UNDUMPED_SOURCE_FILES)
+
 EPSILON_SOURCE_FILES = \
-  $(EPSILON_DUMPED_SOURCE_FILES) \
+  $(EPSILON_EARLY_DUMPED_SOURCE_FILES) \
+  $(EPSILON_LATE_DUMPED_SOURCE_FILES) \
   $(EPSILON_UNDUMPED_SOURCE_FILES)
 
 EXTRA_DIST += \
-  $(EPSILON_SOURCE_FILES)
+  $(EPSILON_NON_GENERATED_SOURCE_FILES)
 
 ## Some files are only useful to manually re-generate some code in core.e,
 ## and are not automatically called by the build system.
@@ -648,15 +656,16 @@ clean-local: clean-profile
 #	       `find . -name '*.deps'` `find . -name '*.libs'`
 	rm -f "dumps/repl-from-guile.u" "dumps/repl-from-epsilon1.u"
 	rm -f "@abs_top_builddir@/dumps/unexec-repl-from-guile.u"
-	rm -f translator/eamlscanner.[ch] translator/eamlparser.[ch]
 	rm -f epsilon-*.shar.gz epsilon-*.tar.gz epsilon-*.tar.bz2 epsilon-*.tar.lzma epsilon-*.zip
 #	rm -rf `find $(srcdir)/ -name prefixes.h`
 maintainer-clean-local:
-	rm bootstrap/scheme/fixed-point-tables.e
+	rm -f "bootstrap/scheme/fixed-point-tables.e"
+	rm -f "@abs_top_builddir@/bootstrap/scheme/fixed-point-tables.e"
 # We can afford to delete @abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u , as
 # the compressed version is always @abs_top_srcdir@/bootstrap-dumps/ .
 distclean-local: clean-doc clean-profile
-	rm -f $(BUILT_SOURCES)
+	rm -f $(BUILT_SOURCES) $(nodist_BUILT_SOURCES)
+	rm -f $(FIXED_POINT_TABLES)
 	rm -f "@abs_top_builddir@/dumps/"*
 	rm -f "@abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u"*
 	rm -rf autom4te.cache config.log
@@ -692,7 +701,7 @@ dumps/repl-from-guile.u: bin/epsilon-image-interpreter-tagged @abs_top_builddir@
 dumps/repl-from-epsilon1.u: $(bin_PROGRAMS) $(lib_LIBRARIES) $(EPSILON_SOURCE_FILES) @abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u
 	echo rm -f "$@" # Remove the file we're about to generate, just in case we fail later.
 	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
-	ulimit -s unlimited; echo '(e1:load (string:append configuration:abs_top_srcdir "/bootstrap/scheme/bootstrap-from-epsilon1.e"))' \
+	ulimit -s unlimited; echo '(e1:load "@top_builddir@/bootstrap/scheme/configuration.e") (e1:load (string:append configuration:abs_top_srcdir "/bootstrap/scheme/bootstrap-from-epsilon1.e"))' \
 	  | "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	    "@abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u"
 
@@ -737,14 +746,19 @@ bootstrap-repl: bootstrap-repl-from-epsilon1
 	unxz - < "$<" > "$@"
 
 ## In order to avoid a dependency loop we don't say that the compressed REPL loop
-## is obtained from the uncompressed REPL loop: we only do that at dist time,
+## is obtained from the uncompressed REPL: we only do that at dist time,
 ## when the compressed version is used.  This is also useful for preparing a new
 ## compressed file to be committed to git.
 ## There's no dependency from the uncompressed file to the compressed file, to
-## avoid a loop.  The compressed file is only built on demand.
+## avoid a loop.  The compressed file is only built on demand, and on dist.
+## The sleep/touch hack serves to keep the uncompressed image newer than the
+## compressed version; without that dependencies would force another useless
+## bootstrap from the new compressed image.
 compress-bootstrap-repl: @abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u
-	if test @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz -nt "$<"; then \
+	if test @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz -ot "$<"; then \
 	  xz -9 - < "$<" > @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz; \
+	  sleep 2; \
+	  touch "$<"; \
 	else \
 	  echo "No need to compress the bootstrap REPL again."; \
 	fi

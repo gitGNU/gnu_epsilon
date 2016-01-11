@@ -21,6 +21,15 @@
 (fio:write "Still alive in unexec-repl.e\n")
 
 
+;;; -----------------------------------------------------------
+;;; FIXME: comment on why this is important -- FIXME: is it?
+(e1:load (string:append configuration:abs_top_builddir "/bootstrap/scheme/configuration.e"))
+(fio:write "configuration:abs_top_builddir is "
+           (st configuration:abs_top_builddir)
+           "\n")
+#;(e1:define bootstrap:repl-image-file-name "/tmp/foo.u")
+;;; -----------------------------------------------------------
+
 ;;;;; Load advanced epsilon1 features
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -30,28 +39,29 @@
 (e1:load (string:append configuration:abs_top_srcdir
                         configuration:dir_separator
                         "bootstrap/scheme/repl.e"))
-(e1:load (string:append configuration:abs_top_srcdir
+#;(e1:load (string:append configuration:abs_top_srcdir
                         configuration:dir_separator
                         "bootstrap/scheme/compiler.e"))
-(e1:load (string:append configuration:abs_top_srcdir
+#;(e1:load (string:append configuration:abs_top_srcdir
                         configuration:dir_separator
                         "bootstrap/scheme/analyses-and-optimizations.e"))
-
-;;; Load the scratch file, to be done automatically when the REPL start.
-;;; --- don't do it now.
-(e1:define (repl:load-scratch)
-  (e1:load (string:append configuration:abs_top_srcdir
-                          configuration:dir_separator
-                          "bootstrap/scheme/scratch.e")))
 
 
 ;;;;; Unexec a non-Guile REPL
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:toplevel
+;;; Load the scratch file.  This is to be done automatically when the REPL
+;;; starts, not now.
+(e1:define (repl:load-scratch)
+  (e1:load (string:append configuration:abs_top_srcdir
+                          configuration:dir_separator
+                          "bootstrap/scheme/scratch.e")))
+
+;;(e1:toplevel
   (fio:write "Unexecing an epsilon1 REPL into "
              (st bootstrap:repl-image-file-name)
              "\n")
   (e1:unexec bootstrap:repl-image-file-name
     (repl:load-scratch)
-    (repl:repl)))
+    (repl:repl))
+;;)

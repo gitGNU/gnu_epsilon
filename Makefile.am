@@ -698,7 +698,7 @@ dumps/repl-from-guile.u: bin/epsilon-image-interpreter-tagged @abs_top_builddir@
 	export GUILE_STACK_SIZE=$(GUILE2_STACK_SIZE); ulimit -s unlimited; "@abs_top_builddir@/bin/epsilon-image-interpreter-tagged" \
 	  "@abs_top_builddir@/dumps/unexec-repl-from-guile.u"
 
-dumps/repl-from-epsilon1.u: $(bin_PROGRAMS) $(lib_LIBRARIES) $(EPSILON_SOURCE_FILES) @abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u
+dumps/repl-from-epsilon1.u: $(bin_PROGRAMS) $(lib_LIBRARIES) $(EPSILON_DUMPED_SOURCE_FILES) @abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u
 	echo rm -f "$@" # Remove the file we're about to generate, just in case we fail later.
 	mkdir @abs_top_builddir@/dumps 2> /dev/null || true
 	ulimit -s unlimited; echo '(e1:load "@top_builddir@/bootstrap/scheme/configuration.e") (e1:load (string:append configuration:abs_top_srcdir "/bootstrap/scheme/bootstrap-from-epsilon1.e"))' \

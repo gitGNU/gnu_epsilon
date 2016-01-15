@@ -2991,6 +2991,17 @@
       list
       (list:last-cons tail))))
 
+;;; Fail horribly if the parameter list is empty.  This is not tail-recursive.
+(e1:define (list:without-last list)
+  (e1:let* ((head (list:head list))
+            (tail (list:tail list)))
+    (e1:if (list:null? tail)
+      list:nil
+      (list:cons (list:head list)
+                 (list:without-last tail)))))
+
+;;; FIXME: also write list:last! and list:without-last!
+
 ;;; Return a copy of the list, which may share structure with the
 ;;; given list, having the element at the given index replaced with
 ;;; the given new element:

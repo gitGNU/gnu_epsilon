@@ -958,12 +958,7 @@
     (list:cons element set)))
 
 (e1:define (set-as-list:has? set element)
-  (e1:cond ((set-as-list:empty? set)
-            #f)
-           ((whatever:eq? (list:head set) element)
-            #t)
-           (else
-            (set-as-list:has? (list:tail set) element))))
+  (list:has? set element))
 
 (e1:define (set-as-list:without set element)
   (set-as-list:without-acc set element set-as-list:empty))
@@ -3033,6 +3028,14 @@
                        (list:zip (list:tail as)
                                  (list:tail bs))))))
 
+;;; This compares using whatever:eq?
+(e1:define (list:has? list element)
+  (e1:cond ((list:null? list)
+            #f)
+           ((whatever:eq? (list:head list) element)
+            #t)
+           (else
+            (list:has? (list:tail list) element))))
 
 ;;;;; Promises
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

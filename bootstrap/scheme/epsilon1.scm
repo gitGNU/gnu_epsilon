@@ -2853,7 +2853,7 @@
                  `(printer:write-sexpression ,port ,@args))
                 ((s st)
                  `(io:write-string ,port ,@args))
-                ((S st)
+                ((S St)
                  `(printer:write-string ,port ,@args))
                 ((sy)
                  `(io:write-symbol ,port ,@args))

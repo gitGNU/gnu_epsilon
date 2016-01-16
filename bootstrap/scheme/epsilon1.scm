@@ -3178,6 +3178,68 @@
 ;;; FIXME: add other procedure when needed.
 
 
+;;;;; Pseudo-random fixnum generator
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; FIXME: test this more seriously on 32 and 16 bits as well.  I think
+;;; the right solution might be three separate implementations.
+
+;;; This follows S. Vigna, "Further scramblings of Marsaglia's xorshift
+;;; generators", April 2014.  Full text at https://arxiv.org/abs/1404.0390 .
+;;; FIXME: does my implementation still retain the good properties considering
+;;; I remove one bit?
+(e1:define random:xorshift128+-state
+  (buffer:make 2))
+;;; The result is unsigned.
+(e1:define (random:xorshift128+)
+  (e1:let* ((x (buffer:get random:xorshift128+-state 0))
+            (y (buffer:get random:xorshift128+-state 1)))
+    (buffer:set! random:xorshift128+-state 0 y)
+    (e1:let* ((x (fixnum:bitwise-xor x (fixnum:left-shift x 23)))
+              (new-y (fixnum:bitwise-xor x
+                                         y
+                                         (fixnum:logic-right-shift x 17)
+                                         (fixnum:logic-right-shift y 26))))
+      (buffer:set! random:xorshift128+-state 1 new-y)
+      (fixnum:+ new-y y))))
+
+(e1:define (fixnum:random-unsigned)
+  ;; Make the result non-negative.  This maight break some useful property.
+  (fixnum:absolute-value (random:xorshift128+)))
+
+(e1:define (fixnum:random modulo)
+  (fixnum:% (fixnum:random-unsigned) modulo))
+
+
+;;;;; Structure random shuffling
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (vector:swap! vector i1 i2)
+  (e1:let ((e1 (vector:get vector i1))
+           (e2 (vector:get vector i2)))
+    (vector:set! vector i1 e2)
+    (vector:set! vector i2 e1)))
+
+(e1:define (vector:shuffle! vector)
+  (e1:let* ((length (vector:length vector))
+            (indices (buffer:make length)))
+    (e1:dotimes (i length)
+      (buffer:set! indices i (fixnum:random length)))
+    (e1:dotimes (i length)
+      (vector:swap! vector i (buffer:get indices i)))))
+
+;;; Non-destructive vector shuffling
+(e1:define (vector:shuffle vector)
+  (e1:let ((result (vector:shallow-clone vector)))
+    (vector:shuffle! result)
+    result))
+
+(e1:define (list:shuffle list)
+  (e1:let ((vector (vector:list->vector list)))
+    (vector:shuffle! vector)
+    (vector:vector->list vector)))
+
+
 ;;;;; Other hash utilities
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

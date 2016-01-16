@@ -2279,6 +2279,7 @@ global_data_end:
 ;;;;; What follows is tentative code: Commodore 64 tests
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(e1:when #f
 (e1:define (list:sum xs)
   (list:sum-acc xs 0))
 (e1:define (list:sum-acc xs a)
@@ -2295,26 +2296,7 @@ global_data_end:
   (e1:if (fixnum:zero? n)
     (e1:lambda (x) x)
     (compose f (iterate f (fixnum:1- n)))))
-
-;; (e1:define (fixnum:absolute-value n)
-;;   (e1:if (fixnum:< n 0)
-;;     (fixnum:negate n)
-;;     n))
-
-;; (e1:define fixnum:random-seed
-;;   (box:make 1234))
-;; (e1:define (fixnum:random)
-;;   (e1:let* ((old-seed (box:get fixnum:random-seed))
-;;             (old-seed old-seed)
-;;             (new-seed (e0:if-in old-seed (0)
-;;                         1
-;;                         (fixnum:non-primitive-% (fixnum:+ old-seed
-;;                                                           (fixnum:non-primitive-* old-seed
-;;                                                                                   213))
-;;                                                 32323)))
-;;             (new-seed (fixnum:absolute-value new-seed)))
-;;     (box:set! fixnum:random-seed new-seed)
-;;     new-seed))
+)
 
 ;;;;; Commodore 64 color names
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

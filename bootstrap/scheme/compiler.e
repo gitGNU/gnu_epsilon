@@ -2,6 +2,7 @@
 ;;;;; Trivial compiler
 
 ;;;;; Copyright (C) 2013, 2014, 2015 Luca Saiu
+;;;;; Updated in 2016 by Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
 
@@ -436,8 +437,11 @@
 
 (e1:define (data-graph:graph-from-no-macros main-object)
   (data-graph:graph-from-excluding main-object
-                                   (list:list 5 6    ; macro, macro procedure
-                                              8 9))) ; bytecode, native
+                                   (list:list 3      ; formals
+                                              5 6    ; macro, macro procedure
+                                              7      ; primitive descriptor
+                                              8 9    ; bytecode, native
+                                              10)))  ; user-defined
 
 ;;; FIXME: this doesn't keep its promise not to visit bodies yet,
 ;;; because of the FIXME note above: when we omit procedure bodies as

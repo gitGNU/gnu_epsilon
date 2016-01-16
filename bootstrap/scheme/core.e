@@ -153,6 +153,11 @@
       (e0:value 1)
       (e0:value -1))))
 
+(e1:define (fixnum:absolute-value n)
+  (e0:if-in (fixnum:< n 0) (#f)
+    n
+    (fixnum:negate n)))
+
 ;;; This implementation is useful for machines with no hardware
 ;;; multiplication.
 (e1:define (fixnum:non-primitive-* a b)

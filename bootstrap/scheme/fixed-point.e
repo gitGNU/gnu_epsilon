@@ -94,6 +94,9 @@
   (fixnum:arithmetic-right-shift fixed fixedpoint:fractional-bit-no))
 
 ;;; More computation:
+(e1:define (fixedpoint:absolute-value a)
+  (fixnum:absolute-value a))
+
 (e1:define (fixedpoint:mod a)
   (fixnum:mod a))
 

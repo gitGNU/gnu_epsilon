@@ -149,7 +149,7 @@
 (e1:define (fixnum:sign a)
   (e0:if-in a (0)
     (e0:value 0)
-    (e0:if-in (fixnum:< a 0) (#f)
+    (e0:if-in (fixnum:< a (e0:value 0)) (#f)
       (e0:value 1)
       (e0:value -1))))
 

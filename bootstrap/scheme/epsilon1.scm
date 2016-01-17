@@ -5327,6 +5327,10 @@
 ;;;;; Assertions and requirements
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;; FIXME: turn the s-expressions to be printed into strings at macroexpansion
+;;; time, instead of printing them as s-expression at execution time.  This
+;;; change would simplify residual code and make compiled code smaller.
+
 (e1:define-macro (e1:assert-or-require name e . messages)
   `(e1:unless ,e
      (fio:write "Error: " (st ,name) " " (se ',e) " violated. " ,@messages "\n")

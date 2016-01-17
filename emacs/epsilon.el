@@ -337,7 +337,7 @@ See `run-hooks'."
                        "e1:match"
                        "e1:let" "e1:let*"
                        "e1:bundle" "e1:future" "e1:join"
-                       "e1:exec" "e1:unexec"
+                       "e1:exec" "e1:unexec" "e1:compile"
                        "e1:and" "e1:or"
                        "e1:if" "e1:when" "e1:unless" "e1:cond" "e1:case" "else" "bind" "bind*"
                        "e1:nonclosure" "e1:call-nonclosure"
@@ -551,6 +551,7 @@ indentation."
 (put 'e1:when 'epsilon-indent-function 1)
 (put 'e1:unless 'epsilon-indent-function 1)
 (put 'e1:unexec 'epsilon-indent-function 1)
+(put 'e1:compile 'epsilon-indent-function 1)
 (put 'record:define 'epsilon-indent-function 1)
 (put 'sum:define 'epsilon-indent-function 1)
 (put 'sum:define-open 'epsilon-indent-function 1)

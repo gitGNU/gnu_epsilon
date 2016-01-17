@@ -958,6 +958,8 @@
 ;;;;; System interface
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(e1:define (unix:exit return-code)
+  (e0:primitive unix:exit return-code))
 (e1:define (unix:system command-string)
   (e0:primitive unix:system command-string))
 (e1:define (unix:unlink file-name)
@@ -1955,6 +1957,7 @@
 (state:primitive-set! (e0:value marshal:unmarshal-from-open-file) (e0:value 1) (e0:value 1) (e0:value #t) (e0:value #f))
 (state:primitive-set! (e0:value state:update-globals-and-procedures!) (e0:value 2) (e0:value 0) (e0:value #t) (e0:value #t))
 (state:primitive-set! (e0:value e0:eval-in-c)       (e0:value 2) (e0:value 1) (e0:value #t) (e0:value #t))
+(state:primitive-set! (e0:value unix:exit)       (e0:value 1) (e0:value 0) (e0:value #t) (e0:value #f))
 (state:primitive-set! (e0:value unix:system)     (e0:value 1) (e0:value 1) (e0:value #t) (e0:value #f))
 (state:primitive-set! (e0:value unix:unlink)     (e0:value 1) (e0:value 1) (e0:value #t) (e0:value #f))
 

@@ -1,6 +1,7 @@
 /* epsilon primitives implemented in C.
 
    Copyright (C) 2012, 2013, 2014 Luca Saiu
+   Updated in 2016 by Luca Saiu
    Copyright (C) 2012 Université Paris 13
    Written by Luca Saiu
 
@@ -504,6 +505,13 @@ static void epsilon_primitive_state_update_globals_and_procedures(epsilon_value 
   epsilon_value procedure_name_formals_body_list = stack[1];
   epsilon_update_all_procedures(procedure_name_formals_body_list);
 }
+static void
+epsilon_primitive_unix_exit (epsilon_value *stack)
+{
+  int code
+    = epsilon_int_to_epsilon_value (epsilon_value_to_epsilon_int (*stack));
+  exit (code);
+}
 static void epsilon_primitive_unix_system(epsilon_value *stack){
   epsilon_value epsilon_string = stack[0];
   char *char_star = epsilon_string_to_malloced_char_star(epsilon_string);
@@ -634,6 +642,7 @@ void epsilon_c_primitives_initialize(void){
   epsilon_initialize_c_primitive("marshal:unmarshal-from-open-file", epsilon_primitive_marshal_unmarshal_from_open_file, 1, 1);
   epsilon_initialize_c_primitive("state:update-globals-and-procedures!", epsilon_primitive_state_update_globals_and_procedures, 2, 0);
   epsilon_initialize_c_primitive("e0:eval-in-c", epsilon_primitive_e0_eval, 2, 1);
+  epsilon_initialize_c_primitive("unix:exit", epsilon_primitive_unix_exit, 1, 0);
   epsilon_initialize_c_primitive("unix:system", epsilon_primitive_unix_system, 1, 1);
   epsilon_initialize_c_primitive("unix:unlink", epsilon_primitive_unix_unlink, 1, 1);
 

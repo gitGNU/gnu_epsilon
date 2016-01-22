@@ -1,7 +1,7 @@
 /* Image interpreter.
 
-   Copyright (C) 2012  Luca Saiu
-   Updated in 2015 and 2016 by Luca Saiu
+   Copyright (C) 2012, 2016  Luca Saiu
+   Updated in 2015 by Luca Saiu
    Written by Luca Saiu
 
    This file is part of GNU epsilon.
@@ -27,29 +27,32 @@
 #include "../runtime/runtime.h"
 
 // FIXME: support GNU standard command-line options
-int main(int argc, char **argv){
-  if(argc != 2)
-    epsilon_fatal("There should only be one argument, the image file.  You provided %i arguments instead", argc - 1);
-  
+int
+main (int argc, char **argv)
+{
+  if(argc < 2)
+    epsilon_fatal ("there should at least one argument, the image file");
+
   /* Unmarshal the pair from the file; the pair contains the symbol
      table and a main expression. */
   char *filename = argv[1];
-  epsilon_runtime_initialize (argc, argv);
-  FILE *f = fopen(filename, "r");
+  /* Hide the interpeter from epsilon's argv. */
+  epsilon_runtime_initialize (argc - 1, argv + 1);
+  FILE *f = fopen (filename, "r");
   if(f == NULL)
-    epsilon_fatal("could not open %s", filename);
-  epsilon_value pair = epsilon_unmarshal_value(f);
-  fclose(f);
-  
+    epsilon_fatal ("could not open %s", filename);
+  epsilon_value pair = epsilon_unmarshal_value (f);
+  fclose (f);
+
   /* Extract the symbol table, and ensure it's not garbage-collected: */
   volatile epsilon_value symbol_table __attribute__((unused)) = epsilon_value_car(pair);
-  
+
   /* Extract the expression from the pair, and interpret it: */
   epsilon_value main_expression = epsilon_value_cdr(pair);
   epsilon_value environment = epsilon_int_to_epsilon_value(0);
   epsilon_e0_eval_making_stacks(main_expression,
                                 environment);
-  
+
   /* Exit with success if we're still alive: */
   return EXIT_SUCCESS;
 }

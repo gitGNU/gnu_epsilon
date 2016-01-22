@@ -685,12 +685,12 @@
 (e1:define (po:player-type->string player-type)
   (e1:match player-type
     ((po:player-type-dumb randomize)
-     (string:append "dumb "
-                    (e1:if randomize "randomized" "deterministic")))
+     (string:append "dumb"
+                    (e1:if randomize "" " deterministic")))
     ((po:player-type-minimax depth randomize)
      (string:append "minimax "
-                    (string:fixnum->string depth) "-plies deep "
-                    (e1:if randomize "randomized" "deterministic")))
+                    (string:fixnum->string depth) "-plies deep"
+                    (e1:if randomize "" " deterministic")))
     ((po:player-type-human suggestion-depth)
      (string:append "human"
                     (e1:if (fixnum:zero? suggestion-depth)
@@ -729,30 +729,21 @@
          (fio:write (st (po:player->escaped-string player))
                     " dumbly plays "
                     (st (po:move->string move))
-                    " with randomization "
-                    (st (e1:if randomize "on" "off"))
                     ".\n")
          (po:move! state move)))
       ((po:player-type-minimax depth randomize)
-       (fio:write (st (po:player->escaped-string player))
-                  " is thinking "
-                  (i depth)
-                  " plies deep with randomization "
-                  (st (e1:if randomize "on" "off"))
-                  "...\n")
+       (fio:write "The computer is thinking...\n")
        (e1:let (((move outcome) (po:best-minimax-move state depth randomize)))
          (fio:write (st (po:player->escaped-string player))
                     " plays "
                     (st (po:move->string move))
-                    ", and its worst possible outcome is \""
+                    " (its worst possible outcome is \""
                     (st (po:outcome->string outcome))
-                    "\".\n")
+                    "\" as far as it can see).\n")
          (po:move! state move)))
       ((po:player-type-human suggestion-depth)
        (e1:when (fixnum:> suggestion-depth 0)
-         (fio:write "The computer is searching for a suggestion, thinking "
-                    (i suggestion-depth)
-                    " plies deep...\n")
+         (fio:write "The computer is searching for a suggestion...\n")
          (e1:let (((move outcome) (po:best-minimax-move state suggestion-depth #t)))
            (fio:write "  (the computer suggests "
                       (st (po:move->string move))
@@ -771,23 +762,29 @@
 ;;;;; Scratch
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:define (po:tournament size game-no player-1 player-2)
+(e1:define (po:tournament size black-player-type white-player-type game-no)
   (e1:let loop ((black-victories 0)
                 (white-victories 0)
                 (draws 0)
                 (remaining-games game-no))
     (e1:if (fixnum:zero? remaining-games)
       (e1:let ((black-percentage (fixnum:/ (fixnum:* 100 black-victories)
-                                      game-no))
+                                           game-no))
                (white-percentage (fixnum:/ (fixnum:* 100 white-victories)
-                                      game-no))
+                                           game-no))
                (draw-percentage (fixnum:/ (fixnum:* 100  draws)
-                                     game-no)))
-        (fio:write "Black: " (i black-percentage) "%"
-                   "  White: " (i white-percentage) "%"
-                   "  Draws: " (i draw-percentage) "%"
+                                          game-no)))
+        (fio:write "Score over " (i game-no) " games:\n"
+                   "* Black ("
+                   (st (po:player-type->string black-player-type))
+                   "): " (i black-percentage) "%\n"
+                   "* White ("
+                   (st (po:player-type->string white-player-type))
+                   "): " (i white-percentage) "%\n"
+                   "* Draws: " (i draw-percentage) "%\n"
                    "\n"))
-      (e1:let* ((game-outcome (po:play size player-1 player-2))
+      (e1:let* ((game-outcome (po:play size black-player-type
+                                       white-player-type))
                 ((black-victories
                   white-victories
                   draws) (e1:match game-outcome

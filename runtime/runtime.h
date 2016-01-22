@@ -1,7 +1,8 @@
 /* The main runtime header #include'ing the others.
 
    Copyright (C) 2012 Université Paris 13
-   Copyright (C) 2012 Luca Saiu [written during his few weeks with no employment]
+   Copyright (C) 2012 Luca Saiu
+   Updated in 2016 by Luca Saiu
    Written by Luca Saiu
 
    This file is part of GNU epsilon.
@@ -36,7 +37,8 @@
 
 
 /* Initialize all runtime subsystems: */
-void epsilon_runtime_initialize(void);
+void
+epsilon_runtime_initialize (int argc, char **argv);
 
 typedef void (*epsilon_compiled_c_function)(epsilon_value*);
 

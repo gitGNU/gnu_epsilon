@@ -1,6 +1,7 @@
 /* Main runtime file
 
-   Copyright (C) 2012 Luca Saiu [written during his few weeks with no employment]
+   Copyright (C) 2012 Luca Saiu
+   Updated in 2016 by Luca Saiu
    Written by Luca Saiu
 
    This file is part of GNU epsilon.
@@ -21,7 +22,9 @@
 
 #include "runtime.h"
 
-void epsilon_runtime_initialize(void){
-  epsilon_data_initialize();
-  epsilon_c_primitives_initialize();
+void
+epsilon_runtime_initialize (int argc, char **argv)
+{
+  epsilon_data_initialize ();
+  epsilon_c_primitives_initialize (argc, argv);
 }

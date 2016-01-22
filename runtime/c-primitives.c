@@ -1,7 +1,6 @@
 /* epsilon primitives implemented in C.
 
-   Copyright (C) 2012, 2013, 2014 Luca Saiu
-   Updated in 2016 by Luca Saiu
+   Copyright (C) 2012, 2013, 2014, 2016 Luca Saiu
    Copyright (C) 2012 Université Paris 13
    Written by Luca Saiu
 
@@ -46,6 +45,11 @@
 // The current locale, as identified by iconv.
 static const char* epsilon_locale_charset;
 #endif // #ifdef HAVE_LIBUNISTRING
+
+/* The command-line arguments.  argv should have the same lifetime as the main
+   function, so it should be safe to just share data without copying. */
+static int epsilon_argc;
+static char **epsilon_argv;
 
 /* #ifndef EPSILON_RUNTIME_SMOB */
 /* #define GC_THREADS */
@@ -277,31 +281,16 @@ static void epsilon_primitive_io_read_character(epsilon_value *stack){
   //    result_as_epsilon_int = 0; // we return 0 as the EOF marker
   stack[0] = epsilon_int_to_epsilon_value(result_as_epsilon_int);
 }
-static void epsilon_primitive_io_readline(epsilon_value *stack){
-  FILE* old_readline_input_stream = rl_instream;
-  FILE* old_readline_output_stream = rl_outstream;
-  rl_instream = stdin;
-  rl_outstream = stdout;
-  char* c_string = readline("> ");
-  rl_instream = old_readline_input_stream;
-  rl_outstream = old_readline_output_stream;
-  if (c_string == NULL){
-    stack[0] = epsilon_int_to_epsilon_value(0);
-    return;
-  }
-  size_t nul_offset = strlen(c_string), length;
-  if (nul_offset > 0)
-    {
-      add_history(c_string);
-      if (write_history(NULL) != 0)
-        fprintf(stderr, "Warning: writing history failed\n");
-    }
+static uint32_t*
+epsilon_c_string_to_wide_string (char *c_string, size_t *length)
+{
+  size_t nul_offset = strlen (c_string);
   uint32_t *wide_string;
 #ifdef HAVE_LIBUNISTRING
   if (nul_offset == 0)
     {
       wide_string = NULL;
-      length = 0;
+      *length = 0;
     }
   else
     {
@@ -312,26 +301,52 @@ static void epsilon_primitive_io_readline(epsilon_value *stack){
                                              nul_offset,
                                              NULL,
                                              NULL,
-                                             &length)))
+                                             length)))
         switch (errno)
           {
           case EILSEQ:
-            epsilon_runtime_appropriate_fail("converstion to Unicode string failed");
+            epsilon_runtime_appropriate_fail ("converstion to Unicode string failed");
           case EINVAL:
-            epsilon_runtime_appropriate_fail("invalid value during Unicode conversion");
+            epsilon_runtime_appropriate_fail ("invalid value during Unicode conversion");
           case ENOMEM:
-            epsilon_runtime_appropriate_fail("out-of-memory during Unicode conversion");
+            epsilon_runtime_appropriate_fail ("out-of-memory during Unicode conversion");
           default:
-            epsilon_runtime_appropriate_fail("unknown failure during Unicode conversion");
+            epsilon_runtime_appropriate_fail ("unknown failure during Unicode conversion");
           }
     }
 #else
-  length = nul_offset;
-  wide_string = epsilon_xmalloc(sizeof(uint32_t) * (nul_offset + 1));
+  *length = nul_offset;
+  wide_string = epsilon_xmalloc (sizeof(uint32_t) * nul_offset);
   int j;
   for (j = 0; j < nul_offset; j ++)
     wide_string[j] = c_string[j];
 #endif // #ifdef HAVE_LIBUNISTRING
+  return wide_string;
+}
+
+static void
+epsilon_primitive_io_readline (epsilon_value *stack)
+{
+  FILE* old_readline_input_stream = rl_instream;
+  FILE* old_readline_output_stream = rl_outstream;
+  rl_instream = stdin;
+  rl_outstream = stdout;
+  char* c_string = readline("> ");
+  rl_instream = old_readline_input_stream;
+  rl_outstream = old_readline_output_stream;
+  if (c_string == NULL)
+    {
+      stack[0] = epsilon_int_to_epsilon_value(0);
+      return;
+    }
+  size_t length;
+  uint32_t *wide_string = epsilon_c_string_to_wide_string (c_string, &length);
+  if (length > 0)
+    {
+      add_history (c_string);
+      if (write_history (NULL) != 0)
+        fprintf (stderr, "Warning: writing history failed\n");
+    }
   free(c_string);
   epsilon_word buffer =
     epsilon_gc_allocate_with_epsilon_int_length(length + 2);
@@ -346,6 +361,32 @@ static void epsilon_primitive_io_readline(epsilon_value *stack){
                                         epsilon_int_to_epsilon_value('\n'));
   free(wide_string);
   stack[0] = buffer;
+}
+static
+void epsilon_primitive_command_line_argv (epsilon_value *stack)
+{
+  epsilon_value result
+    = epsilon_gc_allocate_with_epsilon_int_length (epsilon_argc + 1);
+  *stack = result;
+  epsilon_store_with_epsilon_int_offset (result, 0,
+                                         epsilon_int_to_epsilon_value (epsilon_argc));
+  int i;
+  for (i = 0; i < epsilon_argc; i ++)
+    {
+      size_t length;
+      uint32_t *wide_string
+        = epsilon_c_string_to_wide_string (epsilon_argv[i], &length);
+      epsilon_value s =
+        epsilon_gc_allocate_with_epsilon_int_length (length + 1);
+      epsilon_store_with_epsilon_int_offset (result, i + 1, s);
+      epsilon_store_with_epsilon_int_offset (s, 0, epsilon_int_to_epsilon_value (length));
+      int j;
+      for (j = 0; j < length; j ++)
+        epsilon_store_with_epsilon_int_offset (s,
+                                               j + 1,
+                                               epsilon_int_to_epsilon_value (wide_string[j]));
+      free (wide_string);
+    }
 }
 static void epsilon_primitive_io_write_character(epsilon_value *stack){
   FILE *file_star = epsilon_value_to_foreign_pointer(stack[0]);
@@ -508,8 +549,7 @@ static void epsilon_primitive_state_update_globals_and_procedures(epsilon_value 
 static void
 epsilon_primitive_unix_exit (epsilon_value *stack)
 {
-  int code
-    = epsilon_int_to_epsilon_value (epsilon_value_to_epsilon_int (*stack));
+  int code = epsilon_value_to_epsilon_int (*stack);
   exit (code);
 }
 static void epsilon_primitive_unix_system(epsilon_value *stack){
@@ -545,8 +585,15 @@ epsilon_primitive_jit_run (epsilon_value *stack){
 ///////////////////////////////////////////////////////////////////
 // Primitive definitions: end
 
-void epsilon_c_primitives_initialize(void){
-// FIXME: move away into a separate initialization function.
+void
+epsilon_c_primitives_initialize (int argc, char **argv)
+{
+  // FIXME: move away into a separate initialization function.
+  /* Save command line arguments into some globals which are easy to access
+     later from primitives. */
+  epsilon_argc = argc;
+  epsilon_argv = argv;
+
 #ifdef HAVE_LIBUNISTRING
   /* Set the current locale according to environment variables.  This
      is apparently required to have locale_charset return the right
@@ -649,4 +696,5 @@ void epsilon_c_primitives_initialize(void){
   epsilon_initialize_c_primitive("io:write-value", epsilon_primitive_io_write_value, 2, 0); // FIXME: remove after bootstrapping from Guile
 
   epsilon_initialize_c_primitive("c64:read-timer", epsilon_primitive_c64_read_timer, 0, 1);
+  epsilon_initialize_c_primitive("command-line:argv", epsilon_primitive_command_line_argv, 0, 1);
 }

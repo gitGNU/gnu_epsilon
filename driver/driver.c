@@ -1,7 +1,7 @@
 /* Experimantal driver for code produced by the epsilon0 compiler with the C backend
 
    Copyright (C) 2013, 2015 Luca Saiu
-   Updated in 2014 by Luca Saiu
+   Updated in 2014 and 2016 by Luca Saiu
 
    This file is part of GNU epsilon.
 
@@ -36,8 +36,9 @@ void epsilon_main_entry_point(epsilon_value*);
 extern char global_data_beginning;
 extern char global_data_end;
 
-int main(int argc, char **argv){
-  epsilon_runtime_initialize();
+int
+main (int argc, char **argv){
+  epsilon_runtime_initialize (argc, argv);
 
   /* Add assembly globals as GC roots: */
   char *minimum_global_address = &global_data_beginning;
@@ -57,8 +58,8 @@ int main(int argc, char **argv){
   GC_add_roots(minimum_global_address, maximum_global_address);
   GC_add_roots(context, ((char*)context) + sizeof(struct epsilon_thread_context) + 1);
 #endif // #ifdef EPSILON_EGC
-  fprintf (stderr, "Globals: [%p, %p]\n", minimum_global_address, maximum_global_address);
-  fprintf (stderr, "Stack:   [%p, %p]\n", context->stack_lowest_address, context->stack_highest_address);
+  /* fprintf (stderr, "Globals: [%p, %p]\n", minimum_global_address, maximum_global_address); */
+  /* fprintf (stderr, "Stack:   [%p, %p]\n", context->stack_lowest_address, context->stack_highest_address); */
   //printf("C%p S%p L%p H%p\n", context, context->stack, context->stack_lowest_address, context->stack_highest_address);
   //epsilon_value result =
     epsilon_run_thread_context(context, epsilon_main_entry_point);

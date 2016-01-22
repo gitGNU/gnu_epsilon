@@ -1,7 +1,8 @@
 /* `Whatever' SMOB type for Guile, plus epsilonzero primitives
 
-   Copyright (C) 2012 Luca Saiu [written during his few weeks with no employment]
+   Copyright (C) 2012 Luca Saiu
    Copyright (C) 2012 Université Paris 13
+   Updated in 2016 by Luca Saiu
    Written by Luca Saiu
 
    This file is part of GNU epsilon.
@@ -146,7 +147,7 @@ SCM epsilon_call_primitive_with_guile_parameters(SCM name_as_guile_sexpression_s
 }
 
 int main(int argc, char **argv){
-  epsilon_runtime_initialize();
+  epsilon_runtime_initialize (argc, argv);
   //scm_boot_guile (argc, argv, inner_main, 0);
 
   scm_c_define_gsubr ("whatever-call-with-guile-parameters", 2, 0, 0, epsilon_call_primitive_with_guile_parameters);//FIXME: rename

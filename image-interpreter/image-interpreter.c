@@ -1,7 +1,7 @@
 /* Image interpreter.
 
    Copyright (C) 2012  Luca Saiu
-   Updated in 2015 by Luca Saiu
+   Updated in 2015 and 2016 by Luca Saiu
    Written by Luca Saiu
 
    This file is part of GNU epsilon.
@@ -34,7 +34,7 @@ int main(int argc, char **argv){
   /* Unmarshal the pair from the file; the pair contains the symbol
      table and a main expression. */
   char *filename = argv[1];
-  epsilon_runtime_initialize();
+  epsilon_runtime_initialize (argc, argv);
   FILE *f = fopen(filename, "r");
   if(f == NULL)
     epsilon_fatal("could not open %s", filename);

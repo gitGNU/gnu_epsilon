@@ -1,8 +1,8 @@
 /* epsilon primitives implemented in C.
 
-   Copyright (C) 2012 Luca Saiu [written during his few weeks with no employment]
+   Copyright (C) 2012 Luca Saiu
    Written by Luca Saiu
-   Updated in 2013 by Luca Saiu
+   Updated in 2013 and 2016 by Luca Saiu
 
    This file is part of GNU epsilon.
 
@@ -77,7 +77,8 @@ struct epsilon_c_primitive_descriptor{
    which is primitive is added within epsilon_initialize_c_primitives,
    which we will normally keep constant.  Access by index is quite
    efficient, based as it is on a global function pointer array. */
-void epsilon_c_primitives_initialize(void);
+void
+epsilon_c_primitives_initialize (int argc, char **argv);
 
 /* Given a C primitive name, return its index or descriptor.  Lookup
    by name is relatively expensive. */

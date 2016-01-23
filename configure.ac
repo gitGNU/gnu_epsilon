@@ -3,7 +3,7 @@
 
 ## Copyright (C) 2002, 2003, 2005, 2006, 2007, 2008, 2014, 2015 Luca Saiu
 ## Copyright (C) 2012 Université Paris 13
-## minor updates by Luca Saiu in 2004 and 2013
+## Updated by Luca Saiu in 2004, 2013 and 2016
 
 ## Written by Luca Saiu
 ## (based on old GNU epsilon's configure.ac and NAUSEA's configure.ac,
@@ -310,6 +310,12 @@ AC_CHECK_HEADERS([unistr.h], , AC_SUBST([NO_UNISTRING_HEADER], [yes]))
 if test "$NO_UNISTRING_HEADER" == "yes"; then
   AC_MSG_WARN([libunistring C headers were not found; they will be needed in a future version.])
 fi
+
+## Check for resource limit functions.
+AC_CHECK_FUNCS([getrlimit], ,
+               AC_MSG_WARN([getrlimit doesn't seem to be there]))
+AC_CHECK_FUNCS([setrlimit], ,
+               AC_MSG_WARN([setrlimit doesn't seem to be there]))
 
 dnl ??????AC_CHECK_LIB([pthread], [pthread_mutex_lock], , AC_SUBST([NO_PTHREAD], [yes]))
 dnl if test "$NO_PTHREAD" == "yes"; then

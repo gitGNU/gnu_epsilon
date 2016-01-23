@@ -1,7 +1,6 @@
 /* Main runtime file
 
-   Copyright (C) 2012 Luca Saiu
-   Updated in 2016 by Luca Saiu
+   Copyright (C) 2012, 2016 Luca Saiu
    Written by Luca Saiu
 
    This file is part of GNU epsilon.
@@ -22,9 +21,39 @@
 
 #include "runtime.h"
 
+#if defined(HAVE_GETRLIMIT) && defined(HAVE_SETRLIMIT)
+#include <sys/resource.h>
+#endif // #if defined(HAVE_GETRLIMIT) && defined(HAVE_SETRLIMIT)
+
+/* epsilon currently uses a large amount of stack space; I can do away with
+   this later, after removing Guile support. */
+static void
+epsilon_enlarge_stack (void)
+{
+#if defined(HAVE_GETRLIMIT) && defined(HAVE_SETRLIMIT)
+  struct rlimit rl;
+  int result;
+  result = getrlimit (RLIMIT_STACK, &rl);
+  if (result != 0)
+    {
+      fprintf (stderr, "Couldn't read stack space limit; trying to go on anyway.\n");
+      return;
+    }
+  if (rl.rlim_max != RLIM_INFINITY)
+    fprintf (stderr, "The stack maximum limit is not infinity; trying to go on anyway.\n");
+  rl.rlim_cur = rl.rlim_max;
+  result = setrlimit (RLIMIT_STACK, &rl);
+  if (result != 0)
+    fprintf (stderr, "Couldn't increase stack space; trying to go on anyway.\n");
+#else
+  fprintf (stderr, "Can't change or query stack space; trying to go on anyway.\n");
+#endif // #if defined(HAVE_GETRLIMIT) && defined(HAVE_SETRLIMIT)
+}
+
 void
 epsilon_runtime_initialize (int argc, char **argv)
 {
+  epsilon_enlarge_stack ();
   epsilon_data_initialize ();
   epsilon_c_primitives_initialize (argc, argv);
 }

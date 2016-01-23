@@ -32,9 +32,7 @@ epsilon_enlarge_stack (void)
 {
 #if defined(HAVE_GETRLIMIT) && defined(HAVE_SETRLIMIT)
   struct rlimit rl;
-  int result;
-  result = getrlimit (RLIMIT_STACK, &rl);
-  if (result != 0)
+  if (getrlimit (RLIMIT_STACK, &rl) != 0)
     {
       fprintf (stderr, "Couldn't read stack space limit; trying to go on anyway.\n");
       return;
@@ -42,8 +40,7 @@ epsilon_enlarge_stack (void)
   if (rl.rlim_max != RLIM_INFINITY)
     fprintf (stderr, "The stack maximum limit is not infinity; trying to go on anyway.\n");
   rl.rlim_cur = rl.rlim_max;
-  result = setrlimit (RLIMIT_STACK, &rl);
-  if (result != 0)
+  if (setrlimit (RLIMIT_STACK, &rl) != 0)
     fprintf (stderr, "Couldn't increase stack space; trying to go on anyway.\n");
 #else
   fprintf (stderr, "Can't change or query stack space; trying to go on anyway.\n");

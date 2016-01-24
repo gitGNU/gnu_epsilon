@@ -44,7 +44,7 @@ epsilon_print_version_and_exit (int argc, char **argv)
 }
 
 static void
-epsilon_print_help_and_exit (int argc, char **argv)
+epsilon_print_help_and_exit (int argc, char **argv, int exit_code)
 {
   printf ("Usage: %s ARGUMENT ...\n", argv[0]);
   printf ("Interpret a GNU epsilon dumped image in the %s runtime.\n",
@@ -58,7 +58,7 @@ epsilon_print_help_and_exit (int argc, char **argv)
   printf ("        --help          display this help message and exit\n");
   printf ("\n");
   epsilon_print_bugs_and_help_notices ();
-  exit (EXIT_SUCCESS);
+  exit (exit_code);
 }
 
 int
@@ -67,11 +67,11 @@ main (int argc, char **argv)
   /* A first command-line argument is mandatory.  Every further one will be
      available to be handled by the image, if any */
   if (argc < 2)
-    epsilon_fatal ("at least one argument required: image file, \"--help\" or \"--version\"");
+    epsilon_print_help_and_exit (argc, argv, EXIT_FAILURE);
   if (! strcmp (argv[1], "--version"))
     epsilon_print_version_and_exit (argc, argv);
   else if (! strcmp (argv[1], "--help"))
-    epsilon_print_help_and_exit (argc, argv);
+    epsilon_print_help_and_exit (argc, argv, EXIT_SUCCESS);
 
   /* Unmarshal the pair from the file; the pair contains the symbol
      table and a main expression. */

@@ -3690,6 +3690,11 @@
     (printer:write-expression p (e1:macroexpand sexpression))
     (io:write-string p "\n")))
 
+(e1:define (debug:macroexpand-and-transform sexpression)
+  (e1:let ((p (io:standard-output)))
+    (printer:write-expression p (e1:macroexpand-and-transform sexpression))
+    (io:write-string p "\n")))
+
 
 ;;;;; The EOF object as an s-expression
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

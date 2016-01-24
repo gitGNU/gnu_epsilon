@@ -3030,6 +3030,10 @@
 (e1:define (repl:macroexpand-transform-and-execute sexpression)
   (e0:eval-ee (repl:macroexpand-and-transform sexpression)))
 
+;;; This is useful elsewhere as well, and deserves an alias.
+(e1:define (e1:macroexpand-and-transform sexpression)
+  (repl:macroexpand-and-transform sexpression))
+
 
 ;;;;; A very crude error-reporting facility
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

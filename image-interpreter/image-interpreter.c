@@ -23,15 +23,55 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #include "../utility/utility.h"
 #include "../runtime/runtime.h"
 
-// FIXME: support GNU standard command-line options
+static void
+epsilon_print_version_and_exit (int argc, char **argv)
+{
+  char *runtime_name = epsilon_runtime_name ();
+  size_t length = strlen (runtime_name);
+  char *lowercase_runtime_name = epsilon_xmalloc (length); // no need to free
+  int i;
+  for (i = 0; i <= length; i ++)
+    lowercase_runtime_name[i] = tolower (runtime_name[i]);
+  printf ("epsilon-image-interpreter-%s (GNU epsilon) %s\n",
+          lowercase_runtime_name,
+          PACKAGE_VERSION);
+  epsilon_print_short_legal_notices ();
+  exit (EXIT_SUCCESS);
+}
+
+static void
+epsilon_print_help_and_exit (int argc, char **argv)
+{
+  printf ("Usage: %s ARGUMENT ...\n", argv[0]);
+  printf ("Interpret a GNU epsilon dumped image in the %s runtime.\n",
+          epsilon_runtime_name ());
+  printf ("\n");
+  printf ("The first argument is mandatory: it can be \"--help\", \"--version\",\n");
+  printf ("or the image file to load.  Further arguments are passed to the epsilon\n");
+  printf ("image, to be processed in some image-dependent way.\n");
+  printf ("\n");
+  printf ("        --version       show version information and exit\n");
+  printf ("        --help          display this help message and exit\n");
+  printf ("\n");
+  epsilon_print_bugs_and_help_notices ();
+  exit (EXIT_SUCCESS);
+}
+
 int
 main (int argc, char **argv)
 {
-  if(argc < 2)
-    epsilon_fatal ("there should at least one argument, the image file");
+  /* A first command-line argument is mandatory.  Every further one will be
+     available to be handled by the image, if any */
+  if (argc < 2)
+    epsilon_fatal ("at least one argument required: image file, \"--help\" or \"--version\"");
+  if (! strcmp (argv[1], "--version"))
+    epsilon_print_version_and_exit (argc, argv);
+  else if (! strcmp (argv[1], "--help"))
+    epsilon_print_help_and_exit (argc, argv);
 
   /* Unmarshal the pair from the file; the pair contains the symbol
      table and a main expression. */

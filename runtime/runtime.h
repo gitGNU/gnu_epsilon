@@ -30,6 +30,7 @@
 #include "backend-specific.h" // the interface is always the same
 #include "data.h"
 #include "marshal.h"
+#include "notices.h"
 #include "c-primitives.h"
 #include "epsilon0-interpreter.h"
 #include "thread-context.h"

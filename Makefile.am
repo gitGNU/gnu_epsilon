@@ -326,6 +326,7 @@ RUNTIME_SOURCES = \
   runtime/marshal.c runtime/marshal.h \
   runtime/c-primitives.c runtime/c-primitives.h \
   runtime/epsilon0-interpreter.c runtime/epsilon0-interpreter.h \
+  runtime/notices.c runtime/notices.h \
   runtime/thread-context.c runtime/thread-context.h \
   runtime/runtime.c runtime/runtime.h \
   runtime/jit.c runtime/jit.h \

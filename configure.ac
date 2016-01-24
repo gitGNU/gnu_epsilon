@@ -39,6 +39,10 @@ AC_INIT([GNU epsilon],
         [http://www.gnu.org/software/epsilon])
 AC_PREREQ(2.65)
 
+# This is used for --version .  See standards.info for the rationale.
+AC_DEFINE_UNQUOTED(SHORT_COPYRIGHT_NOTICE, "Copyright (C) Luca Saiu 2016",
+                   [Short copyright notice, for --version])
+
 AC_SUBST(configuration_date, "$(date '+%Y-%m-%d')")
 AC_SUBST(configuration_time, "$(date '+%H:%M:%S')")
 

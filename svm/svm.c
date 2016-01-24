@@ -68,7 +68,7 @@ int main(int argc, char **argv){
      SVM program, not an instruction counter.  See the comment in the backend-specific
      C file for details: */
 
-#if 0
+#if 1
   epsilon_epsilon_thread_context_t epsilon_context =
     epsilon_make_epsilon_thread_context(p);
   epsilon_enter_epsilon_context(epsilon_context);

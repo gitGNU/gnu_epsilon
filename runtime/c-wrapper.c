@@ -150,7 +150,7 @@ void epsilon_enter_epsilon_context(epsilon_epsilon_thread_context_t context){
     /* printf("       call epsilon_leave_epsilon_context from the assembly code\n"); */
     /* epsilon_leave_epsilon_context(); */
     /* // To do: replace this part: end */
-#if 0 // FIXME: this was actually required, but I have to rethink the system
+#if 1 // FIXME: this was actually required, but I have to rethink the system
     epsilon_jump_to_epsilon_context(context);
 #endif // #if 0
   }

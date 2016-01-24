@@ -23,6 +23,8 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <netinet/in.h> // for endianness conversion
+#include <sys/stat.h> // for fchmod
+
 #include "marshal.h"
 #include "../utility/utility.h"
 
@@ -35,11 +37,16 @@
 
 epsilon_int epsilon_dump_maximum_depth = 2;
 
+/* Dump files may contain one optional comment line at the beginning, starting
+   with a '#' character.  The rationale, of course, is to have a shebang.  If
+   the first byte is '#' then the first line is ignored, and the magic number
+   needs to appear at the beginning of the second line, right after '\n'.  If
+   the first byte is not '#' the magic number is expected immediately. */
 
-/* The magic number used as the first word of binary dumps file, 32-bit
-   big-endian.  I picked a random number fitting in 16 bits signed, for easier
-   portability to (hypothetical) small machines without a C compiler where I
-   still want to exec an image. */
+/* The magic number used as the first mandatory word of binary dumps file,
+   32-bit big-endian.  I picked a random number fitting in 16 bits signed, for
+   easier portability to (hypothetical) small machines without a C compiler
+   where I still want to exec an image. */
 #define EPSILON_DUMP_MAGIC   32410
 
 /* After the magic number there are five bytes encoding in ASCII.  The first
@@ -53,13 +60,30 @@ epsilon_int epsilon_dump_maximum_depth = 2;
 static void
 epsilon_write_header (FILE *file, char *comment)
 {
+  /* Attempt to make the file executable and add a shebang line.  FIXME: is this
+     a reasonable way to also make the file executable by the users who would
+     normally be able to read the file?  I see that this sets the sticky bit
+     on my system. */
+  mode_t current_umask = umask (0);
+  umask (current_umask);
+  mode_t mode = ~current_umask | S_IXUSR;
+  if (mode & S_IRGRP)
+    mode |= S_IXGRP;
+  if (mode & S_IROTH)
+    mode |= S_IXOTH;
+  if (fchmod (fileno (file), mode))
+    fprintf (stderr, "Warning: couldn't make the file executable when dumping\n");
+  fprintf (file, "#!/usr/bin/env epsilon-image-interpreter-tagged\n");
+
+  /* Write magic number and version. */
   write_32bit_bigendian (file, EPSILON_DUMP_MAGIC);
   fprintf (file, "%04u\n", EPSILON_DUMP_VERSION);
+
+  /* Write comment. */
   char *p;
   for (p = comment; *p != '\0'; p ++)
     if (*p == '\n')
       epsilon_fatal ("the dump comment cannot contain newlines");
-
   fprintf (file, "%s\n", comment);
 }
 
@@ -68,6 +92,20 @@ epsilon_write_header (FILE *file, char *comment)
 static long
 epsilon_read_header (FILE *file)
 {
+  char character;
+  if ((character = fgetc (file)) == EOF)
+    epsilon_fatal ("empty dump file");
+  if (character == '#')
+    /* Ignore the first line, up to the first occurring '\n' included. */
+    do
+      if ((character = fgetc (file)) == EOF)
+        epsilon_fatal ("dump file truncated before the end of the first line");
+    while (character != '\n');
+  else
+    /* We peeked at the first byte, but now we want to re-read it as part of the
+       initial word.  Undo the byte read. */
+    ungetc (character, file);
+
   int32_t magic = read_32bit_bigendian (file);
   if (magic != EPSILON_DUMP_MAGIC)
     epsilon_fatal ("incorrect magic in dump");

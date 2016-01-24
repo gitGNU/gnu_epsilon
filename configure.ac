@@ -1,9 +1,9 @@
 # -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-## Copyright (C) 2002, 2003, 2005, 2006, 2007, 2008, 2014, 2015 Luca Saiu
+## Copyright (C) 2002, 2003, 2005, 2006, 2007, 2008, 2014, 2015, 2016 Luca Saiu
 ## Copyright (C) 2012 Université Paris 13
-## Updated by Luca Saiu in 2004, 2013 and 2016
+## Updated by Luca Saiu in 2004 and 2013
 
 ## Written by Luca Saiu
 ## (based on old GNU epsilon's configure.ac and NAUSEA's configure.ac,
@@ -99,16 +99,16 @@ AC_USE_SYSTEM_EXTENSIONS
 # We also have some assembly files:
 AM_PROG_AS
 
-dnl # We need the C source code to know the installation prefix:
-dnl if test "$prefix" != NONE; then
-dnl    AC_DEFINE_UNQUOTED([PREFIX],
-dnl                       "$prefix",
-dnl                       [The installation prefix])
-dnl else
-dnl    AC_DEFINE_UNQUOTED([PREFIX],
-dnl                       "/usr/local",
-dnl                       [The installation prefix])
-dnl fi
+# We need the C source code to know the installation prefix:
+if test "$prefix" != NONE; then
+   AC_DEFINE_UNQUOTED([PREFIX],
+                      "$prefix",
+                      [The installation prefix])
+else
+   AC_DEFINE_UNQUOTED([PREFIX],
+                      "/usr/local",
+                      [The installation prefix])
+fi
 
 # We need to build libraries:
 AC_PROG_RANLIB # This is apparently obsolete with new Libtool versions... [2008]

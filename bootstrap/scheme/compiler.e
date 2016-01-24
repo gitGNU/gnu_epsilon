@@ -1434,6 +1434,12 @@ epsilon_main_entry_point:
 ;;;;; User interface
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;; FIXME: I'm not at all sure that this is effective for capturing nonlocals; I
+;;; had already replaced it with an alternative for unexec, before noticing that
+;;; the change broke the compiler.  Keeping this version for the time being.
+(e1:define (macroexpand:expression-using-nonlocals forms)
+  (repl:macroexpand-and-transform `(e1:call-closure (e1:lambda () ,@forms))))
+
 ;;; Define a zero-argument procedure executing the given forms, which
 ;;; may refer nonlocals.  Return the procedure name.
 (e1:define (macroexpand:procedure-name-using-nonlocals forms-as-sexpression-list)

@@ -2491,16 +2491,30 @@
 ;;;;; Friendly syntax for unexec
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;; This definition is interesting: it defines a global closure
-;;; containing the given forms as body, so that the program main
-;;; expression can simply apply it and have visibility over the
-;;; variables visible by the unexec:unexec caller.
-(e1:define (macroexpand:expression-using-nonlocals forms-as-sexpression-list)
-  (repl:macroexpand-and-transform `(e1:call-closure (e1:lambda () ,@forms-as-sexpression-list))))
+;;; We want to be able to refer nonlocals (which are actually inter-process
+;;; nonlocals!) from the unexeced expression.  This is why the unexeced
+;;; expression ends up calling to a zero-argument closure having a global name,
+;;; which does the actual work.  The closure is evaluated *before* unexec, and
+;;; contains a binding for every variable to be used in the unexeced body.
+;;; Having the main expression calling the closure would be slightly involved
+;;; for macroexpansion/transform reasons, so instead of doing that I have the
+;;; main expression calling an ordinary epsilon1 procedure which calls the
+;;; closure which does the work.
 (e1:define-macro (unexec:unexec-table file-name table . forms)
-  `(unexec:unexec-table-procedure ,file-name
-                                  ,table
-                                  (macroexpand:expression-using-nonlocals ',forms)))
+  (e1:let ((closure-name (sexpression:fresh-symbol-with-prefix "main-closure"))
+           (main-procedure-name (sexpression:fresh-symbol-with-prefix "main-procedure"))
+           (main-expression-name (sexpression:fresh-symbol-with-prefix "main-expression")))
+    `(e1:let* ((,closure-name (e1:lambda () ,@forms))
+               (,main-expression-name (e0:call* (e1:value ,main-procedure-name)
+                                                (list:list))))
+       ;; BEWARE: Calling state:global-set! without passing thru e1:define might
+       ;; interact badly with transforms on globals (which I currently have no
+       ;; use for, and might actually be flawed as a concept).
+       (state:global-set! (e1:value ,closure-name) ,closure-name)
+       (e1:define (,main-procedure-name) (e1:call-closure ,closure-name))
+       (unexec:unexec-table-procedure ,file-name
+                                      ,table
+                                      ,main-expression-name))))
 (e1:define-macro (unexec:quick-unexec-table table . forms)
   `(unexec:unexec-table ,table
                         ,(sexpression:inject-string unexec:default-file)

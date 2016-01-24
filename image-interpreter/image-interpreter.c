@@ -50,9 +50,9 @@ epsilon_print_help_and_exit (int argc, char **argv)
   printf ("Interpret a GNU epsilon dumped image in the %s runtime.\n",
           epsilon_runtime_name ());
   printf ("\n");
-  printf ("The first argument is mandatory: it can be \"--help\", \"--version\",\n");
-  printf ("or the image file to load.  Further arguments are passed to the epsilon\n");
-  printf ("image, to be processed in some image-dependent way.\n");
+  printf ("The first argument is mandatory: it can be \"--help\", \"--version\", or the\n");
+  printf ("image file to be loaded.  Any further arguments are passed as they are to the\n");
+  printf ("epsilon image, to be processed in some image-dependent way.\n");
   printf ("\n");
   printf ("        --version       show version information and exit\n");
   printf ("        --help          display this help message and exit\n");

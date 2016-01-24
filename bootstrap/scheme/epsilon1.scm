@@ -3791,7 +3791,7 @@
      (io:write-string port "]")
      (printer:write-handle port handle))
     (else
-     (io:write-string "#<non-epsilon0-expression>"))))
+     (io:write-string port "#<non-epsilon0-expression>"))))
 
 (e1:define (printer:write-handle port hh)
   (e1:unless (fixnum:zero? hh)

@@ -3054,6 +3054,67 @@
            (else
             (list:has? (list:tail list) element))))
 
+
+;;;;; Element search in vectors or strings
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Return -1 if not found, otherwize the index of the first occurrence.
+;;; Compare with whatever:eq?
+(e1:define (vector:find vector element)
+  (buffer:find-helper vector
+                      (fixnum:1+ (vector:length vector))
+                      1
+                      element))
+(e1:define (string:find string character)
+  (vector:find string character))
+
+;;; Compare with whatever:eq?
+(e1:define (vector:has? vector element)
+  (e1:not (fixnum:= (vector:find vector element)
+                    -1)))
+
+;;; This is a little inconvenient to call, but doesn't rely on boxedness tags.
+(e1:define (buffer:find-helper buffer size next-index element)
+  (e1:cond ((fixnum:>= next-index size)
+            -1)
+           ((whatever:eq? (buffer:get buffer next-index) element)
+            next-index)
+           (else
+            (buffer:find-helper buffer size (fixnum:1+ next-index) element))))
+
+(e1:define (string:has? string character)
+  (vector:has? string character))
+
+
+;;;;; String splitting around a character
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Split the given string AAAAcBBBBB into AAAA and BBBBB (returned as a
+;;; bundle), around the first occurrence of c.  Undefined behavior unless c
+;;; is present.
+
+(e1:define (string:split string c)
+  (e1:let* ((index (string:find string c))
+            (first (string:sub string 0 (fixnum:1- index)))
+            (second (string:sub string
+                                index
+                                (fixnum:- (string:length string)
+                                          index))))
+    (e1:bundle first second)))
+
+
+;;;;; Sub-vectors and sub-strings.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (vector:sub string from-index substring-length)
+  (e1:let ((result (vector:make substring-length)))
+    (vector:blit result 0 string from-index substring-length)
+    result))
+
+(e1:define (string:sub string from-index substring-length)
+  (vector:sub string from-index substring-length))
+
+
 ;;;;; Promises
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

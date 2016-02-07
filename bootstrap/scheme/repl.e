@@ -56,6 +56,7 @@
              (backtrackable-port:input-port->backtrackable-port input-port
                                                                 (option:option-none))))
     (command-line:process-args)
+    (repl:load-sources-from-the-command-line)
     (e1:unless (command-line:option-supplied? "--no-scratch")
       (repl:load-scratch))
     (e1:unless (command-line:option-supplied? "--no-repl")
@@ -103,6 +104,10 @@ under the terms of the GNU General Public License, version 3 or later.  Enter
   (e1:load (string:append configuration:abs_top_srcdir
                           configuration:dir_separator
                           "bootstrap/scheme/scratch.e")))
+
+(e1:define (repl:load-sources-from-the-command-line)
+  (e1:dolist (filename (command-line:non-option-list))
+    (e1:load filename)))
 
 
 ;;;;; REPL commands

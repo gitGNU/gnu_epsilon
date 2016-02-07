@@ -2915,7 +2915,7 @@
     `(e0:call e1:error ,@stuff)
     `(e1:begin
        (fio:write "Fatal error: " ,@stuff ".\n")
-       (e0:call e1:error "fatal"))))
+       (unix:exit -1))))
 
 
 ;;;;; Ad-hoc polymorphic operations using boxedness tags

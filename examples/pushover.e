@@ -22,14 +22,19 @@
 ;;;;; Temporary, to ease compilation: simplify assertions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:define assertion-no
-  (box:make 0))
-(e1:define-macro (e1:assert expression . stuff)
-  (e1:let ((i (box:bump-and-get! assertion-no)))
-    (fio:write "** The " (i i) "-th assertion is " (se expression) "\n")
-    `(e1:unless ,expression
-       (fio:write "About the " (i ,(sexpression:inject-fixnum i)) "-th assertion (1-based)\n")
-       (e1:error "Assertion failed"))))
+;;; Do not print s-expressions: this currently doesn't work in compiled programs,
+;;; as it relies on the symbol table.
+(e1:define (printer:write-sexpression port arg)
+  (io:write-string port "[omitted s-expression]"))
+
+;; (e1:define assertion-no
+;;   (box:make 0))
+;; (e1:define-macro (e1:assert expression . stuff)
+;;   (e1:let ((i (box:bump-and-get! assertion-no)))
+;;     (fio:write "** The " (i i) "-th assertion is " (se expression) "\n")
+;;     `(e1:unless ,expression
+;;        (fio:write "About the " (i ,(sexpression:inject-fixnum i)) "-th assertion (1-based)\n")
+;;        (e1:error "Assertion failed"))))
 
 
 ;;;;; Board cases
@@ -511,6 +516,9 @@
   (e1:let* ((player (po:state-get-player state))
             (string-from-user (fio:write (st (po:player->escaped-string player)))
                               (io:readline)))
+    (e1:when (fixnum:zero? string-from-user)
+      (fio:write "\nGoodbye.\n")
+      (unix:exit 0))
     (e1:if (po:valid-move-as-string? string-from-user)
       (e1:let ((move (po:string->move string-from-user)))
         (e1:if (po:can-move? state move)
@@ -751,15 +759,12 @@
                       (st (po:outcome->string outcome))
                       "\")\n")))
        (e1:let ((move (po:read-move state)))
-         (e1:when (fixnum:zero? move)
-           (fio:write "Goodbye.")
-           (unix:exit -1))
          (po:move! state move)))
       (else
        (e1:assert #f)))))
 
 
-;;;;; Scratch
+;;;;; Tournament: play a specified number of games
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (e1:define (po:tournament size black-player-type white-player-type game-no)
@@ -806,6 +811,113 @@
               white-victories
               draws
               (fixnum:1- remaining-games))))))
+
+;;;;; Command line
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Of course we want --help, --version and -- to finalize option processing.
+(command-line:set-common-options)
+
+;;; Add the other options we need
+(command-line:add-options (("--no-color")
+                           "don't use ANSI terminal sequences for color")
+                          (("--size")
+                           fixnum 4
+                           "board size")
+                          (("--black")
+                           string "h3"
+                           "specify black player")
+                          (("--white")
+                           string "m5"
+                           "specify white player")
+                          (("--tournament")
+                           fixnum 0
+                           "play a tournament of N games"))
+
+;;; Set the information displayed by --version and --help .
+(command-line:set-info!
+    #:program-name "pushover (GNU epsilon)"
+    #:usage "[option]..."
+    #:program-version configuration:package_version
+    #:bug-email configuration:package_bugreport
+    #:copyright (string:append "Copyright (C) Luca Saiu 2016")
+    #:authors "Luca Saiu <http://ageinghacker.net>"
+    #:introduction "Play the Pushover game."
+    #:closing "Player specifications may be h (human player), hN (human player
+with minimax suggestions), mN (minimax player), mNd (minimax deterministic
+player), d (dumb player), or dd (dumb deterministic player).  N is the
+one-digit depth in plies.
+
+The default is h3 for black and m5 for white.")
+
+(e1:define (po:require-nonzero-digit c)
+  (e1:when (fixnum:= c #\0)
+    (e1:error "zero digit not allowed"))
+  (e1:unless (e1:and (fixnum:>= c #\1)
+                     (fixnum:<= c #\9))
+    (e1:error "invalid decimal digit " (c c))))
+
+(e1:define (po:string->player-type s)
+  (e1:case (string:length s)
+    ((1)
+     (e1:case (string:get s 0)
+       ((#\h) (po:player-type-human 0))
+       ((#\d) (po:player-type-dumb #t))
+       (else (e1:error "invalid player specification " (S s)))))
+    ((2)
+     (e1:let ((c (string:get s 1)))
+       (e1:case (string:get s 0)
+         ((#\h)
+          (po:require-nonzero-digit c)
+          (po:player-type-human (fixnum:- c #\0)))
+         ((#\d)
+          (e1:unless (fixnum:= c #\d)
+            (e1:error "invalid player specification " (S s)))
+          (po:player-type-dumb #f))
+         ((#\m)
+          (po:require-nonzero-digit c)
+          (po:player-type-minimax (fixnum:- c #\0) #t))
+         (else
+          (e1:error "invalid player specification " (S s))))))
+    ((3)
+     (e1:let ((c0 (string:get s 0))
+              (c1 (string:get s 1))
+              (c2 (string:get s 2)))
+       (e1:unless (e1:and (fixnum:= c0 #\m)
+                          (fixnum:= c2 #\d))
+         (e1:error "invalid player specification " (S s)))
+       (po:require-nonzero-digit c1)
+       (po:player-type-minimax (fixnum:- c1 #\0) #f)))
+    (else
+     (e1:error "invalid player specification " (S s)))))
+
+
+;;;;; Main program, for execution or compilation
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (po:main)
+  (command-line:process-args)
+  (e1:unless (list:null? (command-line:non-option-list))
+    (e1:error "this program has no non-option arguments"))
+  (box:set! po:ansi-terminal-escapes
+            (e1:not (command-line:option-supplied? "--no-color")))
+  (e1:let ((size (command-line:option-value "--size"))
+           (black-player-type
+            (po:string->player-type (command-line:option-value "--black")))
+           (white-player-type
+            (po:string->player-type (command-line:option-value "--white")))
+           (tournament (command-line:option-value "--tournament")))
+    (e1:unless (e1:and (fixnum:>= size 3)
+                       (fixnum:<= size 9))
+      (e1:error "Invalid board size " (i size)
+                ": size should be between 3 and 9 included.\n"))
+    (e1:if (fixnum:zero? tournament)
+      (po:play size black-player-type white-player-type)
+      (po:tournament size black-player-type white-player-type tournament))))
+
+
+;;;;; Scratch
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;(po:play 4 (po:player-type-minimax 5 #f) (po:player-type-minimax 5 #f))
 ;;(e1:compile "/tmp/po-h" (po:play 4 (po:player-type-human 5) (po:player-type-minimax 5 #f)))

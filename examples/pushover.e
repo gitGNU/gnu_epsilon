@@ -837,7 +837,7 @@
 ;;; Set the information displayed by --version and --help .
 (command-line:set-info!
     #:program-name "pushover (GNU epsilon)"
-    #:usage "[option]..."
+    #:usage "pushover [option]..."
     #:program-version configuration:package_version
     #:bug-email configuration:package_bugreport
     #:copyright (string:append "Copyright (C) Luca Saiu 2016")

@@ -1,7 +1,7 @@
 ;;;;; epsilon1 REPL
 
-;;;;; Copyright (C) 2013, 2014  Luca Saiu
-;;;;; Updated in 2015 and 2016 by Luca Saiu
+;;;;; Copyright (C) 2013, 2014, 2016  Luca Saiu
+;;;;; Updated in 2015 by Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
 
@@ -19,6 +19,29 @@
 ;;;;; along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
+;;;;; Define the command-line options needed for the REPL
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Of course we want --help, --version and -- to finalize option processing.
+(command-line:set-common-options)
+
+;;; Add the other options we need
+(command-line:add-options (("--no-repl") "don't execute the interactive REPL")
+                          (("--no-scratch") "don't load the scratch file")
+                          #;(("--optimization-level" "--optimize" "-O") fixnum 10 "set optimization level"))
+
+;;; Set the information displayed by --version and --help .
+(command-line:set-info!
+    #:introduction "The GNU epsilon interpreter."
+    #:program-name configuration:package_name
+    #:program-version configuration:package_version
+    #:bug-email configuration:package_bugreport
+    #:copyright (string:append "Copyright (C) Luca Saiu 2012-2016\nCopyright (C) Universit"
+                               (vector:vector 233)
+                               " Paris 13 2012")
+    #:authors "Luca Saiu <http://ageinghacker.net>")
+
+
 ;;;;; REPL
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -32,8 +55,12 @@
             (backtrackable-input-port
              (backtrackable-port:input-port->backtrackable-port input-port
                                                                 (option:option-none))))
-    (repl:print-banner)
-    (repl:repl-helper backtrackable-input-port)))
+    (command-line:process-args)
+    (e1:unless (command-line:option-supplied? "--no-scratch")
+      (repl:load-scratch))
+    (e1:unless (command-line:option-supplied? "--no-repl")
+      (repl:print-banner)
+      (repl:repl-helper backtrackable-input-port))))
 (e1:define (repl:repl-helper bp)
   (e1:if (backtrackable-port:eof? bp)
     (e1:bundle)
@@ -69,6 +96,13 @@ under the terms of the GNU General Public License, version 3 or later.  Enter
 
 (e1:define repl:debug
   (box:make #f))
+
+;;; Load the scratch file.  This is to be done automatically when the REPL
+;;; starts, not now.
+(e1:define (repl:load-scratch)
+  (e1:load (string:append configuration:abs_top_srcdir
+                          configuration:dir_separator
+                          "bootstrap/scheme/scratch.e")))
 
 
 ;;;;; REPL commands

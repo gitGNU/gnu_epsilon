@@ -1,6 +1,7 @@
 ;;;;; Load advanced features and unexec an -*- epsilon -*- REPL.  No Guile.
 
 ;;;;; Copyright (C) 2014, 2015  Luca Saiu
+;;;;; Updated in 2016 by Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
 
@@ -38,6 +39,9 @@
                         "bootstrap/scheme/fixed-point.e"))
 (e1:load (string:append configuration:abs_top_srcdir
                         configuration:dir_separator
+                        "bootstrap/scheme/command-line.e"))
+(e1:load (string:append configuration:abs_top_srcdir
+                        configuration:dir_separator
                         "bootstrap/scheme/repl.e"))
 (e1:load (string:append configuration:abs_top_srcdir
                         configuration:dir_separator
@@ -50,18 +54,10 @@
 ;;;;; Unexec a non-Guile REPL
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;; Load the scratch file.  This is to be done automatically when the REPL
-;;; starts, not now.
-(e1:define (repl:load-scratch)
-  (e1:load (string:append configuration:abs_top_srcdir
-                          configuration:dir_separator
-                          "bootstrap/scheme/scratch.e")))
-
 ;;(e1:toplevel
   (fio:write "Unexecing an epsilon1 REPL into "
              (st bootstrap:repl-image-file-name)
              "\n")
   (e1:unexec bootstrap:repl-image-file-name
-    (repl:load-scratch)
     (repl:repl))
 ;;)

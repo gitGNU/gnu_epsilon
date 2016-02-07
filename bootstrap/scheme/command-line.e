@@ -302,7 +302,7 @@
           (e1:cond ((e1:and process-options
                             (string:equal? arg "--")
                             (string-hash:has? command-line:option-hash arg))
-                    (fio:write "* Stopping option processing at this point: " (St arg) "\n")
+                    #;(fio:write "* Stopping option processing at this point: " (St arg) "\n")
                     (loop (fixnum:1+ i)
                           #f))
                    ((e1:and process-options

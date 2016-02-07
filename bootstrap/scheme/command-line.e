@@ -595,35 +595,3 @@
 
 ;;; Automatically define common GNU options, which should be supported by every program.
 (command-line:set-common-options)
-
-
-;; ;;;;; Scratch
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; (command-line:add-options (("--debug" "-d"))
-;;                           (("--optimization-level" "--optimize" "-O") fixnum 10 "set optimization level"))
-
-;; (command-line:set-info!
-;;     #:introduction "Perform some task which is too hopelessly complicated to describe here."
-;;     #:closing "Let's hope the computer doesn't catch fire when executing this."
-;;     #:program-name configuration:package_name
-;;     #:program-version configuration:package_version
-;;     #:bug-email configuration:package_bugreport
-;;     #:copyright (string:append "Copyright (C) Luca Saiu 2012-2016\nCopyright (C) Universit"
-;;                                (vector:vector 233)
-;;                                " Paris 13 2012")
-;;     #:authors "Luca Saiu <http://ageinghacker.net>")
-
-;; ;; Go!
-;; (command-line:process-args)
-
-;; ;; switches
-;; ;; arguments
-
-;; #;(command-line:define (("--debug" "-d"))
-;;                      (("--optimization-level" "--optimize" "-O") fixnum 0)
-;;                      --
-;;                      )
-
-;; #;(command-line:set-version! "1.2.x")
-;; #;(command-line:set-help! "No help is available yet")

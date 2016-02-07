@@ -537,7 +537,7 @@
   (e1:let ((introduction (box:get command-line:introduction)))
     (e1:when introduction
       (fio:write (st introduction) "\n")))
-  (fio:write "Options:\n")
+  (fio:write "\n")
   (e1:let ((max-width (box:make 0)))
     (e1:dolist (option (box:get command-line:options))
       (e1:dolist (option-name (command-line:option-get-names option))
@@ -560,7 +560,8 @@
                                       first-name-length
                                       demo-arg-size
                                       -1)))
-          (fio:write (st first-name) (st demo-arg))
+          (fio:write "  " ;; The indentation looks nice and helps help2man.
+                     (st first-name) (st demo-arg))
           (e1:if (list:null? more-names)
             (e1:begin
               (e1:dotimes (i space-no)

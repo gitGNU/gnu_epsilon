@@ -2,7 +2,7 @@
 ;;;;; Peano naturals: a test and micro-benchmark
 
 ;;;;; Copyright (C) 2013 Luca Saiu
-;;;;; Updated in 2014 by Luca Saiu
+;;;;; Updated in 2014 and 2016 by Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
 
@@ -160,6 +160,9 @@
 
 (e1:define (peano:test a b)
   (peano:peano->fixnum (peano:% (peano:fixnum->peano a)
+                                (peano:fixnum->peano b))))
+(e1:define (peano:test+ a b)
+  (peano:peano->fixnum (peano:+ (peano:fixnum->peano a)
                                 (peano:fixnum->peano b))))
 (e1:define (peano:test- a b)
   (peano:peano->fixnum (peano:- (peano:fixnum->peano a)

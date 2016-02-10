@@ -55,8 +55,8 @@ AM_CFLAGS = -Wall
 AM_CFLAGS += @WERROR_OR_NOTHING@
 
 BUILT_SOURCES =
-nodist_BUILT_SOURCES =
-nodist_nobase_BUILT_SOURCES =
+#nodist_BUILT_SOURCES =
+#nodist_nobase_BUILT_SOURCES =
 dist_noinst_SCRIPTS =
 dist_pkgdata_DATA =
 edump_pkgdata_DATA =
@@ -614,23 +614,28 @@ profile-driven-feedback: clean
 
 
 ## ####################################################### Documentation: begin
-info_TEXINFOS = doc/epsilon.texi
+info_TEXINFOS = doc/epsilon.texi doc/pushover.texi
 doc_epsilon_TEXINFOS = \
   @srcdir@/doc/gpl.texi \
   @srcdir@/doc/fdl.texi
-text: doc/epsilon.text
+text: doc/epsilon.text doc/pushover.text
 doc/epsilon.text: @srcdir@/doc/epsilon.texi
 	$(MAKEINFO) --footnote-style=end --no-split --no-headers \
 	            --number-sections -o $@ @srcdir@/doc/epsilon.texi
+doc/pushover.text: @srcdir@/doc/pushover.texi
+	$(MAKEINFO) --footnote-style=end --no-split --no-headers \
+	            --number-sections -o $@ @srcdir@/doc/pushover.texi
 # The info file is generated under @srcdir@ because GNU standards dictate it should
 # be distributed in source archives.
-all-doc: doc/epsilon.info doc/epsilon.html doc/epsilon.text doc/epsilon.dvi doc/epsilon.ps doc/epsilon.pdf
+EPSILON_MANUAL_FILES = \
+  doc/epsilon.info doc/epsilon.html doc/epsilon.text doc/epsilon.dvi doc/epsilon.ps doc/epsilon.pdf
+PUSHOVER_MANUAL_FILES = \
+  doc/pushover.info doc/pushover.html doc/pushover.text doc/pushover.dvi doc/pushover.ps doc/pushover.pdf
+all-doc: $(EPSILON_MANUAL_FILES) $(PUSHOVER_MANUAL_FILES)
 #all-doc: @srcdir@/doc/epsilon.info doc/epsilon.html doc/epsilon.text doc/epsilon.dvi doc/epsilon.ps doc/epsilon.pdf
 clean-doc:
 #	rm -f @srcdir@/doc/epsilon.info
-	rm -f doc/epsilon.info
-	rm -f doc/epsilon.html doc/epsilon.ps doc/epsilon.pdf doc/epsilon.text doc/epsilon.dvi
-	rm -f doc/epsilon.text
+	rm -f $(EPSILON_MANUAL_FILES) $(PUSHOVER_MANUAL_FILES)
 # This remains in the root build directory, possibly because of Automake limitations
 # relative to paths, or just as an "intermediate" file for ps or pdf. I don't know
 # the exact reason, but this workaround works and allows us to pass distcheck.

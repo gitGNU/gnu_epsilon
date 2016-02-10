@@ -1,0 +1,1003 @@
+\input texinfo.tex @c This is -*- texinfo -*- -*- coding: utf-8 -*-
+@c This pushover manual is part of GNU epsilon.
+@c Copyright (C) 2016  Luca Saiu
+@c Written by Luca Saiu
+
+@c Permission is granted to copy, distribute and/or modify this document
+@c under the terms of the GNU Free Documentation License, Version 1.3
+@c or any later version published by the Free Software Foundation;
+@c with no Invariant Sections, no Front-Cover Texts, and no Back-Cover
+@c Texts.  A copy of the license is included in the section entitled ``GNU
+@c Free Documentation License''.
+
+@c Written by Luca Saiu
+
+@documentencoding UTF-8
+@setchapternewpage odd
+@setfilename pushover.info
+@include version-pushover.texi
+@settitle Pushover @value{EDITION}
+
+@dircategory Games
+@direntry
+* Pushover: (pushover).  A board game written in GNU epsilon
+@end direntry
+
+@c ======================================================================
+@macro move{m}
+@code{\m\}
+@end macro
+
+@iftex
+@macro alphabetapruning
+@inlineraw{tex,$@alpha$-$@beta$~pruning}@inlineraw{tex,{}}
+@end macro
+@end iftex
+@ifnottex
+@ifhtml
+@macro alphabetapruning
+@inlineraw{html,<i>&alpha;-&beta;</i>&nbsp;pruning}
+@end macro
+@end ifhtml
+@ifnothtml
+@macro alphabetapruning
+alpha-beta pruning
+@end macro
+@end ifnothtml
+@end ifnottex
+
+@c ======================================================================
+@node Top
+@copying
+This is the manual documenting Pushover (for GNU epsilon version
+@value{VERSION}, last updated on @value{UPDATED}).
+
+Pushover is a board game written in GNU epsilon and included in its
+distribution as a nontrivial programming example, as a compiler
+benchmark and as an interesting game.
+
+Copyright @copyright{} 2016 Luca Saiu
+
+Written by Luca Saiu
+
+@quotation
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, with no Front-Cover texts and with the Back-Cover
+text being ``@emph{You have the freedom to copy and modify this manual,
+like GNU software.}''.
+
+A copy of the license is distributed along with the software, and the
+text is also available at @url{http://www.gnu.org/licenses/fdl.html}.
+@end quotation
+@end copying
+
+@c ======================================================================
+@titlepage
+@title Pushover
+@subtitle a board game written in GNU epsilon
+@subtitle For epsilon version @value{VERSION}, @value{UPDATED}
+@author Luca Saiu
+@c The following two commands start the copyright page.
+@page
+@vskip 0pt plus 1filll
+@insertcopying
+@end titlepage
+
+@c ======================================================================
+
+@c If not generating TeX output, make this one the Top node and insert
+@c brief copying conditions:
+@ifnottex
+@top Pushover
+@insertcopying
+@end ifnottex
+
+@c@node Top
+@c Foo.
+@menu
+* Introduction::         What this is all about.
+* Pushover rules::       How to play the game.
+* Usage guide::          Instructions for running the program.
+* Implementation::       How the thing works.
+* Index::                An automatically generated index.
+@end menu
+
+@c ======================================================================
+@iftex
+@contents
+@end iftex
+
+@c ======================================================================
+@node Introduction
+@chapter Introduction
+@cindex introduction
+I had not planned to include the Pushover game in the epsilon
+distribution before actually writing it.  Now that it exists I am
+quite happy about it, as it constitutes the first worthy example of a
+program written in epsilon which is at the same time nontrivial and
+not part of the language implementation itself.
+
+@menu
+* License::  Pushover is free software, distributed under the GNU GPL.
+* History::  How Pushover came to be.
+* Purpose::  This is not a bad game, and it can also be useful.
+@end menu
+
+@c ----------------------------------------------------------------------
+@node License
+@section License
+@cindex license
+@cindex free software
+@cindex GNU General Public License
+Pushover is free software: you are free to share and change it under
+the terms of the GNU General Public License, version 3 or later.  A
+copy of the GNU General Public License is distributed in the file
+@file{COPYING} along with the software, and the text is also available
+at @url{http://www.gnu.org/licenses/gpl.html}.
+
+@cindex free documentation
+@cindex GNU Free Documentation License
+This Pushover manual is free documentation, and therefore you are free
+to share and change it as well.  The applicable license for the manual
+is the GNU Free Documentation License.  A copy is distributed in the
+file @file{doc/COPYING.DOC} in the epsilon sources, or you can read it
+on the web at @url{http://www.gnu.org/licenses/fdl.html}.
+
+@c ----------------------------------------------------------------------
+@node History
+@section History
+@cindex history
+
+@cindex France
+@cindex tutored project
+Between late 2015 and early 2016 I was in charge of supervising a
+``tutored project'' for two groups of around twenty first-semester
+Computer Science students at a technological university institute
+near Paris.
+
+@cindex student
+@cindex C
+The students had about four weeks to implement a board game in C,
+working in pairs.  The version they had to turn in was @emph{for two
+human players} only, without computer play of any kind.
+@*
+@cindex N@.
+When first reading the specification I recognized the game as a slight
+variant of something I had played once on an actual physical board a
+few years before, at a picnic in the park with friends and friends of
+friends.  The one who brought the game had to be some buddy of N@.'s.
+
+@cindex helper function
+@cindex beginner
+@cindex student
+@cindex Lacroix, Mathieu
+The problem specification written by Mathieu Lacroix was very clear,
+and the level of difficulty appropriate for beginners.  Students had
+to satisfy a strict set of requirements meant to guide them into
+writing first the helper functions they were to be needing later.
+Everything looked very sensible.
+
+When I came to finally see the final work by my first group one Friday
+afternoon I felt disheartened.  Many had done badly, never overcoming
+their initial difficulties with pointers; a few programs did not even
+compile, many more failed to work correctly and almost all crashed if
+provided with incorrect input.
+
+@cindex tutored project
+Walking back home I kept thinking about the problem.  It was a neat
+little game described very clearly, with simple rules but nontrivial
+in terms of game complexity.  I actually even felt like learning to
+play the game well, for fun.
+@cindex minimax
+@cindex blit
+@cindex list
+@cindex garbage collection
+@cindex @code{argv}
+@cindex command-line options
+Even more, I wanted to implement something myself; something more
+advanced.  Could I do a minimax version of it in a couple of days?
+And in epsilon, where debugging is still crude and unforgiving?  That
+seemed a more interesting challenge, and I decided to spend the
+weekend working on it.  Of course I was not constrained to follow the
+C specification and at times I used some very different implementation
+techniques; for example my move logic is based on recursive procedures
+over heap-allocated garbage-collected lists, which are copied off the
+board data structures and blitted back on; but my game implements the
+same rules dictated by the specification.  On Sunday afternoon it was
+finished.  About 700 lines, except for a few minor things such as the
+command-line interface which I would add only weeks later --- at the
+time epsilon had no support at all for @code{argv}, and the option
+parsing library had to be implemented first.
+
+@cindex tutored project
+The next morning I had to see my second project group for its last
+session.  I announced at the beginning that I would show my
+computer-playing implementation of the game to the students who were
+interested after evaluation, and explain how it worked.  Of course
+nothing of that was mandatory: everyone was free to leave right after
+showing me their project.
+@*
+@cindex minimax
+@cindex whiteboard
+Even knowing from the beginning that it was stronger (students are
+grouped by grade) I was quite positively impressed by my second group,
+which did much better than the first.  So I was in a particularly good
+mood when I started explaining minimax on the whiteboard to the small
+group of students who had remained until the end.
+@cindex wonder
+@cindex awe
+@cindex teaching
+@cindex blunder
+Then, seeing the computer beat me in a quick game, even despite my
+blunders, and playing against itself raised expressions of wonder and
+a few ooohs --- Those are the best moments about teaching.  At some
+point another little crowd of students who had left before quietly
+came back in the room.  At my interrogative expression they demanded
+to see the computer playing program I had promised.
+@cindex whiteboard
+@cindex game tree
+I was more than happy to reuse my game tree drawing still on the
+whiteboard to speak again about minimax, and then show the program
+once more.  I didn't explain the epsilon code but I rapidly showed
+what it looked like, just to convey the idea that it was not overly
+long or complicated.
+@*
+@cindex fascination
+A few students remained much longer, deeply fascinated, asking
+questions about programming and languages.
+
+@cindex Lacroix, Mathieu
+A few days later I had a short discussion with Mathieu the
+project about introducing this kind of more advanced problems as
+optional tasks for the best students; possibly something like what I
+did could have been attempted right in the first session.  Possibly.
+We did not come to a satisfactory answer, as it is not easy to
+motivate promising beginners without scaring off the weaker ones at
+the same time.  Anyway I am happy to have followed my intuition
+showing the minimax program.
+@cindex beauty
+There was some real beauty hidden right
+behind the beginner problem, needing just to be pointed at.
+
+@cindex Push Over
+@cindex France
+@cindex French language
+@cindex English language
+@cindex compound
+@cindex neologism
+The original French specification named the game ``Push Over''.  The
+French language tends to discourage neologisms and compounds, but I
+feel no need to follow the example in English; therefore my version of
+the game is simply called Pushover.  The only difference in rules with
+respect to the original specification is that in my version Black
+always plays the first move --- which player began was not stated in
+the original.  Apart from that for all practical purposes Pushover is
+the same game as ``Push Over''.
+@*
+@*
+@cindex French language
+@cindex Lacroix, Mathieu
+I wish to thank Mathieu Lacroix for his nice project specification
+which inspired me to implement the game myself.  His web page, also
+including his specification in French, is
+@url{http://www-lipn.univ-paris13.fr/~lacroix}.  The original idea was
+found on
+@url{http://jeuxstrategieter.free.fr/Push_over_presentation.php} (in
+French).
+
+@c ----------------------------------------------------------------------
+@node Purpose
+@section Purpose
+
+@cindex purpose
+@cindex time complexity
+@cindex space complexity
+@cindex exponential
+Born out of a happy coincidence, Pushover is one of the rare instances
+of a program being both simple and truly realistic.  It can serve at
+the same time as an example of epsilon programming and as a benchmark:
+the program does a considerable amount of computation, and the current
+version also generates quite a lot of garbage, stressing the memory
+system.  Computing the best move is exponential in time, but not in
+space.
+
+@cindex optimizations
+@cindex convenience
+@cindex determinism
+@cindex efficiency
+The program may be optimized (@pxref{Future development}) but it is also
+useful as it stands as an example of something written quickly with
+convenience in mind.  Since it can be run deterministically some
+specific version of it can be used as a benchmark to track the
+advances of the epsilon implementation --- which is currently quite
+inefficient.
+
+@cindex @code{fork}-based parallelism
+@cindex obstack
+With some comparatively small changes in Pushover could become a
+testbed for more or less advanced epsilon features which are still to
+come: for example @code{fork}-level parallelism would be easy to
+exploit, and the system could run without garbage collection using
+manually handled memory regions for quick release of large heap memory
+blocks, in the style of GNU Libc @emph{obstacks}
+(@pxref{Obstacks, Obstacks, Obstacks, libc, The GNU C Library Reference Manual}).
+@*
+@*
+And I also find the game quite satisfying to play.
+
+@c ======================================================================
+@node Pushover rules
+@chapter Pushover rules
+@cindex rules
+@cindex how to play
+@cindex playing
+@cindex checkers
+@cindex draughts
+The rules to play Pushover can be learned in a few minutes by a child;
+with respect to the complexity @emph{of the rules} Pushover is even
+simpler than checkers/draughts.  However a game with simple rules is
+not necessarily easy to play well, as any chess player can witness.
+See also @ref{Game theory} for some preliminary discussion of
+Pushover's game complexity.
+
+@cindex board
+@cindex eject
+@cindex fall off
+@cindex farthest piece
+@cindex edge
+@cindex Black
+@cindex White
+@cindex piece
+@cindex row
+@cindex column
+@cindex turn
+@cindex push
+Pushover is game of two players named @emph{Black} and @emph{White},
+played on a square board.  Starting from an empty board Black and
+White take turns pushing one @emph{piece} of their color from one of
+the four edges towards the interior of the board, horizontally or
+vertically.  Whenever a piece is being pushed onto an already occupied
+case the previous piece is pushed in the same direction.  When a
+whole row or column is occupied pushing one further piece from an edge
+causes the farthest piece to fall off (or to be @emph{ejected} from)
+the opposite edge.
+@cindex opponent color
+@cindex eject restriction
+A player is allowed to eject pieces of her own color, but not
+her opponent's.
+
+@cindex end
+@cindex victory
+@cindex loss
+@cindex draw
+@cindex tie
+@cindex row
+@cindex column
+The game ends when one or more rows or columns are completely occupied
+by pieces of the same color.  At that point the player having more
+completely occupied rows and columns of her own color wins; if the sum
+of the number of fully occupied rows and columns is the same for each
+player, the game ends in a draw.
+
+@cindex Black
+@cindex first move
+@cindex begin
+@cindex start
+By convention Black moves first.
+
+@menu
+* The board::         What a game board looks like.
+* Valid moves::       It is not always possible to insert a piece.
+* Victory and draw::  Who wins the game.
+* Game theory::       Some speculation about the game properties.
+@end menu
+
+@c ----------------------------------------------------------------------
+@node The board
+@section The board
+@cindex board
+@cindex size, board
+@cindex square
+@cindex case
+The board is a square of @emph{cases} having sides of length @math{n}
+cases, for some predetermined value of @math{n}.  Valid values of
+@math{n} range from @math{3} to @math{9}, both extremes included.
+Each case in the board may be empty or occupied by one @emph{piece} of
+either color.
+
+@float Figure,fig:board
+@smallexample
+@group
+  1 2 3
+1 . . .
+2 . . .
+3 . . .
+@end group
+@end smallexample
+@cindex start
+@cindex position
+@caption{The initial position of a size-3 pushover board, showing no
+pieces.  The first move by Black will fill any one case in the
+perimeter; the central case is not reachable by the first move.}
+@end float
+
+@cindex edge
+@cindex top
+@cindex bottom
+@cindex left
+@cindex right
+@cindex row
+@cindex column
+@cindex board
+A board has four @emph{edges}: @emph{top}, @emph{bottom}, @emph{left}
+and @emph{right}.  A board is drawn as shown in @ref{fig:board} for
+size @math{n = 3}.  Rows and columns are numbered from @math{1} to
+@math{n} included, with the origin top-left: then row 1 corresponds to
+the top edge, row @math{n} to the bottom edge, column @math{1} to the
+left edge and column @math{n} to the right edge.
+
+@cindex dot
+@cindex case
+@cindex empty
+@cindex @samp{.}
+@cindex @samp{B}
+@cindex @samp{W}
+@ref{fig:board} shows an empty board, where every case is represented
+as a dot @samp{.}.  When some cases are occupied, for example as in
+@ref{fig:eject}, Black pieces are represented as @samp{B} and White
+pieces as @samp{W}.  In the program output the characters @samp{B} and
+@samp{W} may appear in two distinct colors.
+@cindex position
+@cindex configuration
+We call @emph{position} a specific board configuration such as the one
+in @ref{fig:board} or the left one in @ref{fig:eject}.
+
+@c ----------------------------------------------------------------------
+@node Valid moves
+@section Valid moves
+@cindex turn
+@cindex start
+@cindex begin
+@cindex Black
+The game starts with Black moving in an empty position.  After Black
+plays her move it is White's turn and then again Black's, with the two
+players always playing one move each until the game ends.
+@cindex valid move
+@cindex move
+@cindex push
+@cindex edge
+@cindex edge letter
+@anchor{move-notation}
+A @emph{move} consists of pushing one piece of the player's color
+inwards from an edge.  The move can be written as two characters, the
+first representing the edge (@samp{T} for top, @samp{B} for bottom,
+@samp{L} for left or @samp{R} for write) and the second a row or
+column number.
+@cindex push
+@cindex edge
+For example pushing a piece downwards from the top edge into the
+second column is written as @move{T2}; the move to push a piece into the
+first row from the right edge towards the left is @move{R1}.
+
+@float Figure,fig:first-move-L2
+@smallexample
+@group
+  1 2 3             1 2 3
+1 . . .           1 . . .
+2 B . .           2 W B .
+3 . . .           3 . . .
+@end group
+@end smallexample
+@cindex first move
+@caption{Left: the current position right after Black has played
+@move{L2} in the initial position, on a board of size @math{3}.  If
+White responds with @move{L2}, yielding the position shown on the
+right, the Black piece is pushed to the right by one case to make
+place.  If instead White responds to the first move by Black in any
+other way the Black piece is not moved as the result of White's move.}
+@end float
+
+@cindex push
+@cindex eject
+@cindex hole
+Whenever the case into which a player moves is already occupied, at
+least one piece is @emph{pushed} to make place, in the same direction
+of the player's move (see @ref{fig:first-move-L2}).  This displacement
+of the outermost piece may cause in its turn other displacements in
+the same row or column, until either the last displaced piece is
+pushed into a previously empty case, or the last displaced piece is
+ejected from the board and falls off the edge opposite to the
+insertion edge, as in @ref{fig:eject}.
+
+@float Figure,fig:eject
+@smallexample
+@group
+  1 2 3 4           1 2 3 4
+1 B . W .         1 B . W .
+2 W . . W         2 B . . W
+3 B . B W         3 W . B W
+4 B . . .         4 B . . .
+@end group
+@end smallexample
+@cindex eject
+@caption{Black plays @move{T1} on the position shown on the left,
+ejecting a Black piece out of the bottom edge.  The resulting
+position is shown on the right.}
+@end float
+
+@cindex eject restriction
+@cindex invalid move
+@cindex forbidden move
+@cindex impossible move
+A player is allowed to eject a piece of her own color, but @emph{not}
+a piece of her opponent's color, as shown in
+@ref{fig:forbidden-ejection}.  A move which would cause the ejection
+of an opponent's piece is simply not allowed to take place, and can
+not be executed ``partially'' or in modified form.  The Pushover
+program will stop a player attempting to perform an invalid move: for
+example if Black attempted to play @move{L2} in the situation of
+@ref{fig:forbidden-ejection}, the software would simply recognize the
+move as impossible and ask the player to enter a different one.
+@*
+Causing a piece to be displaced without it being ejected @emph{is}
+permitted, independently from the color of the displaced piece: the
+restriction only applies to ejection.
+
+@float Figure,fig:forbidden-ejection
+@smallexample
+@group
+  1 2 3 4
+1 B B . .
+2 W B W W
+3 . . . .
+4 . . . .
+@end group
+@end smallexample
+@cindex eject restriction
+@cindex forbidden move
+@cindex invalid move
+@caption{Black is not allowed to play @move{L2} in the shown position,
+as in doing so she would eject a white piece from the right edge.
+Each player is allowed to eject her own pieces but not her
+opponent's.}
+@end float
+
+Ejection only happens when the involved row (for a push from the left
+or right edge) or column (for a push from the top or bottom edge) is
+completely occupied: if at least one free case exists in the row or
+column then a hole will be filled and no place will fall off the
+board, as shown in @ref{fig:fill-first-hole}.@c and
+@c@ref{fig:fill-large-hole}.
+In every case the free case in the
+involved row or column which is closest to the edge from which the
+player is pushing will be occupied.
+
+@float Figure,fig:fill-first-hole
+@smallexample
+@group
+  1 2 3 4 5         1 2 3 4 5
+1 B . W . W       1 B B W . W
+2 . . . . .       2 . . . . .
+3 . . . . B       3 . . . . B
+4 . . . . .       4 . . . . .
+5 . . . . .       5 . . . . .
+@end group
+@end smallexample
+@caption{Black plays @move{L1} in the position shown on the left.  By
+doing this she pushes her own piece to the right, filling a hole.  The
+new inserted piece is on the top-left corner.  No other piece is displaced.}
+@end float
+
+@c @float Figure,fig:fill-large-hole
+@c @smallexample
+@c @group
+@c   1 2 3 4 5         1 2 3 4 5
+@c 1 B . . W W       1 B B . W W
+@c 2 . . . . .       2 . . . . .
+@c 3 . . . . B       3 . . . . B
+@c 4 . . . . .       4 . . . . .
+@c 5 . . . . .       5 . . . . .
+@c @end group
+@c @end smallexample
+@c @caption{Black plays @move{L1} in the position shown on the left.  By
+@c doing this she pushes her own piece to the right, filling the first
+@c case in the size-two hole.  The new inserted piece is at 1,1.  No
+@c other piece is moved; notice in particular how the two white pieces in
+@c the first row are not displaced.}
+@c @end float
+
+@c ----------------------------------------------------------------------
+@node Victory and draw
+@section Victory and draw
+@cindex final position
+@cindex winning
+@cindex victory
+@cindex draw
+@cindex move
+@cindex color
+Whenever a move yields a position where at least one row or one column
+is completely occupied by pieces of the same color, the game ends.  At
+that point the balance of colors determines which player is the winner
+or if the game ends in a draw.
+
+@cindex winning
+@cindex victory
+@cindex draw
+@cindex score
+@cindex final score
+@cindex row
+@cindex column
+The Black final @emph{score} is the sum of the number of rows
+completely occupied by Black pieces and the number of columns
+completely occupied by Black pieces.  For this purpose every row or
+column counts as one point: the fact that pieces are aligned
+horizontally or vertically has no consequence.  The White final score
+is determined in the same way, counting how many rows and columns are
+completely occupied by White pieces.  If the Black final score is
+greater than the White score, then Black wins the game.  If the White
+score is greater then White wins.  If the two final scores are equal
+the game is a draw.
+
+@cindex blunder
+@cindex move
+It is possible that a player plays a move yielding a winning state for
+the other by mistake, as in @ref{fig:multiple-row-victory}.  Such a
+blunder does not constitute an invalid move.
+
+@float Figure,fig:victory
+@smallexample
+@group
+  1 2 3 4           1 2 3 4
+1 B B . W         1 B B . W
+2 W B . W         2 W B . W
+3 . . . W         3 . . . W
+4 . . B B         4 . B B W
+@end group
+@end smallexample
+@caption{Starting from the left position White plays @move{R4} and
+wins, yielding the right position in which Black has zero points and
+White has one full column (4).}
+@end float
+
+@cindex draw
+@cindex forcing draw
+@cindex loss
+Forcing a draw may be the best option in some game position, as an
+alternative to losing.
+
+@float Figure,fig:draw
+@smallexample
+@group
+  1 2 3 4           1 2 3 4
+1 . . W .         1 . . B .
+2 W W B W         2 W W W W
+3 B B W B         3 B B B B
+4 . W . B         4 . W W B
+@end group
+@end smallexample
+@caption{Black forces draw by playing @move{T3} in the left position, which
+yields the right position where the two players have one full row each (2 and 3).}
+@end float
+
+@cindex draw
+@cindex score
+It is uncommon through not impossible that the final score is
+different from 0 for both players in a non-drawn game, as shown in
+@ref{fig:multiple-row-victory}.  Draws with both scores greater than 1
+appear to be much more common.
+
+@float Figure,fig:multiple-row-victory
+@smallexample
+@group
+  1 2 3 4 5         1 2 3 4 5
+1 W W W . B       1 W W W . W
+2 B B B B W       2 B B B B B
+3 . . . . B       3 . . . . W
+4 B B B B W       4 B B B B B
+5 W W W W .       5 W W W W W
+@end group
+@end smallexample
+@caption{A blunder resulting in a more complex victory state:
+White plays @move{T5} on the left position, yielding the right
+position which is winning for Black: in the right position Black has
+two full rows (2 and 4) while White only has one (5).}
+@end float
+
+@c ----------------------------------------------------------------------
+@node Game theory
+@section Game theory
+@cindex game theory
+@cindex perfect information
+@cindex deterministic game
+@cindex sequential game
+@cindex combinatorial game
+Pushover is a perfect-information, deterministic sequential
+combinatorial game.
+@cindex game complexity
+@cindex combinatorial game
+@cindex branching factor
+@cindex game tree
+@cindex depth, game tree
+Any notion of game complexity for combinatorial games depends on the game
+@emph{branching factor} and its @emph{game-tree depth}.
+
+The branching factor for Pushover is maximum at the beginning of a
+game, being exactly @math{4n} with a board of size @math{n},
+decreasing near endgame.  Games can last at least tens to hundreds of
+moves, and game length grows as the board size grows.
+@cindex chess
+Branching factors for other combinatorial games are usually more
+variable; chess has a branching factor around @math{35} on average.
+
+@c Go is much more complex, with a branching factor of @math{250}.
+@cindex chess
+Without having developed any formal analysis (depth in particular
+requires heavy computations to measure) I conjecture that Pushover
+becomes more complex than chess for boards of size 7-8, and
+possibly already at size 6.
+
+@cindex advantage
+@cindex Black
+If empirical observation of computer vs@. computer games
+(see @ref{--tournament}) is to be trusted Black enjoys a considerable
+advantage on smaller boards, which decreases as the board size increases.
+@*
+@*
+@cindex memory system
+@cindex garbage collector
+@cindex compiler
+Most game theory considerations are moot when considering the
+current implementation, which is sequential and inefficient even when
+compiled due to a combination of a naïf compiler, suboptimal
+algorithms and a memory system fundamentally inadequate to collect the
+generated rate of short-lived data.
+@cindex minimax
+@cindex alpha-beta pruning
+@cindex heuristic
+@cindex depth, analysis
+The computer player uses a simple minimax
+algorithm without @alphabetapruning{} or any heuristic.  All of this
+in practice limits analysis depth to a few plies.
+
+
+@c ======================================================================
+@node Usage guide
+@chapter Usage guide
+@cindex usage guide
+
+@cindex escape sequence
+@cindex terminal escape sequence
+@cindex ANSI terminal escape sequence
+@cindex @code{TERM}
+@cindex environment variable
+@cindex terminal interface
+The Pushover program has a terminal interface.  As of early 2016 it
+uses ANSI terminal escape sequences to display pieces in different
+colors by default, even if it would be reasonable to check that
+@code{TERM} environment variable and use escapes only where supported,
+or build upon some higher-level abstraction.  Escape sequences can be
+disabled with a command-line option (see @ref{--no-color}).
+@cindex Readline
+@cindex GNU Readline
+The GNU Readline (@pxref{Top,,, readline, GNU Readline Library})
+library is supported if epsilon has been configured to use it.
+
+@cindex program loop
+@cindex loop, program
+The Pushover program is a loop playing every move of a game --- or
+more than one in the case of tournaments; see @ref{--tournament}.  At
+the beginning of each turn the computer displays the current
+position; then a move is played until a final position is reached.
+
+@menu
+* Player types::         How to specify human and non-human players.
+* Command-line options:: Invoking pushover to start a given type of game.
+@end menu
+
+@c ----------------------------------------------------------------------
+@node Player types
+@section Player types
+@cindex player type
+@cindex computer player
+@cindex human player
+@cindex human vs@. human
+@cindex computer vs@. human
+@cindex human vs@. computer
+@cindex computer vs@. computer
+Being conceived in a quite orthogonal way, the program supports
+different types of games: @emph{human versus human}, @emph{human
+versus computer}, and @emph{computer versus computer}.  Computer
+versus computer games are non-interactive, and the user can simply
+watch games unfold; this is particularly useful to compare how
+effective different the kind of algorithms are --- see
+@ref{--tournament}.
+
+@cindex minimax
+@cindex dumb
+@cindex algorithm, computer play
+Each of the two players may be of one of the following three types:
+@itemize @bullet
+@cindex human player
+@cindex move
+@cindex position
+@cindex edge letter
+@cindex lower case
+@item @emph{human},
+in which case the game is interactive.  The computer displays the list
+of every valid move in the current position, clearly shows which
+player is moving in the current turn, and waits until the user types
+in one of them in the notation of @ref{move-notation}, followed by
+@key{Enter}.  Since no ambiguity is possible the program also accepts
+edge letters in lower case, as a convenience.  If the user enters an
+invalid move the computer asks again until the user eventually enters
+a valid move which is then played, and control is passed to the other
+player unless the game is over.
+@cindex prompt
+@cindex @kbd{C-d}
+@cindex exit
+@cindex quit
+At the prompt a human player can also quit the program by typing
+@kbd{C-d} on an empty line.
+
+@cindex suggestion
+@cindex computer suggestion
+@cindex ply
+@cindex minimax
+@cindex depth, analysis
+A human player may optionally benefit from @emph{computer
+suggestions}, computed with the minimax algorithm described right
+below.  If suggestions are enabled then the computer search for an
+optimal move at the specified depth in plies, and presents it to the
+user; the user is then free to follow the computer suggestion or
+reject it and play a different move altogether.
+
+@cindex alpha-beta pruning
+@cindex depth, analysis
+@cindex heuristic
+@cindex time complexity
+@cindex space complexity
+@cindex exponential
+@cindex ply
+@cindex minimax
+@item @emph{minimax},
+a straightforward implementation of the classical algorithm without
+@alphabetapruning{} or any heuristic.  Analysis @emph{depth} may be
+specified in plies, from 1 to 9 included --- a depth of 9 plies being
+already impractical with the current implementation.  The algorithm is
+exponential in time, but not in space.
+
+@cindex random
+@cindex determinism
+@cindex optimal move
+In minimax play the computer normally chooses a random move within the
+set of moves which are considered optimal by the algorithm, but it can
+be also made deterministic --- in which cases the computer always
+plays the first optimal move according to some fixed order.
+
+@cindex dumb
+@cindex random
+@cindex determinism
+@item @emph{dumb},
+which consists in considering all valid moves as optimal and playing
+any one chosen at random or, in deterministic mode, the first one.
+
+Dumb playing may be of some use for learning the rules of the game and
+for testing.  It may come in handy for benchmarking the algorithm used
+by another computer player and possibly for developing other
+algorithms in the future, to compare against a baseline.
+@end itemize
+
+@cindex weakness
+@cindex loop, game
+Two deterministic algorithms played against one another are prone to
+enter a @emph{game loop}, endlessly playing the same sequence of
+moves; in rare circumstances nondeterministic algorithms may enter a
+game loop as well, for example when the set of optimal moves is a
+singleton for two consecutive moves, and the second move yields the
+same position as before the first move.
+@cindex loop breaking
+@cindex threefold repetition
+@cindex repetition rule
+The best way to solve this problem would be to introduce a new rule
+in the spirit of the @emph{threefold repetition} rule in chess; see
+@ref{Future development}.
+
+@c ----------------------------------------------------------------------
+@node Command-line options
+@section Command-line options
+@cindex non-option arguments
+The @command{pushover} program has no non-option arguments: every argument
+it recognizes is an option, currently always in the long GNU style
+(@pxref{Command-Line Interfaces, Command-Line Interfaces, Command-Line Interfaces, standards, The GNU Coding Standards}).
+No option is mandatory.
+
+@cindex options
+@cindex command-line options
+@cindex common GNU options
+@cindex GNU, common options
+@table @option
+@cindex @option{--version}
+@item --version
+FOO
+
+@cindex @option{--help}
+@item --help
+FOO
+@end table
+
+@table @option
+@cindex @option{--size}
+@item --size
+FOO
+
+@cindex @option{--white}
+@item --white
+FOO
+
+@cindex @option{--black}
+@item --black
+FOO
+
+@cindex @option{--tournament}
+@anchor{--tournament}
+@item --tournament
+FOO
+@end table
+
+@table @option
+@cindex @option{--no-color}
+@anchor{--no-color}
+@item --no-color
+FOO
+@end table
+
+@c ......................................................................
+@subsection Player type specification
+@cindex Player type specification
+
+@c ======================================================================
+@node Implementation
+@chapter Implementation
+@cindex implementation
+@menu
+* Minimax::             What kind of game tree search is used.
+* Future development::  Pushover is nice but can be improved.
+@end menu
+
+@c ----------------------------------------------------------------------
+@node Minimax
+@cindex minimax
+@section Minimax
+@cindex looping
+@ref{Future development}
+
+@c ----------------------------------------------------------------------
+@node Future development
+@section Future development
+@cindex future development
+
+??chess and other games, likely depending on functors??
+
+@cindex loop breaking
+@cindex threefold repetition
+@cindex repetition rule
+??breaking game loops by preventing repeated positions, in the spirit of the threefold repetition rule in chess???
+
+@cindex weakness
+
+@c ----------------------------------------------------------------------
+@section Rule change
+@cindex rule change
+@cindex repetition
+
+
+@c ======================================================================
+@node Index
+@unnumbered Index
+@cindex index
+@printindex cp
+
+@c ======================================================================
+@bye

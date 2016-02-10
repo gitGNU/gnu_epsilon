@@ -363,17 +363,15 @@
 ;;; This checks the syntactic validity of a move, which might still be or not be
 ;;; possible on a given board.
 (e1:define (po:valid-move-as-string? string)
-  (e1:let ((string (string:trim string)))
-    (e1:and (fixnum:= (string:length string) 2)
-            (list:has? (e1:value-list #\L #\l #\R #\r #\T #\t #\B #\b)
-                       (string:get string 0))
-            (fixnum:>= (string:get string 1) #\1)
-            (fixnum:<= (string:get string 1) #\9))))
+  (e1:and (fixnum:= (string:length string) 2)
+          (list:has? (e1:value-list #\L #\l #\R #\r #\T #\t #\B #\b)
+                     (string:get string 0))
+          (fixnum:>= (string:get string 1) #\1)
+          (fixnum:<= (string:get string 1) #\9)))
 
 ;;; This assumes the string to encode a valid move.
 (e1:define (po:string->move string)
-  (e1:let* ((string (string:trim string))
-            (index (fixnum:- (string:get string 1) #\1)))
+  (e1:let ((index (fixnum:- (string:get string 1) #\1)))
     (e1:case (string:get string 0)
       ((#\L #\l) (po:move (po:direction-left) index))
       ((#\R #\r) (po:move (po:direction-right) index))
@@ -516,21 +514,22 @@
   (e1:let* ((player (po:state-get-player state))
             (string-from-user (fio:write (st (po:player->escaped-string player)))
                               (io:readline)))
-    (e1:when (fixnum:zero? string-from-user)
-      (fio:write "\nGoodbye.\n")
-      (unix:exit 0))
-    (e1:if (po:valid-move-as-string? string-from-user)
-      (e1:let ((move (po:string->move string-from-user)))
-        (e1:if (po:can-move? state move)
-          move
-          (e1:begin
-            (fio:write "Impossible move.\n")
-            (po:print-state state)
-            (po:read-move state))))
-      (e1:begin
-        (fio:write "Invalid move " (S string-from-user) ".\n")
-        (po:print-state state)
-        (po:read-move state)))))
+    (e1:cond ((fixnum:zero? string-from-user)
+              (fio:write "\nGoodbye.\n")
+              (unix:exit 0))
+             (bind (string-from-user (string:trim string-from-user)))
+             ((po:valid-move-as-string? string-from-user)
+              (e1:let ((move (po:string->move string-from-user)))
+                (e1:if (po:can-move? state move)
+                  move
+                  (e1:begin
+                    (fio:write "Impossible move.\n")
+                    (po:print-state state)
+                    (po:read-move state)))))
+             (else
+              (fio:write "Invalid move " (S string-from-user) ".\n")
+              (po:print-state state)
+              (po:read-move state)))))
 
 (e1:define (po:read-and-move! state)
   (e1:let ((move (po:read-move state)))

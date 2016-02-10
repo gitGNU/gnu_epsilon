@@ -22,8 +22,8 @@
 ;;;;; Temporary, to ease compilation: simplify assertions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;; Do not print s-expressions: this currently doesn't work in compiled programs,
-;;; as it relies on the symbol table.
+;;; Do not print s-expressions: that currently doesn't work in compiled
+;;; programs, relying as it does on the symbol table.
 (e1:define (printer:write-sexpression port arg)
   (io:write-string port "[omitted s-expression]"))
 

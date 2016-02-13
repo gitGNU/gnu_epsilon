@@ -19,6 +19,15 @@
 ;;;;; along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
+;;;;; Define the scratch file full path to be used later
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define repl:scratch-file-path
+  (string:append configuration:abs_top_srcdir
+                 configuration:dir_separator
+                 "bootstrap/scheme/scratch.e"))
+
+
 ;;;;; Define the command-line options needed for the REPL
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -33,6 +42,14 @@
 ;;; Set the information displayed by --version and --help .
 (command-line:set-info!
     #:introduction "The GNU epsilon interpreter."
+    #:usage (string:append (vector:get (command-line:get-argv) 0)
+                           " [option-or-file]...")
+    #:closing (string:append "Interpret "
+                             repl:scratch-file-path
+                             "\n" ;; Breaking here helps Emacs font lock in epsilon mode.
+"(unless --no-scratch is given), then the epsilon1 source files named in
+the command line, if any, in order.  Then run an interactive Read-Eval-Print
+Loop (unless --no-repl is given).")
     #:program-name configuration:package_name
     #:program-version configuration:package_version
     #:bug-email configuration:package_bugreport
@@ -101,9 +118,7 @@ under the terms of the GNU General Public License, version 3 or later.  Enter
 ;;; Load the scratch file.  This is to be done automatically when the REPL
 ;;; starts, not now.
 (e1:define (repl:load-scratch)
-  (e1:load (string:append configuration:abs_top_srcdir
-                          configuration:dir_separator
-                          "bootstrap/scheme/scratch.e")))
+  (e1:load repl:scratch-file-path))
 
 (e1:define (repl:load-sources-from-the-command-line)
   (e1:dolist (filename (command-line:non-option-list))

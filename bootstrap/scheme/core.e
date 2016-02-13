@@ -3053,7 +3053,7 @@
       (string:write string)
       (e0:let ()
         (character:write character:newline)
-        (e1:fail)))))
+        (unix:exit -1)))))
 
 ;; FIXME: rename
 (e1:define (e1:errors string symbol)
@@ -3067,7 +3067,7 @@
           (string:write (symbol:symbol->string symbol))
           (e0:let ()
             (character:write character:newline)
-            (e1:fail)))))))
+            (unix:exit -1)))))))
 
 ;; (define-macro (e1:error string)
 ;;   `(error (string->guile-string ,string)))

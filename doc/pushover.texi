@@ -119,31 +119,15 @@ quite happy about it, as it constitutes the first worthy example of a
 program written in epsilon which is at the same time nontrivial and
 not part of the language implementation itself.
 
-@menu
-* License::  Pushover is free software, distributed under the GNU GPL.
-* History::  How Pushover came to be.
-* Purpose::  This is not a bad game, and it can also be useful.
-@end menu
-
-@c ----------------------------------------------------------------------
-@node License
-@section License
-@cindex license
 @cindex free software
-@cindex GNU General Public License
-Pushover is free software: you are free to share and change it under
-the terms of the GNU General Public License, version 3 or later.  A
-copy of the GNU General Public License is distributed in the file
-@file{COPYING} along with the software, and the text is also available
-at @url{http://www.gnu.org/licenses/gpl.html}.
+Like the rest of GNU epsilon, of course Pushover is free software.
 
-@cindex free documentation
-@cindex GNU Free Documentation License
-This Pushover manual is free documentation, and therefore you are free
-to share and change it as well.  The applicable license for the manual
-is the GNU Free Documentation License.  A copy is distributed in the
-file @file{doc/COPYING.DOC} in the epsilon sources, or you can read it
-on the web at @url{http://www.gnu.org/licenses/fdl.html}.
+@menu
+* History::     How Pushover came to be.
+* Purpose::     This is not a bad game, and it can also be useful.
+* License::     Pushover is free software, distributed under the GNU GPL.
+* Contributing:: You can report bugs or contribute to the project.
+@end menu
 
 @c ----------------------------------------------------------------------
 @node History
@@ -161,7 +145,7 @@ near Paris.
 @cindex C
 The students had about four weeks to implement a board game in C,
 working in pairs.  The version they had to turn in was @emph{for two
-human players} only, without computer play of any kind.
+human players only}, without computer play of any kind.
 @*
 @cindex N@.
 When first reading the specification I recognized the game as a slight
@@ -188,16 +172,16 @@ provided with incorrect input.
 @cindex tutored project
 Walking back home I kept thinking about the problem.  It was a neat
 little game described very clearly, with simple rules but nontrivial
-in terms of game complexity.  I actually even felt like learning to
-play the game well, for fun.
+in terms of game complexity.  I actually felt like learning to play
+the game well, for fun.
 @cindex minimax
 @cindex blit
 @cindex list
 @cindex garbage collection
 @cindex @code{argv}
 @cindex command-line options
-Even more, I wanted to implement something myself; something more
-advanced.  Could I do a minimax version of it in a couple of days?
+Even more I wanted to implement something myself; something more
+advanced.  Could I write a minimax version of it in a couple of days?
 And in epsilon, where debugging is still crude and unforgiving?  That
 seemed a more interesting challenge, and I decided to spend the
 weekend working on it.  Of course I was not constrained to follow the
@@ -206,8 +190,8 @@ techniques; for example my move logic is based on recursive procedures
 over heap-allocated garbage-collected lists, which are copied off the
 board data structures and blitted back on; but my game implements the
 same rules dictated by the specification.  On Sunday afternoon it was
-finished.  About 700 lines, except for a few minor things such as the
-command-line interface which I would add only weeks later --- at the
+finished: 700 lines of quite clean epsilon code.  I would only add a
+few minor things later, such as the command-line interface --- at the
 time epsilon had no support at all for @code{argv}, and the option
 parsing library had to be implemented first.
 
@@ -234,7 +218,7 @@ Then, seeing the computer beat me in a quick game, even despite my
 blunders, and playing against itself raised expressions of wonder and
 a few ooohs --- Those are the best moments about teaching.  At some
 point another little crowd of students who had left before quietly
-came back in the room.  At my interrogative expression they demanded
+came back into the room.  At my interrogative expression they demanded
 to see the computer playing program I had promised.
 @cindex whiteboard
 @cindex game tree
@@ -249,14 +233,13 @@ A few students remained much longer, deeply fascinated, asking
 questions about programming and languages.
 
 @cindex Lacroix, Mathieu
-A few days later I had a short discussion with Mathieu the
-project about introducing this kind of more advanced problems as
-optional tasks for the best students; possibly something like what I
-did could have been attempted right in the first session.  Possibly.
-We did not come to a satisfactory answer, as it is not easy to
-motivate promising beginners without scaring off the weaker ones at
-the same time.  Anyway I am happy to have followed my intuition
-showing the minimax program.
+Some days later I had a short discussion with Mathieu about
+introducing this kind of more advanced problems as optional tasks for
+the best students; possibly something like what I did could have been
+attempted right in the first session.  Possibly.  We did not come to a
+satisfactory answer, as it is not easy to motivate promising beginners
+without scaring off the weaker majority at the same time.  Anyway I am
+glad to have followed my intuition showing the minimax program.
 @cindex beauty
 There was some real beauty hidden right
 behind the beginner problem, needing just to be pointed at.
@@ -268,9 +251,9 @@ behind the beginner problem, needing just to be pointed at.
 @cindex compound
 @cindex neologism
 The original French specification named the game ``Push Over''.  The
-French language tends to discourage neologisms and compounds, but I
+French language tends to discourage neologisms and compounds but I
 feel no need to follow the example in English; therefore my version of
-the game is simply called Pushover.  The only difference in rules with
+the game will simply be @emph{Pushover}.  The only difference in rules with
 respect to the original specification is that in my version Black
 always plays the first move --- which player began was not stated in
 the original.  Apart from that for all practical purposes Pushover is
@@ -279,9 +262,9 @@ the same game as ``Push Over''.
 @*
 @cindex French language
 @cindex Lacroix, Mathieu
-I wish to thank Mathieu Lacroix for his nice project specification
-which inspired me to implement the game myself.  His web page, also
-including his specification in French, is
+I wish to thank Mathieu for his nice project specification which
+inspired me to implement the game myself.  His web page, also
+including the specification in French, is
 @url{http://www-lipn.univ-paris13.fr/~lacroix}.  The original idea was
 found on
 @url{http://jeuxstrategieter.free.fr/Push_over_presentation.php} (in
@@ -316,6 +299,8 @@ inefficient.
 
 @cindex @code{fork}-based parallelism
 @cindex obstack
+@cindex GNU C Library
+@cindex Glibc
 With some comparatively small changes in Pushover could become a
 testbed for more or less advanced epsilon features which are still to
 come: for example @code{fork}-level parallelism would be easy to
@@ -327,6 +312,72 @@ blocks, in the style of GNU Libc @emph{obstacks}
 @*
 And I also find the game quite satisfying to play.
 
+@c ----------------------------------------------------------------------
+@node License
+@section License
+@cindex license
+@cindex free software
+@cindex GNU General Public License
+@cindex warranty, no
+@cindex no warranty
+Pushover is free software: you are free to share and change it under
+the terms of the GNU General Public License, version 3 or later.  A
+copy of the GNU General Public License is distributed in the file
+@file{COPYING} along with the software, and the text is also available
+at @url{http://www.gnu.org/licenses/gpl.html}.  There is no warranty,
+up to the extent permitted by law.
+
+@cindex free documentation
+@cindex GNU Free Documentation License
+This Pushover manual is free documentation, and therefore you are free
+to share and change it as well.  The applicable license for the manual
+is the GNU Free Documentation License.  A copy is distributed in the
+file @file{doc/COPYING.DOC} in the epsilon sources, or you can read it
+on the web at @url{http://www.gnu.org/licenses/fdl.html}.
+
+@c ----------------------------------------------------------------------
+@node Contributing
+@section Contributing
+@cindex contributing
+Pushover is distributed along with GNU epsilon, in the same source
+archives.  As a minor subproject Pushover does not need its own
+development infrastructure, and shares the resources used for epsilon.
+
+@c FIXME: link the epsilon Info documentation when I update it.
+
+@cindex Git
+@cindex Savannah
+@cindex bug
+Revision-controlled files, bug and issue trackers are available on GNU
+Savannah; see @url{https://savannah.gnu.org/projects/epsilon}.  You
+can find the Pushover source code in @file{examples/pushover.e}, on
+the Git repository and in source tarballs.
+@cindex mailing list
+As is the case for most free software development the preferred
+communication medium about GNU epsilon is the mailing list.
+Discussions about Pushover are on-topic in epsilon lists.
+
+@cindex bug
+If you have a bug to report or a patch to submit you can write to
+@email{bug-epsilon@@gnu.org}; please include all the relevant
+information about your system, the software version you are using and
+how it was configured and compiled.  When you are in doubt whether to
+include some detail or not, do.
+
+@cindex contributing
+@cindex development
+In case you want to participate in the project development or discuss
+please make sure to have read @ref{Implementation}, and write to
+@email{epsilon-devel@@gnu.org}.  As of early 2016 @code{bug-epsilon}
+is an alias for @code{epsilon-devel} and there is no specific ``help''
+list but I can easily add more mailing lists, should the need ever arise.
+
+I encourage public technical discussion but also believe in respecting
+privacy.  If for some reason you would rather reach me in private you
+can use my email address @email{positron@@gnu.org}.  My personal
+website is @url{http://ageinghacker.net}.
+
+
 @c ======================================================================
 @node Pushover rules
 @chapter Pushover rules
@@ -335,7 +386,7 @@ And I also find the game quite satisfying to play.
 @cindex playing
 @cindex checkers
 @cindex draughts
-The rules to play Pushover can be learned in a few minutes by a child;
+The rules for playing Pushover can be learned in a few minutes by a child;
 with respect to the complexity @emph{of the rules} Pushover is even
 simpler than checkers/draughts.  However a game with simple rules is
 not necessarily easy to play well, as any chess player can witness.
@@ -359,7 +410,7 @@ played on a square board.  Starting from an empty board Black and
 White take turns pushing one @emph{piece} of their color from one of
 the four edges towards the interior of the board, horizontally or
 vertically.  Whenever a piece is being pushed onto an already occupied
-case the previous piece is pushed in the same direction.  When a
+case the previous piece is pushed along the same direction.  If a
 whole row or column is occupied pushing one further piece from an edge
 causes the farthest piece to fall off (or to be @emph{ejected} from)
 the opposite edge.
@@ -402,10 +453,9 @@ By convention Black moves first.
 @cindex square
 @cindex case
 The board is a square of @emph{cases} having sides of length @math{n}
-cases, for some predetermined value of @math{n}.  Valid values of
-@math{n} range from @math{3} to @math{9}, both extremes included.
-Each case in the board may be empty or occupied by one @emph{piece} of
-either color.
+cases, for some predetermined value of @math{n} in the range from
+@math{3} to @math{9}, both extremes included.  Each case in the board
+may be empty or occupied by one @emph{piece} of either color.
 
 @float Figure,fig:board
 @smallexample
@@ -451,7 +501,7 @@ pieces as @samp{W}.  In the program output the characters @samp{B} and
 @samp{W} may appear in two distinct colors.
 @cindex position
 @cindex configuration
-We call @emph{position} a specific board configuration such as the one
+We call @emph{position} any specific board configuration such as the one
 in @ref{fig:board} or the left one in @ref{fig:eject}.
 
 @c ----------------------------------------------------------------------
@@ -473,7 +523,7 @@ players always playing one move each until the game ends.
 A @emph{move} consists of pushing one piece of the player's color
 inwards from an edge.  The move can be written as two characters, the
 first representing the edge (@samp{T} for top, @samp{B} for bottom,
-@samp{L} for left or @samp{R} for write) and the second a row or
+@samp{L} for left or @samp{R} for right) and the second a row or
 column number.
 @cindex push
 @cindex edge
@@ -502,14 +552,14 @@ other way the Black piece is not moved as the result of White's move.}
 @cindex push
 @cindex eject
 @cindex hole
-Whenever the case into which a player moves is already occupied, at
-least one piece is @emph{pushed} to make place, in the same direction
-of the player's move (see @ref{fig:first-move-L2}).  This displacement
-of the outermost piece may cause in its turn other displacements in
-the same row or column, until either the last displaced piece is
-pushed into a previously empty case, or the last displaced piece is
-ejected from the board and falls off the edge opposite to the
-insertion edge, as in @ref{fig:eject}.
+Whenever the case into which a player moves is already occupied, one
+piece is @emph{pushed} to make place, in the same direction of the
+player's move (see @ref{fig:first-move-L2}).  This displacement of the
+outermost piece may cause in its turn other displacements in the same
+row or column, until either the last displaced piece is pushed into a
+previously empty case, or the last displaced piece is ejected from the
+board and falls off the edge opposite to the insertion edge, as in
+@ref{fig:eject}.
 
 @float Figure,fig:eject
 @smallexample
@@ -531,7 +581,7 @@ position is shown on the right.}
 @cindex invalid move
 @cindex forbidden move
 @cindex impossible move
-A player is allowed to eject a piece of her own color, but @emph{not}
+A player is allowed to eject a piece of her own color but @emph{not}
 a piece of her opponent's color, as shown in
 @ref{fig:forbidden-ejection}.  A move which would cause the ejection
 of an opponent's piece is simply not allowed to take place, and can
@@ -543,7 +593,7 @@ move as impossible and ask the player to enter a different one.
 @*
 Causing a piece to be displaced without it being ejected @emph{is}
 permitted, independently from the color of the displaced piece: the
-restriction only applies to ejection.
+color restriction only applies to ejection.
 
 @float Figure,fig:forbidden-ejection
 @smallexample
@@ -564,12 +614,12 @@ Each player is allowed to eject her own pieces but not her
 opponent's.}
 @end float
 
+@cindex hole
 Ejection only happens when the involved row (for a push from the left
 or right edge) or column (for a push from the top or bottom edge) is
 completely occupied: if at least one free case exists in the row or
-column then a hole will be filled and no place will fall off the
-board, as shown in @ref{fig:fill-first-hole}.@c and
-@c@ref{fig:fill-large-hole}.
+column then a @emph{hole} will be filled and no place will fall off the
+board, as shown in @ref{fig:fill-first-hole}. @c and @c@ref{fig:fill-large-hole}.
 In every case the free case in the
 involved row or column which is closest to the edge from which the
 player is pushing will be occupied.
@@ -777,8 +827,9 @@ The Pushover program has a terminal interface.  As of early 2016 it
 uses ANSI terminal escape sequences to display pieces in different
 colors by default, even if it would be reasonable to check that
 @code{TERM} environment variable and use escapes only where supported,
-or build upon some higher-level abstraction.  Escape sequences can be
-disabled with a command-line option (see @ref{--no-color}).
+or possibly build upon some higher-level abstraction.  Escape
+sequences can be disabled with a command-line option (see
+@ref{--no-color}).
 @cindex Readline
 @cindex GNU Readline
 The GNU Readline (@pxref{Top,,, readline, GNU Readline Library})
@@ -811,7 +862,7 @@ different types of games: @emph{human versus human}, @emph{human
 versus computer}, and @emph{computer versus computer}.  Computer
 versus computer games are non-interactive, and the user can simply
 watch games unfold; this is particularly useful to compare how
-effective different the kind of algorithms are --- see
+effective the different kinds of algorithms are --- see
 @ref{--tournament}.
 
 @cindex minimax
@@ -826,12 +877,12 @@ Each of the two players may be of one of the following three types:
 @cindex lower case
 @item @emph{human},
 in which case the game is interactive.  The computer displays the list
-of every valid move in the current position, clearly shows which
+of every valid move in the current position clearly showing which
 player is moving in the current turn, and waits until the user types
-in one of them in the notation of @ref{move-notation}, followed by
+in a move in the notation of @ref{move-notation}, followed by
 @key{Enter}.  Since no ambiguity is possible the program also accepts
 edge letters in lower case, as a convenience.  If the user enters an
-invalid move the computer asks again until the user eventually enters
+invalid move the computer asks again until she eventually types in
 a valid move which is then played, and control is passed to the other
 player unless the game is over.
 @cindex prompt
@@ -884,8 +935,8 @@ which consists in considering all valid moves as optimal and playing
 any one chosen at random or, in deterministic mode, the first one.
 
 Dumb playing may be of some use for learning the rules of the game and
-for testing.  It may come in handy for benchmarking the algorithm used
-by another computer player and possibly for developing other
+for testing.  It comes in handy for benchmarking the algorithm used by
+another computer player and I may possibly use it for developing other
 algorithms in the future, to compare against a baseline.
 @end itemize
 

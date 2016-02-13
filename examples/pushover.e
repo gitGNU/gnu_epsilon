@@ -778,7 +778,7 @@
                                            game-no))
                (draw-percentage (fixnum:/ (fixnum:* 100  draws)
                                           game-no)))
-        (fio:write "Score over " (i game-no) " games:\n"
+        (fio:write "Score over " (i game-no) " games (size " (i size) "):\n"
                    "* Black ("
                    (st (po:player-type->string black-player-type))
                    "): " (i black-percentage) "%\n"
@@ -839,7 +839,7 @@
     #:usage "pushover [option]..."
     #:program-version configuration:package_version
     #:bug-email configuration:package_bugreport
-    #:copyright (string:append "Copyright (C) Luca Saiu 2016")
+    #:copyright "Copyright (C) Luca Saiu 2016"
     #:authors "Luca Saiu <http://ageinghacker.net>"
     #:introduction "Play the Pushover game."
     #:closing "Player specifications may be h (human player), hN (human player

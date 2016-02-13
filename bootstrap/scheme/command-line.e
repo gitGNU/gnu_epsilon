@@ -289,8 +289,7 @@
 ;;; Process every command line argument, setting global boxes.  Also process
 ;;; common options such as --help and --version.
 (e1:define (command-line:process-args)
-  (command-line:set-argv!)
-  (e1:let* ((argv (command-line:get-argv))
+  (e1:let* ((argv (command-line:get-argv)) ;; this calls command-line:set-argv! .
             (argc (vector:length argv)))
     (e1:assert (fixnum:>= argc 1))
     (box:set! command-line:invocation-name
@@ -360,6 +359,7 @@
 ;;; contains every supplied string as provided in the input, with no distinction
 ;;; between options and non-options.
 (e1:define (command-line:get-argv)
+  (command-line:set-argv!) ;; Make sure that the argv box is up to date.
   (box:get command-line:argv-box))
 
 ;;; Return non-option parameters in the order they were supplied, as a list.

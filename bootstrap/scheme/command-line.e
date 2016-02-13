@@ -530,7 +530,7 @@
   (e1:let ((introduction (box:get command-line:introduction)))
     (e1:when introduction
       (fio:write (st introduction) "\n")))
-  (fio:write "Options:\n")
+  (fio:write "\nOptions:\n")
   (e1:let ((max-width (box:make 0)))
     (e1:dolist (option (box:get command-line:options))
       (e1:dolist (option-name (command-line:option-get-names option))

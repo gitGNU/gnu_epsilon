@@ -493,13 +493,6 @@
 ;;;;; Version information printing, for --version
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:define (command-line:print-bug-reporting-info)
-  (e1:let ((bug-email (box:get command-line:bug-email)))
-    (e1:when bug-email
-      (fio:write "\nPlease report bugs to "
-                 (st bug-email)
-                 " .\n"))))
-
 (e1:define (command-line:print-version)
   (e1:let ((program-name (box:get command-line:program-name))
            (program-version (box:get command-line:program-version)))
@@ -537,7 +530,7 @@
   (e1:let ((introduction (box:get command-line:introduction)))
     (e1:when introduction
       (fio:write (st introduction) "\n")))
-  (fio:write "\n")
+  (fio:write "Options:\n")
   (e1:let ((max-width (box:make 0)))
     (e1:dolist (option (box:get command-line:options))
       (e1:dolist (option-name (command-line:option-get-names option))
@@ -571,13 +564,12 @@
             (e1:begin
               (fio:write ",\n")
               (loop more-names))))))
-    (e1:let ((closing (box:get command-line:closing)))
+    (e1:let ((closing (box:get command-line:closing))
+             (bug-email (box:get command-line:bug-email)))
       (e1:when closing
-        (fio:write "\n" (st closing) "\n")))
-      (e1:let ((bug-email (box:get command-line:bug-email)))
-    (e1:let ((bug-email (box:get command-line:bug-email)))
+        (fio:write "\n" (st closing) "\n"))
       (e1:when bug-email
-        (fio:write "\nPlease report bugs to " (st bug-email) " .\n"))))))
+        (fio:write "\nReport bugs to <" (st bug-email) ">.\n")))))
 
 
 ;;;;; Common defined options

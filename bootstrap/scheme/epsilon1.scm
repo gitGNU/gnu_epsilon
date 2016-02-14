@@ -3296,12 +3296,9 @@
     (vector:set! vector i2 e1)))
 
 (e1:define (vector:shuffle! vector)
-  (e1:let* ((length (vector:length vector))
-            (indices (buffer:make length)))
+  (e1:let ((length (vector:length vector)))
     (e1:dotimes (i length)
-      (buffer:set! indices i (fixnum:random length)))
-    (e1:dotimes (i length)
-      (vector:swap! vector i (buffer:get indices i)))))
+      (vector:swap! vector i (fixnum:random length)))))
 
 ;;; Non-destructive vector shuffling
 (e1:define (vector:shuffle vector)

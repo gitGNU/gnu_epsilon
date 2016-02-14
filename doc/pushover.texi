@@ -790,9 +790,10 @@ possibly already at size 6.
 
 @cindex advantage
 @cindex Black
-If empirical observation of computer vs@. computer games
-(see @ref{--tournament}) is to be trusted Black enjoys a considerable
-advantage on smaller boards, which decreases as the board size increases.
+If empirical observation of computer vs@. computer games (see
+@ref{@option{--tournament}}) is to be trusted Black enjoys a
+considerable advantage on smaller boards, which decreases as the board
+size increases.
 @*
 @*
 @cindex memory system
@@ -829,7 +830,7 @@ colors by default, even if it would be reasonable to check that
 @code{TERM} environment variable and use escapes only where supported,
 or possibly build upon some higher-level abstraction.  Escape
 sequences can be disabled with a command-line option (see
-@ref{--no-color}).
+@ref{@option{--no-color}}).
 @cindex Readline
 @cindex GNU Readline
 The GNU Readline (@pxref{Top,,, readline, GNU Readline Library})
@@ -838,9 +839,10 @@ library is supported if epsilon has been configured to use it.
 @cindex program loop
 @cindex loop, program
 The Pushover program is a loop playing every move of a game --- or
-more than one in the case of tournaments; see @ref{--tournament}.  At
-the beginning of each turn the computer displays the current
-position; then a move is played until a final position is reached.
+more than one in the case of tournaments; see
+@ref{@option{--tournament}}.  At the beginning of each turn the
+computer displays the current position; then a move is played until a
+final position is reached.
 
 @menu
 * Player types::         How to specify human and non-human players.
@@ -863,7 +865,7 @@ versus computer}, and @emph{computer versus computer}.  Computer
 versus computer games are non-interactive, and the user can simply
 watch games unfold; this is particularly useful to compare how
 effective the different kinds of algorithms are --- see
-@ref{--tournament}.
+@ref{@option{--tournament}}.
 
 @cindex minimax
 @cindex dumb
@@ -892,14 +894,15 @@ player unless the game is over.
 At the prompt a human player can also quit the program by typing
 @kbd{C-d} on an empty line.
 
+@cindex hint
 @cindex suggestion
-@cindex computer suggestion
+@cindex computer hint
 @cindex ply
 @cindex minimax
 @cindex depth, analysis
 A human player may optionally benefit from @emph{computer
-suggestions}, computed with the minimax algorithm described right
-below.  If suggestions are enabled then the computer search for an
+hints}, computed with the minimax algorithm described right
+below.  If hints are enabled then the computer search for an
 optimal move at the specified depth in plies, and presents it to the
 user; the user is then free to follow the computer suggestion or
 reject it and play a different move altogether.
@@ -962,51 +965,122 @@ in the spirit of the @emph{threefold repetition} rule in chess; see
 The @command{pushover} program has no non-option arguments: every argument
 it recognizes is an option, currently always in the long GNU style
 (@pxref{Command-Line Interfaces, Command-Line Interfaces, Command-Line Interfaces, standards, The GNU Coding Standards}).
-No option is mandatory.
 
+Every option taking a parameter, shown below with a @samp{=} sign
+followed by a parameter placeholder, may be provided either as a
+single string including the @samp{=} sign followed by the parameter,
+or as two separate strings without the @samp{=} sign: for example the
+program will indifferently accept @samp{--black=m3n} and @samp{--black
+m3n}.
+
+If the same option is specified multiple times with different
+parameters @emph{the last parameter} will take precedence, which may
+be convenient for shell aliases.
+
+No option is mandatory.
+@*
+@*
+The Pushover program accepts the two standard GNU options:
 @cindex options
 @cindex command-line options
 @cindex common GNU options
 @cindex GNU, common options
 @table @option
+@c @item ??--??
+@c FIXME: remove it altogether
 @cindex @option{--version}
 @item --version
-FOO
+Print version information and legal notices, then exit successfully.
 
 @cindex @option{--help}
 @item --help
-FOO
+Print a short summary of command-line syntax explaining every option,
+then exit successfully.
 @end table
-
-@table @option
-@cindex @option{--size}
-@item --size
-FOO
-
-@cindex @option{--white}
-@item --white
-FOO
-
-@cindex @option{--black}
-@item --black
-FOO
-
-@cindex @option{--tournament}
-@anchor{--tournament}
-@item --tournament
-FOO
-@end table
-
+@*
+The following option affects board drawing:
 @table @option
 @cindex @option{--no-color}
-@anchor{--no-color}
+@cindex escape sequence
+@cindex terminal escape sequence
+@cindex ANSI terminal escape sequence
+@cindex @code{TERM}
+@anchor{@option{--no-color}}
 @item --no-color
-FOO
+Display game positions and player names in a single color, without
+outputting any terminal escape sequence.  If the option is not specified
+then the program uses ANSI terminal sequences; this should probably be
+changed so that the program only uses such sequences on supported
+terminals, according to the value of the @code{TERM} environment
+variable.
+@end table
+@*
+The following two options control game parameters:
+@table @option
+@cindex @option{--size}
+@item --size=@var{n}
+Play on a board of size @var{n}.  The default board size used when the
+option is not specified is @math{@var{n}=4}.
+
+@cindex @option{--tournament}
+@cindex statistics
+@anchor{@option{--tournament}}
+@item --tournament=@var{n}
+Play a tournament of @var{n} games one after another, and at the end
+print statistics about Black victories, White victories and draws.
+The statistics format is as follows:
+@smallexample
+@group
+Score over 100 games (size 4):
+* Black (minimax 4-plies deep): 26%
+* White (minimax 4-plies deep): 18%
+* Draws: 56%
+@end group
+@end smallexample
+Tournament mode is only enabled for @math{@var{n} > 1}; when the value
+of @var{n} is zero or negative only one game is played, with no final
+statistics.  Tournament mode is off by default.
+@end table
+@*
+The last two options below, likely the most commonly used, determine
+the player type of each side:
+@table @option
+@cindex @option{--white}
+@item --white=@var{playerspec}
+@cindex @option{--black}
+@item --black=@var{playerspec}
+Specify the player type for Black or for White.  The value of
+@var{playerspec} follows a rigid syntax:
+@itemize @bullet
+@cindex human player
+@item @samp{h} or @samp{h@var{n}}:
+human player.  When provided @var{n} must be a decimal digit from 1 to
+9, specifying minimax search depth in plies for hints; hints are
+disabled if @var{playerspec} is simply @samp{h}.
+
+@cindex minimax player
+@cindex determinism
+@item @samp{m@var{n}} or @samp{m@var{n}d}:
+minimax computer player with @var{n} plies deep search where, again,
+@var{n} is a single digit between 1 and 9 included.  The
+@samp{m@var{n}d} version forces deterministic play.
+
+@cindex dumb player
+@cindex determinism
+@item @samp{d} or @samp{dd}:
+dumb computer player, in random (@samp{d}) or deterministic mode (@samp{dd}).
+@end itemize
+The default @var{playerspec} is @samp{h3} for @option{--black} and
+@samp{m5} for @option{--white}: a human playing as Black with depth 3
+hints versus the computer as White with minimax at depth 5.
 @end table
 
-@c ......................................................................
-@subsection Player type specification
-@cindex Player type specification
+When the user only specifies one of @option{--black} and
+@option{--white}, only the one corresponding default is overridden.
+Combining @option{--black} and @option{--white} yields different type
+of games: it is permitted for the two players to be both human, both
+computer, or one human and one computer in either role.
+
 
 @c ======================================================================
 @node Implementation

@@ -3295,12 +3295,13 @@
     (vector:set! vector i1 e2)
     (vector:set! vector i2 e1)))
 
+;;; Destructively shuffle the given vector.  Zero results.
 (e1:define (vector:shuffle! vector)
   (e1:let ((length (vector:length vector)))
     (e1:dotimes (i length)
       (vector:swap! vector i (fixnum:random length)))))
 
-;;; Non-destructive vector shuffling
+;;; Non-destructive vector shuffling.
 (e1:define (vector:shuffle vector)
   (e1:let ((result (vector:shallow-clone vector)))
     (vector:shuffle! result)
@@ -3310,6 +3311,25 @@
   (e1:let ((vector (vector:list->vector list)))
     (vector:shuffle! vector)
     (vector:vector->list vector)))
+
+;;; Destructively shuffle the content of the given list, keeping all the cons
+;;; structure.  There is no result, as none is needed.
+(e1:define (list:shuffle! list)
+  (e1:let* ((length (list:length list))
+            (conses (buffer:make length)))
+    (e1:let loop ((rest list)
+                  (i 0))
+      (e1:unless (list:null? rest)
+        (buffer:set! conses i rest)
+        (loop (list:tail rest)
+              (fixnum:1+ i))))
+    (e1:dotimes (i length)
+      (e1:let* ((cons-a (buffer:get conses i))
+                (cons-b (buffer:get conses (fixnum:random length)))
+                (head-a (cons:get-car cons-a))
+                (head-b (cons:get-car cons-b)))
+        (cons:set-car! cons-a head-b)
+        (cons:set-car! cons-b head-a)))))
 
 
 ;;;;; Other hash utilities

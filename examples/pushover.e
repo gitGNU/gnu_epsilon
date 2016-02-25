@@ -37,6 +37,31 @@
 ;;        (e1:error "Assertion failed"))))
 
 
+;;;;; Deterministic pseudo-random number generator
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; The procedure list:shuffle ultimately relies on fixnum:random-unsigned,
+;;; which is meant to be good quality.  However for this application we want a
+;;; simple pseudorandom number generator with a completely predictable and
+;;; deterministic behavior, even if its period is short and its width barely
+;;; sufficient.  This is particularly relevant for epsilon compiler benchmarks,
+;;; which need to play exactly the same game every time even if I update
+;;; epsilon's random number generator later.  This shouldn't affect games
+;;; against humans.
+
+(e1:define po:random-sequence
+  (vector:vector
+   ;; I generated the sequence is via the following Emacs Lisp expression:
+   ;; (save-excursion (dotimes (i 300) (insert (format "%i " (random 36)))))
+   25 6 2 3 35 26 15 32 13 8 14 5 0 16 4 15 32 23 19 33 32 2 19 26 31 20 14 18 30 9 25 6 35 33 27 2 13 20 22 16 0 25 27 0 35 33 0 24 12 2 2 7 4 34 24 27 18 0 35 7 25 1 1 33 5 29 13 6 19 7 30 0 29 28 3 4 0 31 35 23 11 11 14 8 29 12 4 9 8 11 13 10 15 7 16 14 26 10 10 18 18 7 17 25 19 6 30 9 31 20 26 1 23 10 13 2 7 5 14 35 9 16 30 20 35 19 30 25 13 16 2 15 30 32 1 29 12 9 18 22 2 32 23 34 17 10 4 7 1 28 7 20 3 15 33 4 35 15 27 28 9 34 25 35 6 3 15 16 4 23 16 16 17 11 26 20 8 8 26 32 17 22 14 2 14 29 18 25 26 28 16 17 3 28 5 22 8 1 2 9 3 35 14 2 9 31 16 13 4 35 12 7 24 14 10 22 12 20 9 8 22 10 32 6 3 27 4 1 29 30 26 0 25 18 11 32 27 31 12 26 5 23 18 8 9 17 15 20 21 5 33 20 25 28 24 9 19 13 1 4 35 11 6 17 2 28 27 31 0 4 9 20 18 33 21 23 10 0 14 26 21 19 4 17 8 25 35 18 16 26 32 0 6 35 31 8 0 10 14 7))
+(e1:define po:random-index (box:make 0))
+(e1:define (fixnum:random-unsigned)
+  (e1:let ((index (box:get po:random-index))
+           (length (vector:length po:random-sequence)))
+    (box:set! po:random-index (fixnum:% (fixnum:1+ index) length))
+    (vector:get po:random-sequence index)))
+
+
 ;;;;; Board cases
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -910,7 +935,7 @@ The default is h3 for black and m5 for white.")
                        (fixnum:<= size 9))
       (e1:error "Invalid board size " (i size)
                 ": size should be between 3 and 9 included"))
-    (e1:if (fixnum:zero? tournament)
+    (e1:if (fixnum:<= tournament 1)
       (po:play size black-player-type white-player-type)
       (po:tournament size black-player-type white-player-type tournament))))
 

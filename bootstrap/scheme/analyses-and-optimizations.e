@@ -722,3 +722,165 @@
                      (e0:inlined-call-helper (list:tail formals)
                                              (list:tail actuals)
                                              body)))))
+
+
+;;;;; Trivial bundle removal on epsilon0 expressions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Return the given expression with 1-size bundles rewritten away.  The given
+;;; expression is not modified.
+(e1:define (e0:expression-without-trivial-bundles e)
+  (e1:match e
+    ((or (e0:expression-variable _ _)
+         (e0:expression-value _ _))
+     e)
+    ((e0:expression-bundle _ items)
+     (e1:if (fixnum:= (list:length items) 1)
+       (e0:expression-without-trivial-bundles (list:head items))
+       (e0:bundle* (e0:expressions-without-trivial-bundles items))))
+    ((e0:expression-primitive _ name actuals)
+     (e0:primitive* name (e0:expressions-without-trivial-bundles actuals)))
+    ((e0:expression-let _ bound-variables bound-expression body)
+     (e0:let* bound-variables
+              (e0:expression-without-trivial-bundles bound-expression)
+              (e0:expression-without-trivial-bundles body)))
+    ((e0:expression-call _ procedure-name actuals)
+     (e0:call* procedure-name (e0:expressions-without-trivial-bundles actuals)))
+    ((e0:expression-call-indirect _ procedure-expression actuals)
+     (e0:call-indirect* (e0:expression-without-trivial-bundles procedure-expression)
+                        (e0:expressions-without-trivial-bundles actuals)))
+    ((e0:expression-if-in _ discriminand values then-branch else-branch)
+     (e0:if-in* (e0:expression-without-trivial-bundles discriminand)
+                values
+                (e0:expression-without-trivial-bundles then-branch)
+                (e0:expression-without-trivial-bundles else-branch)))
+    ((e0:expression-fork _ procedure-name actuals)
+     (e0:fork* procedure-name (e0:expressions-without-trivial-bundles actuals)))
+    ((e0:expression-join _ future)
+     (e0:join* (e0:expression-without-trivial-bundles future)))))
+
+(e1:define (e0:expressions-without-trivial-bundles es)
+  (e1:if (list:null? es)
+    list:nil
+    (list:cons (e0:expression-without-trivial-bundles (list:head es))
+               (e0:expressions-without-trivial-bundles (list:tail es)))))
+
+
+;;;;; Constant folding on epsilon0 expressions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Return the given expression with constant folding performed.  The given
+;;; expression is not modified.  This benefits from trivial bundle removal,
+;;; so trivial bundle removal should be performed first.
+(e1:define (e0:expression-with-constant-folding e)
+  (e0:expression-with-constant-folding-where e alist:nil))
+
+;;; FIXME: sometimes we may be able to constant-fold a variable even if the
+;;; expression defining has side effects: in that case we keep the bound
+;;; expression, but remove the variable.
+;;; For example, (e1:let ((a (foo!) 42)) a) can be rewritten into
+;;; (e1:let ((() (foo!) 42)) 42).  In more complicated cases such as
+;;; (e1:let (((a b c) (foo!) (e1:bundle (f) 43 (g)))) (f a b c)) it may be
+;;; difficult to rewrite the bound variable list, but that's not a real problem:
+;;; what is important is propagating known variable values down the body, even
+;;; if the binding clauses remain as they are: at runtime they cost nothing
+;;; anyway if we compile.
+
+;;; This pass is not necessarily about removing lets: actually, running or
+;;; re-running let elimination after this pass will be beneficial, as some
+;;; variables will be unused in the expression produced by this.
+
+(e1:define (e0:expression-with-constant-folding-where e a)
+  e ;; FIXME: actually implement.
+  #;(e1:match e
+    ((e0:expression-variable _ _)
+     )
+    ((e0:expression-value _ _)
+     )
+    ((e0:expression-bundle _ items)
+     )
+    ((e0:expression-primitive _ name actuals)
+     )
+    ((e0:expression-let _ bound-variables bound-expression body)
+     )
+    ((e0:expression-call _ procedure-name actuals)
+     )
+    ((e0:expression-call-indirect _ procedure-expression actuals)
+     )
+    ((e0:expression-if-in _ discriminand values then-branch else-branch)
+     )
+    ((e0:expression-fork _ procedure-name actuals)
+     )
+    ((e0:expression-join _ future)
+     )))
+
+(e1:define (e0:expressions-with-constant-folding-where es a)
+  (e1:if (list:null? es)
+    list:nil
+    (list:cons (e0:expression-with-constant-folding-where (list:head es) a)
+               (e0:expressions-with-constant-folding-where (list:tail es) a))))
+
+
+;;;;; Trivial conditional elimination on epsilon0 expressions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Simplify e0:if-in cases where the disciminand is a literal.  This of course
+;;; benefits from constant folding, which should be performed before.
+(e1:define (e0:expression-without-trivial-if-ins e)
+  (e1:match e
+    ((or (e0:expression-variable _ _)
+         (e0:expression-value _ _))
+     e)
+    ((e0:expression-bundle _ items)
+     (e0:bundle* (e0:expressions-without-trivial-if-ins items)))
+    ((e0:expression-primitive _ name actuals)
+     (e0:primitive* name
+                    (e0:expressions-without-trivial-if-ins actuals)))
+    ((e0:expression-let _ bound-variables bound-expression body)
+     (e0:let* bound-variables
+              (e0:expression-without-trivial-if-ins bound-expression)
+              (e0:expression-without-trivial-if-ins body)))
+    ((e0:expression-call _ procedure-name actuals)
+     (e0:call* procedure-name
+               (e0:expressions-without-trivial-if-ins actuals)))
+    ((e0:expression-call-indirect _ procedure-expression actuals)
+     (e0:call-indirect* (e0:expression-without-trivial-if-ins procedure-expression)
+                        (e0:expressions-without-trivial-if-ins actuals)))
+    ((e0:expression-if-in _ discriminand values then-branch else-branch)
+     (e1:match discriminand
+       ;; FIXME: it would be nice to also recognize bundles whose first element
+       ;; is a constant.
+       ((e0:expression-value _ v)
+        (e1:if (list:has? values v)
+          (e0:expression-without-trivial-if-ins then-branch)
+          (e0:expression-without-trivial-if-ins else-branch)))
+       (else
+        (e0:if-in* (e0:expression-without-trivial-if-ins discriminand)
+                   values
+                   (e0:expression-without-trivial-if-ins then-branch)
+                   (e0:expression-without-trivial-if-ins else-branch)))))
+    ((e0:expression-fork _ procedure-name actuals)
+     (e0:fork* procedure-name
+               (e0:expressions-without-trivial-if-ins actuals)))
+    ((e0:expression-join _ future)
+     (e0:join* (e0:expression-without-trivial-if-ins future)))))
+
+(e1:define (e0:expressions-without-trivial-if-ins es)
+  (e1:if (list:null? es)
+    list:nil
+    (list:cons (e0:expression-without-trivial-if-ins (list:head es))
+               (e0:expressions-without-trivial-if-ins (list:tail es)))))
+
+
+;;;;; Simple optimization of epsilon0 expressions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Return the given expression in an optimized version, by chaining all the
+;;; simple optimizations defined above.  The given argument is not modified.
+(e1:define (e0:optimize-expression e0)
+  (e1:let* ((e1 (e0:expression-without-trivial-bundles e0))
+            (e2 (e0:expression-without-useless-lets e1))
+            (e3 (e0:expression-without-trivial-lets e2))
+            (e4 (e0:expression-with-constant-folding e3))
+            (e5 (e0:expression-without-trivial-if-ins e4)))
+    e5))

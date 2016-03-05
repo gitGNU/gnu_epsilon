@@ -20,7 +20,7 @@
 
 @dircategory Games
 @direntry
-* Pushover: (pushover).  A board game written in GNU epsilon
+* Pushover: (pushover).  A board game playing program written in GNU epsilon
 @end direntry
 
 @c ======================================================================
@@ -52,9 +52,11 @@ alpha-beta pruning
 This is the manual documenting Pushover (for GNU epsilon version
 @value{VERSION}, last updated on @value{UPDATED}).
 
-Pushover is a board game written in GNU epsilon and included in its
-distribution as a nontrivial programming example, as a compiler
-benchmark and as an interesting game.
+Pushover is a board game playing program written in GNU epsilon and
+included in its distribution as a nontrivial programming example, as a
+compiler benchmark and as an interesting diversion.  Like the rest of
+GNU epsilon Pushover is free software, distributed under the GNU
+General Public License version 3 or later.
 
 Copyright @copyright{} 2016 Luca Saiu
 
@@ -76,9 +78,10 @@ text is also available at @url{http://www.gnu.org/licenses/fdl.html}.
 @c ======================================================================
 @titlepage
 @title Pushover
-@subtitle a board game written in GNU epsilon
+@subtitle a board game playing program written in GNU epsilon
 @subtitle For epsilon version @value{VERSION}, @value{UPDATED}
 @author Luca Saiu
+
 @c The following two commands start the copyright page.
 @page
 @vskip 0pt plus 1filll
@@ -97,11 +100,11 @@ text is also available at @url{http://www.gnu.org/licenses/fdl.html}.
 @c@node Top
 @c Foo.
 @menu
-* Introduction::         What this is all about.
-* Pushover rules::       How to play the game.
-* Usage guide::          Instructions for running the program.
-* Implementation::       How the thing works.
-* Index::                An automatically generated index.
+* Introduction::    What this is all about.
+* Pushover rules::  How to play the game.
+* Usage guide::     Instructions for running the program.
+* Implementation::  How the thing works.
+* Index::           An automatically generated index.
 @end menu
 
 @c ======================================================================
@@ -113,6 +116,7 @@ text is also available at @url{http://www.gnu.org/licenses/fdl.html}.
 @node Introduction
 @chapter Introduction
 @cindex introduction
+
 I had not planned to include the Pushover game in the epsilon
 distribution before actually writing it.  Now that it exists I am
 quite happy about it, as it constitutes the first worthy example of a
@@ -123,9 +127,9 @@ not part of the language implementation itself.
 Like the rest of GNU epsilon, of course Pushover is free software.
 
 @menu
-* History::     How Pushover came to be.
-* Purpose::     This is not a bad game, and it can also be useful.
-* License::     Pushover is free software, distributed under the GNU GPL.
+* History::      How Pushover came to be.
+* Purpose::      This is not a bad game, and it can also be useful.
+* License::      Pushover is free software, distributed under the GNU GPL.
 * Contributing:: You can report bugs or contribute to the project.
 @end menu
 
@@ -147,11 +151,10 @@ The students had about four weeks to implement a board game in C,
 working in pairs.  The version they had to turn in was @emph{for two
 human players only}, without computer play of any kind.
 @*
-@cindex N@.
 When first reading the specification I recognized the game as a slight
-variant of something I had played once on an actual physical board a
-few years before, at a picnic in the park with friends and friends of
-friends.  The one who brought the game had to be some buddy of N@.'s.
+variant of something I had played once a few years before at a Summer
+picnic in the park, on a wooden set brought along by some friend of a
+friend.
 
 @cindex helper function
 @cindex beginner
@@ -161,13 +164,13 @@ The problem specification written by Mathieu Lacroix was very clear,
 and the level of difficulty appropriate for beginners.  Students had
 to satisfy a strict set of requirements meant to guide them into
 writing first the helper functions they were to be needing later.
-Everything looked very sensible.
+Everything looked quite sensible.
 
 When I came to finally see the final work by my first group one Friday
-afternoon I felt disheartened.  Many had done badly, never overcoming
-their initial difficulties with pointers; a few programs did not even
-compile, many more failed to work correctly and almost all crashed if
-provided with incorrect input.
+afternoon I felt disheartened.  Many students had done badly, never
+overcoming their initial difficulties with pointers; a few programs
+did not even compile, many more failed to work correctly and almost
+all crashed when provided with incorrect input.
 
 @cindex tutored project
 Walking back home I kept thinking about the problem.  It was a neat
@@ -209,7 +212,7 @@ Even knowing from the beginning that it was stronger (students are
 grouped by grade) I was quite positively impressed by my second group,
 which did much better than the first.  So I was in a particularly good
 mood when I started explaining minimax on the whiteboard to the small
-group of students who had remained until the end.
+bunch of students who had remained until the end.
 @cindex wonder
 @cindex awe
 @cindex teaching
@@ -224,7 +227,7 @@ to see the computer playing program I had promised.
 @cindex game tree
 I was more than happy to reuse my game tree drawing still on the
 whiteboard to speak again about minimax, and then show the program
-once more.  I didn't explain the epsilon code but I rapidly showed
+once more.  Without explaining the epsilon code I rapidly showed
 what it looked like, just to convey the idea that it was not overly
 long or complicated.
 @*
@@ -290,27 +293,25 @@ space.
 @cindex convenience
 @cindex determinism
 @cindex efficiency
-The program may be optimized (@pxref{Future development}) but it is also
-useful as it stands as an example of something written quickly with
-convenience in mind.  Since it can be run deterministically some
+The program may be optimized (@pxref{Future development}) but it is
+also useful as it stands as an example of something written quickly
+with convenience in mind.  Since it can be run deterministically some
 specific version of it can be used as a benchmark to track the
-advances of the epsilon implementation --- which is currently quite
-inefficient.
+advances of the epsilon implementation --- which currently remains
+quite inefficient.
 
 @cindex @code{fork}-based parallelism
 @cindex obstack
 @cindex GNU C Library
 @cindex Glibc
-With some comparatively small changes in Pushover could become a
-testbed for more or less advanced epsilon features which are still to
-come: for example @code{fork}-level parallelism would be easy to
-exploit, and the system could run without garbage collection using
-manually handled memory regions for quick release of large heap memory
-blocks, in the style of GNU Libc @emph{obstacks}
-(@pxref{Obstacks, Obstacks, Obstacks, libc, The GNU C Library Reference Manual}).
-@*
-@*
-And I also find the game quite satisfying to play.
+With comparatively small changes Pushover could become a testbed for
+more or less advanced epsilon features which are still to come: for
+example @code{fork}-level parallelism would be easy to exploit, and
+the system could run without garbage collection using manually handled
+memory regions for quick release of large heap memory blocks, in the
+style of GNU Libc @emph{obstacks} (@pxref{Obstacks, Obstacks,
+Obstacks, libc, The GNU C Library Reference Manual}).  @* @* And I
+also find the game quite satisfying to play.
 
 @c ----------------------------------------------------------------------
 @node License
@@ -343,34 +344,37 @@ Pushover is distributed along with GNU epsilon, in the same source
 archives.  As a minor subproject Pushover does not need its own
 development infrastructure, and shares the resources used for epsilon.
 
-@c FIXME: link the epsilon Info documentation when I update it.
-
 @cindex Git
 @cindex Savannah
 @cindex bug
 Revision-controlled files, bug and issue trackers are available on GNU
 Savannah; see @url{https://savannah.gnu.org/projects/epsilon}.  You
-can find the Pushover source code in @file{examples/pushover.e}, on
-the Git repository and in source tarballs.
+can find the Pushover source code in @file{examples/pushover.e}, in
+the Git repository and the source tarballs.
 @cindex mailing list
 As is the case for most free software development the preferred
 communication medium about GNU epsilon is the mailing list.
 Discussions about Pushover are on-topic in epsilon lists.
 
-@cindex bug
+@cindex bug reporting
+@cindex reporting bugs
+@cindex patch
+@cindex mailing list
 If you have a bug to report or a patch to submit you can write to
 @email{bug-epsilon@@gnu.org}; please include all the relevant
 information about your system, the software version you are using and
 how it was configured and compiled.  When you are in doubt whether to
 include some detail or not, do.
 
+@cindex discuss
 @cindex contributing
 @cindex development
+@cindex mailing list
 In case you want to participate in the project development or discuss
 please make sure to have read @ref{Implementation}, and write to
 @email{epsilon-devel@@gnu.org}.  As of early 2016 @code{bug-epsilon}
 is an alias for @code{epsilon-devel} and there is no specific ``help''
-list but I can easily add more mailing lists, should the need ever arise.
+list, but I can easily add more mailing lists should the need ever arise.
 
 I encourage public technical discussion but also believe in respecting
 privacy.  If for some reason you would rather reach me in private you
@@ -845,8 +849,9 @@ computer displays the current position; then a move is played until a
 final position is reached.
 
 @menu
-* Player types::         How to specify human and non-human players.
-* Command-line options:: Invoking pushover to start a given type of game.
+* Player types::               How to specify human and non-human players.
+* Command-line options::       Invoking pushover to start a given type of game.
+* Performance considerations:: Deep search is slow.
 @end menu
 
 @c ----------------------------------------------------------------------
@@ -968,8 +973,8 @@ it recognizes is an option, currently always in the long GNU style
 
 Every option taking a parameter, shown below with a @samp{=} sign
 followed by a parameter placeholder, may be provided either as a
-single string including the @samp{=} sign followed by the parameter,
-or as two separate strings without the @samp{=} sign: for example the
+single argument including the @samp{=} sign followed by the parameter,
+or as two separate arguments without the @samp{=} sign: for example the
 program will indifferently accept @samp{--black=m3n} and @samp{--black
 m3n}.
 
@@ -986,8 +991,6 @@ The Pushover program accepts the two standard GNU options:
 @cindex common GNU options
 @cindex GNU, common options
 @table @option
-@c @item ??--??
-@c FIXME: remove it altogether
 @cindex @option{--version}
 @item --version
 Print version information and legal notices, then exit successfully.
@@ -1023,12 +1026,13 @@ Play on a board of size @var{n}.  The default board size used when the
 option is not specified is @math{@var{n}=4}.
 
 @cindex @option{--tournament}
-@cindex statistics
+@cindex statistics, tournament
+@cindex tournament
 @anchor{@option{--tournament}}
 @item --tournament=@var{n}
-Play a tournament of @var{n} games one after another, and at the end
-print statistics about Black victories, White victories and draws.
-The statistics format is as follows:
+Instead of a single game play a @emph{tournament} of @var{n} games one
+after another, at the end printing statistics about Black victories,
+White victories and draws.  The statistics format is as follows:
 @smallexample
 @group
 Score over 100 games (size 4):
@@ -1045,17 +1049,18 @@ statistics.  Tournament mode is off by default.
 The last two options below, likely the most commonly used, determine
 the player type of each side:
 @table @option
-@cindex @option{--white}
-@item --white=@var{playerspec}
 @cindex @option{--black}
+@cindex @option{--white}
 @item --black=@var{playerspec}
-Specify the player type for Black or for White.  The value of
-@var{playerspec} follows a rigid syntax:
+@item --white=@var{playerspec}
+Specify the player type for Black or for White as shown in
+@ref{Player types}. The value of @var{playerspec} follows a rigid
+syntax:
 @itemize @bullet
 @cindex human player
 @item @samp{h} or @samp{h@var{n}}:
 human player.  When provided @var{n} must be a decimal digit from 1 to
-9, specifying minimax search depth in plies for hints; hints are
+9, representing the minimax search depth in plies for hints; hints are
 disabled if @var{playerspec} is simply @samp{h}.
 
 @cindex minimax player
@@ -1080,6 +1085,37 @@ When the user only specifies one of @option{--black} and
 Combining @option{--black} and @option{--white} yields different type
 of games: it is permitted for the two players to be both human, both
 computer, or one human and one computer in either role.
+@c @*
+@c @*
+@c Simply running @command{pushover} with no options is therefore
+@c equivalent to:
+@c @example
+@c pushover --size=4 --tournament=0 --black=h3 --white=m5
+@c @end example
+
+@node Performance considerations
+@cindex performance
+@section Performance considerations
+
+???rephrase and expand???
+
+A user in search for a more difficult challenge wishing to play
+@emph{as White} against a minimax player at the same depth as the
+default opponent could invoke the program as:
+@example
+pushover --black=m5 --white=h3
+@end example
+
+A user accepting to tolerate the slowness of a depth 7 search could
+play against a very strong computer opponent:
+@example
+pushover --white=m7
+@end example
+Search time being exponential with a branching factor around @math{4n}
+on a board of size @var{n}, a one-ply deeper minimax player (or hint)
+slows down computer play by a factor of roughly @math{4n}, more than
+one order or magnitude even for @math{n = 3}.  Deepening search by two
+plies would make search run @math{16n^2} times slower.
 
 
 @c ======================================================================
@@ -1118,7 +1154,7 @@ computer, or one human and one computer in either role.
 @cindex repetition
 
 
-@c ======================================================================
+@c @c ======================================================================
 @node Index
 @unnumbered Index
 @cindex index
@@ -1126,3 +1162,42 @@ computer, or one human and one computer in either role.
 
 @c ======================================================================
 @bye
+
+@c Scratch
+@c ======================================================================
+@unnumbered Scratch; tests for myself
+@c What follows requires texi2pdf -E
+@macro case{x}
+@code{\x\}
+@end macro
+
+@macro D
+@c.
+@inlineraw{tex,$\\cdot$}
+@c @inlineraw{tex,${\\odot}$}
+@end macro
+
+@c inlineraw{tex,{{@rm foo}}}
+@macro W
+@inlineraw{tex,$\\circ$}
+@end macro
+
+@macro B
+@inlineraw{tex,$\\bullet$}
+@end macro
+
+@smallexample
+@group
+  1 2 3
+1 @W @D @D
+2 @W @D @B
+3 @B @B @W
+@end group
+@end smallexample
+
+@c Notes for myself
+@c ======================================================================
+@bye
+
+FIXME: replace @emph with @dfn where appropriate.
+FIXME: link the epsilon Info documentation when I update it.

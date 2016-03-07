@@ -205,9 +205,12 @@ EPSILON_DUMPED_SOURCE_FILES = \
   $(EPSILON_EARLY_DUMPED_SOURCE_FILES) \
   $(EPSILON_LATE_DUMPED_SOURCE_FILES)
 
-EPSILON_NON_GENERATED_SOURCE_FILES = \
+EPSILON_NON_GENERATED_DUMPED_SOURCE_FILES = \
   $(EPSILON_EARLY_DUMPED_NON_GENERATED_SOURCE_FILES) \
-  $(EPSILON_LATE_DUMPED_NON_GENERATED_SOURCE_FILES) \
+  $(EPSILON_LATE_DUMPED_NON_GENERATED_SOURCE_FILES)
+
+EPSILON_NON_GENERATED_SOURCE_FILES = \
+  $(EPSILON_NON_GENERATED_DUMPED_SOURCE_FILES) \
   $(EPSILON_UNDUMPED_SOURCE_FILES)
 
 EPSILON_SOURCE_FILES = \
@@ -321,7 +324,7 @@ lib_libepsilonutility_a_SOURCES = \
   utility/stack.c utility/stack.h \
   config.h
 
-RUNTIME_SOURCES = \
+RUNTIME_NON_GENERATED_SOURCES = \
   runtime/interface-with-c.c runtime/interface-with-c.h \
   runtime/backend-specific.h \
   runtime/data.c runtime/data.h \
@@ -331,7 +334,10 @@ RUNTIME_SOURCES = \
   runtime/notices.c runtime/notices.h \
   runtime/thread-context.c runtime/thread-context.h \
   runtime/runtime.c runtime/runtime.h \
-  runtime/jit.c runtime/jit.h \
+  runtime/jit.c runtime/jit.h
+
+RUNTIME_SOURCES = \
+  $(RUNTIME_NON_GENERATED_SOURCES) \
   config.h
 
 lib_LIBRARIES += lib/libepsilonruntime-untagged.a
@@ -656,27 +662,30 @@ clean-doc:
 # target to build at dist time before generating every man page with help2man
 # consists of all binary programs and all dumps.
 BEFOREHELP2MAN = $(bin_PROGRAMS) $(edump_pkgdata_DATA)
+# The following line works fine in practice.
+#MANSOURCES = $(EPSILON_NON_GENERATED_DUMPED_SOURCE_FILES)
+MANSOURCES = $(EPSILON_NON_GENERATED_DUMPED_SOURCE_FILES) $(RUNTIME_NON_GENERATED_SOURCES)
 HELP2MANFLAGS = --source=GNU --info-page=epsilon
 dist_man_MANS =
 dist_man_MANS += \
-  doc/epsilon.1
+  @top_srcdir@/doc/epsilon.1
 # The program should *not* be a dependency in this case: see the help2man
 # documentation.
-doc/epsilon.1: $(EPSILON_SOURCE_FILES)
+@top_srcdir@/doc/epsilon.1: $(MANSOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) $(BEFOREHELP2MAN)
 	$(HELP2MAN) $(HELP2MANFLAGS) --output=$@ --name='GNU epsilon' "bin/epsilon-image-interpreter-tagged dumps/repl-from-epsilon1.u"
 
 dist_man_MANS += \
-  doc/epsilon-image-interpreter-tagged.1 \
-  doc/epsilon-image-interpreter-untagged.1 \
-  doc/epsilon-image-interpreter-smob.1
-doc/epsilon-image-interpreter-tagged.1: $(EPSILON_SOURCE_FILES)
+  @top_srcdir@/doc/epsilon-image-interpreter-tagged.1 \
+  @top_srcdir@/doc/epsilon-image-interpreter-untagged.1 \
+  @top_srcdir@/doc/epsilon-image-interpreter-smob.1
+@top_srcdir@/doc/epsilon-image-interpreter-tagged.1: $(MANSOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) $(BEFOREHELP2MAN)
 	$(HELP2MAN) $(HELP2MANFLAGS) --output=$@ --name='epsilon image interpreter (GNU epsilon)' "bin/$$(basename $@ .1)"
-doc/epsilon-image-interpreter-untagged.1: $(EPSILON_SOURCE_FILES)
+@top_srcdir@/doc/epsilon-image-interpreter-untagged.1: $(MANSOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) $(BEFOREHELP2MAN)
 	$(HELP2MAN) $(HELP2MANFLAGS) --output=$@ --name='epsilon image interpreter (GNU epsilon)' "bin/$$(basename $@ .1)"
-doc/epsilon-image-interpreter-smob.1: $(EPSILON_SOURCE_FILES)
+@top_srcdir@/doc/epsilon-image-interpreter-smob.1: $(MANSOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) $(BEFOREHELP2MAN)
 	$(HELP2MAN) $(HELP2MANFLAGS) --output=$@ --name='epsilon image interpreter (GNU epsilon)' "bin/$$(basename $@ .1)"
 

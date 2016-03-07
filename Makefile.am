@@ -615,7 +615,7 @@ profile-driven-feedback: clean
 
 
 ## ####################################################### Documentation: begin
-info_TEXINFOS = doc/epsilon.texi doc/pushover.texi
+info_TEXINFOS = doc/epsilon.texi
 doc_epsilon_TEXINFOS = \
   @srcdir@/doc/gpl.texi \
   @srcdir@/doc/fdl.texi
@@ -623,20 +623,19 @@ text: doc/epsilon.text doc/pushover.text
 doc/epsilon.text: @srcdir@/doc/epsilon.texi
 	$(MAKEINFO) --footnote-style=end --no-split --no-headers \
 	            --number-sections -o $@ @srcdir@/doc/epsilon.texi
-doc/pushover.text: @srcdir@/doc/pushover.texi
-	$(MAKEINFO) --footnote-style=end --no-split --no-headers \
-	            --number-sections -o $@ @srcdir@/doc/pushover.texi
 # The info file is generated under @srcdir@ because GNU standards dictate it should
 # be distributed in source archives.
 EPSILON_MANUAL_FILES = \
   doc/epsilon.info doc/epsilon.html doc/epsilon.text doc/epsilon.dvi doc/epsilon.ps doc/epsilon.pdf
-PUSHOVER_MANUAL_FILES = \
-  doc/pushover.info doc/pushover.html doc/pushover.text doc/pushover.dvi doc/pushover.ps doc/pushover.pdf
-all-doc: $(EPSILON_MANUAL_FILES) $(PUSHOVER_MANUAL_FILES)
+MANUAL_FILES =
+MANUAL_FILES += \
+  $(EPSILON_MANUAL_FILES)
+
+all-doc: $(MANUAL_FILES) pdf ps
 #all-doc: @srcdir@/doc/epsilon.info doc/epsilon.html doc/epsilon.text doc/epsilon.dvi doc/epsilon.ps doc/epsilon.pdf
 clean-doc:
 #	rm -f @srcdir@/doc/epsilon.info
-	rm -f $(EPSILON_MANUAL_FILES) $(PUSHOVER_MANUAL_FILES)
+	rm -f $(MANUAL_FILES)
 # This remains in the root build directory, possibly because of Automake limitations
 # relative to paths, or just as an "intermediate" file for ps or pdf. I don't know
 # the exact reason, but this workaround works and allows us to pass distcheck.
@@ -647,6 +646,19 @@ clean-doc:
 # TEXI2PDF = $(TEXI2DVI) --pdf --batch
 
 ## ####################################################### Documentation: end
+
+## ####################################################### Examples: begin
+EXTRA_DIST += \
+  examples/pushover/pushover.e
+PUSHOVER_MANUAL_FILES = \
+  doc/pushover.info doc/pushover.html doc/pushover.text doc/pushover.dvi doc/pushover.ps doc/pushover.pdf
+info_TEXINFOS += \
+  doc/pushover.texi
+doc/pushover.text: @srcdir@/doc/pushover.texi
+	$(MAKEINFO) --footnote-style=end --no-split --no-headers \
+	            --number-sections -o $@ @srcdir@/doc/pushover.texi
+
+## ####################################################### Examples: end
 
 
 ## ####################################################### cleaning: begin

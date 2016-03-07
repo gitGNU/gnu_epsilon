@@ -619,19 +619,25 @@ info_TEXINFOS = doc/epsilon.texi
 doc_epsilon_TEXINFOS = \
   @srcdir@/doc/gpl.texi \
   @srcdir@/doc/fdl.texi
-text: doc/epsilon.text doc/pushover.text
+text: $(TEXT_FILES)
+TEXT_FILES = doc/epsilon.text
 doc/epsilon.text: @srcdir@/doc/epsilon.texi
 	$(MAKEINFO) --footnote-style=end --no-split --no-headers \
 	            --number-sections -o $@ @srcdir@/doc/epsilon.texi
 # The info file is generated under @srcdir@ because GNU standards dictate it should
 # be distributed in source archives.
 EPSILON_MANUAL_FILES = \
-  doc/epsilon.info doc/epsilon.html doc/epsilon.text doc/epsilon.dvi doc/epsilon.ps doc/epsilon.pdf
+  doc/epsilon.info \
+  doc/epsilon.html \
+  doc/epsilon.text \
+  doc/epsilon.dvi \
+  doc/epsilon.ps \
+  doc/epsilon.pdf
 MANUAL_FILES =
 MANUAL_FILES += \
   $(EPSILON_MANUAL_FILES)
 
-all-doc: $(MANUAL_FILES) pdf ps
+all-doc: $(MANUAL_FILES) info pdf ps text html
 #all-doc: @srcdir@/doc/epsilon.info doc/epsilon.html doc/epsilon.text doc/epsilon.dvi doc/epsilon.ps doc/epsilon.pdf
 clean-doc:
 #	rm -f @srcdir@/doc/epsilon.info
@@ -651,12 +657,19 @@ clean-doc:
 EXTRA_DIST += \
   examples/pushover/pushover.e
 PUSHOVER_MANUAL_FILES = \
-  doc/pushover.info doc/pushover.html doc/pushover.text doc/pushover.dvi doc/pushover.ps doc/pushover.pdf
+  examples/pushover/pushover.info \
+  examples/pushover/pushover.html \
+  examples/pushover/pushover.text \
+  examples/pushover/pushover.dvi \
+  examples/pushover/pushover.ps \
+  examples/pushover/pushover.pdf
+TEXT_FILES += \
+  examples/pushover/pushover.text
 info_TEXINFOS += \
-  doc/pushover.texi
-doc/pushover.text: @srcdir@/doc/pushover.texi
+  examples/pushover/pushover.texi
+examples/pushover/pushover.text: @srcdir@/examples/pushover/pushover.texi
 	$(MAKEINFO) --footnote-style=end --no-split --no-headers \
-	            --number-sections -o $@ @srcdir@/doc/pushover.texi
+	            --number-sections -o $@ $^
 
 ## ####################################################### Examples: end
 

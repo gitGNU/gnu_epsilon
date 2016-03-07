@@ -1,7 +1,6 @@
 ;;;;; Load advanced features and unexec an -*- epsilon -*- REPL.  No Guile.
 
-;;;;; Copyright (C) 2014, 2015  Luca Saiu
-;;;;; Updated in 2016 by Luca Saiu
+;;;;; Copyright (C) 2014, 2015, 2016  Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
 
@@ -49,6 +48,9 @@
 (e1:load (string:append configuration:abs_top_srcdir
                         configuration:dir_separator
                         "bootstrap/scheme/analyses-and-optimizations.e"))
+(e1:load (string:append configuration:abs_top_srcdir
+                        configuration:dir_separator
+                        "bootstrap/scheme/new-compiler.e"))
 
 
 ;;;;; Unexec a non-Guile REPL

@@ -259,6 +259,16 @@ else
   AC_MSG_ERROR([You need the Unix bc util.  You're building on some weird system])
 fi
 
+# We use help2man to generate man pages at dist time, as shown in the help2man
+# documentation.
+AC_CHECK_PROG(HAS_HELP2MAN, help2man, yes, no)
+if test "x$HAS_HELP2MAN" = "xyes"; then
+  AC_SUBST(has_help2man, "t")
+else
+  AC_MSG_WARN([You need GNU help2man to rebuild manual pages])
+fi
+AM_MISSING_PROG(HELP2MAN, help2man)
+
 # Checks that required libraries are installed:
 AC_LANG(C) # We're looking for C libraries:
 

@@ -637,7 +637,7 @@ MANUAL_FILES =
 MANUAL_FILES += \
   $(EPSILON_MANUAL_FILES)
 
-all-doc: $(MANUAL_FILES) info pdf ps text html
+all-doc: $(MANUAL_FILES) info pdf ps text html $(man1_MANS)
 #all-doc: @srcdir@/doc/epsilon.info doc/epsilon.html doc/epsilon.text doc/epsilon.dvi doc/epsilon.ps doc/epsilon.pdf
 clean-doc:
 #	rm -f @srcdir@/doc/epsilon.info
@@ -650,6 +650,35 @@ clean-doc:
 # # I want to invoke texi2pdf with -E, to workaround some strange macro behavior under TeX:
 # TEXI2DVI = texi2dvi -E
 # TEXI2PDF = $(TEXI2DVI) --pdf --batch
+
+# We build man pages using help2man at dist time, as shown in the help2man
+# documentation.  As a suboptimal but correct approximation we say that the
+# target to build at dist time before generating every man page with help2man
+# consists of all binary programs and all dumps.
+BEFOREHELP2MAN = $(bin_PROGRAMS) $(edump_pkgdata_DATA)
+HELP2MANFLAGS = --source=GNU --info-page=epsilon
+dist_man_MANS =
+dist_man_MANS += \
+  doc/epsilon.1
+# The program should *not* be a dependency in this case: see the help2man
+# documentation.
+doc/epsilon.1: $(EPSILON_SOURCE_FILES)
+	$(MAKE) $(AM_MAKEFLAGS) $(BEFOREHELP2MAN)
+	$(HELP2MAN) $(HELP2MANFLAGS) --output=$@ --name='GNU epsilon' "bin/epsilon-image-interpreter-tagged dumps/repl-from-epsilon1.u"
+
+dist_man_MANS += \
+  doc/epsilon-image-interpreter-tagged.1 \
+  doc/epsilon-image-interpreter-untagged.1 \
+  doc/epsilon-image-interpreter-smob.1
+doc/epsilon-image-interpreter-tagged.1: $(EPSILON_SOURCE_FILES)
+	$(MAKE) $(AM_MAKEFLAGS) $(BEFOREHELP2MAN)
+	$(HELP2MAN) $(HELP2MANFLAGS) --output=$@ --name='epsilon image interpreter (GNU epsilon)' "bin/$$(basename $@ .1)"
+doc/epsilon-image-interpreter-untagged.1: $(EPSILON_SOURCE_FILES)
+	$(MAKE) $(AM_MAKEFLAGS) $(BEFOREHELP2MAN)
+	$(HELP2MAN) $(HELP2MANFLAGS) --output=$@ --name='epsilon image interpreter (GNU epsilon)' "bin/$$(basename $@ .1)"
+doc/epsilon-image-interpreter-smob.1: $(EPSILON_SOURCE_FILES)
+	$(MAKE) $(AM_MAKEFLAGS) $(BEFOREHELP2MAN)
+	$(HELP2MAN) $(HELP2MANFLAGS) --output=$@ --name='epsilon image interpreter (GNU epsilon)' "bin/$$(basename $@ .1)"
 
 ## ####################################################### Documentation: end
 

@@ -2968,6 +2968,24 @@
   (list:append high-priority low-priority))
 
 
+;;;;; Alists: remove bindings for a list of keys
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Return the given alist without any binding for the keys in the given list.
+(e1:define (alist:unbind-keys-all alist keys)
+  (e1:if (list:null? keys)
+    alist
+    (alist:unbind-keys-all (alist:unbind-all alist (list:head keys))
+                           (list:tail keys))))
+
+;;; Return the given alist without the first binding for the keys in the given list.
+(e1:define (alist:unbind-keys-one alist keys)
+  (e1:if (list:null? keys)
+    alist
+    (alist:unbind-keys-one (alist:unbind-one alist (list:head keys))
+                           (list:tail keys))))
+
+
 ;;;;; List utility functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

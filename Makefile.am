@@ -828,7 +828,9 @@ bootstrap-repl: bootstrap-repl-from-epsilon1
 compress-bootstrap-repl: @abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u
 	if test @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz -ot "$<"; then \
 	  echo "Compressing the bootstrap REPL..."; \
-	  xz -9 - < "$<" > @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz; \
+	  xz -9 - < "$<" > @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz--tmp && \
+	    mv @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz--tmp \
+	       @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz; \
 	  echo "...done"; \
 	  sleep 2; \
 	  touch "$<"; \

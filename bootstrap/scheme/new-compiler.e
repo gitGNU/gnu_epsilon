@@ -573,14 +573,31 @@
       (unboxed-hash:get successors state-id)
       list:nil)))
 
+(e1:define (dataflow:predecessor-no graph state-id)
+  (list:length (dataflow:graph-predecessor-state-ids graph state-id)))
+(e1:define (dataflow:successor-no graph state-id)
+  (list:length (dataflow:graph-successor-state-ids graph state-id)))
+
 (e1:define (dataflow:graph-get-state graph state-id)
   (e1:let ((states (dataflow:graph-get-states graph)))
     (unboxed-hash:get states state-id)))
+
+(e1:define (dataflow:graph->state-ids graph)
+  (e1:let* ((states (dataflow:graph-get-states graph))
+            (alist (unboxed-hash:unboxed-hash->alist states)))
+    (alist:keys alist)))
+
+(e1:define (dataflow:graph-has-state-id? graph state-id)
+  (e1:let ((states (dataflow:graph-get-states graph)))
+    (unboxed-hash:has? states state-id)))
 
 (e1:define (dataflow:states-add-state! states state)
   (e1:let ((next-id (dataflow:states-next-state states)))
     (unboxed-hash:set! states next-id state)
     next-id))
+
+(e1:define (dataflow:states-remove-state! states state-id)
+  (unboxed-hash:unset! states state-id))
 
 (e1:define (dataflow:graph-add-instruction! graph instruction)
   (e1:let* ((states (dataflow:graph-get-states graph))
@@ -595,6 +612,44 @@
     (dataflow:graph-add-state-edge! graph predecessor-id state-id)
     state-id))
 
+;;; Remove the given state from the given graph, also removing every edge
+;;; involving the state.
+(e1:define (dataflow:graph-remove-state! graph state-id)
+  (e1:let ((states (dataflow:graph-get-states graph))
+           (predecessors (dataflow:graph-predecessor-state-ids graph state-id))
+           (successors (dataflow:graph-successor-state-ids graph state-id)))
+    (e1:dolist (predecessor-id predecessors)
+      (dataflow:graph-remove-state-edge! graph predecessor-id state-id))
+    (e1:dolist (successor-id successors)
+      (dataflow:graph-remove-state-edge! graph state-id successor-id))
+    (dataflow:states-remove-state! states state-id)
+    state-id))
+
+;;; Remove the given state from the given graph, so that all its predecessors
+;;; point to its successor.  Notice that this only makes sense when the
+;;; successor is unique: this procedure cannot be applied to an if node --
+;;; however the predecessors and successor are allowed to be an if node, and
+;;; where needed the predecessor instructions are updated to contain the new
+;;; jump destination.
+(e1:define (dataflow:graph-bypass-state! graph state-id)
+  (e1:let* ((states (dataflow:graph-get-states graph))
+            (predecessors (dataflow:graph-predecessor-state-ids graph state-id))
+            (successors (dataflow:graph-successor-state-ids graph state-id)))
+    (e1:require (fixnum:= (list:length successors) 1))
+    (e1:let ((successor-id (list:head successors)))
+      (dataflow:graph-remove-state! graph state-id)
+      (e1:dolist (predecessor-id predecessors)
+        (dataflow:graph-add-state-edge! graph predecessor-id successor-id)
+        (e1:let* ((predecessor-state (unboxed-hash:get states predecessor-id))
+                  (predecessor-instruction (dataflow:state-get-instruction predecessor-state)))
+          (e1:match predecessor-instruction
+            ((dataflow:instruction-if _ _ then else)
+             (e1:when (fixnum:= then state-id)
+               (dataflow:instruction-if-set-then! predecessor-instruction successor-id))
+             (e1:when (fixnum:= else state-id)
+               (dataflow:instruction-if-set-else! predecessor-instruction successor-id)))
+            (else)))))))
+
 (e1:define (dataflow:graph-add-state-edge! graph from-id to-id)
   (e1:let ((successors (dataflow:graph-get-successors graph))
            (predecessors (dataflow:graph-get-predecessors graph)))
@@ -602,6 +657,16 @@
               (to-predecessors (dataflow:graph-predecessor-state-ids graph to-id))
               (new-from-successors (set-as-list:with from-successors to-id))
               (new-to-predecessors (set-as-list:with to-predecessors from-id)))
+      (unboxed-hash:set! successors from-id new-from-successors)
+      (unboxed-hash:set! predecessors to-id new-to-predecessors))))
+
+(e1:define (dataflow:graph-remove-state-edge! graph from-id to-id)
+  (e1:let ((successors (dataflow:graph-get-successors graph))
+           (predecessors (dataflow:graph-get-predecessors graph)))
+    (e1:let* ((from-successors (dataflow:graph-successor-state-ids graph from-id))
+              (to-predecessors (dataflow:graph-predecessor-state-ids graph to-id))
+              (new-from-successors (set-as-list:without from-successors to-id))
+              (new-to-predecessors (set-as-list:without to-predecessors from-id)))
       (unboxed-hash:set! successors from-id new-from-successors)
       (unboxed-hash:set! predecessors to-id new-to-predecessors))))
 
@@ -689,26 +754,6 @@
        (dataflow:instruction-if-set-else! instruction else-id)
        (dataflow:graph-add-state-edge! graph else-pre-phi-id next-id)
        (dataflow:add-anf-to-graph! graph body then-pre-phi-id)))
-    #;((anf:expression-let-if-in bounds discriminand values then-expression else-expression body)
-     (e1:let* ((instruction (dataflow:instruction-if discriminand values -1 -1))
-               (id (dataflow:graph-add-instruction-after! graph
-                                                          instruction
-                                                          predecessor-id))
-               (then-id (dataflow:graph-next-state graph))
-               (then-pre-phi-id  ;; FIXME: the "-after" part is very questionable.
-                (dataflow:add-anf-to-graph! graph then-expression id))
-               (else-id (dataflow:graph-next-state graph))
-               (else-pre-phi-id  ;; FIXME: the "-after" part is very questionable.
-                (dataflow:add-anf-to-graph! graph else-expression id))
-               (phi-id
-                (dataflow:graph-add-instruction-after!
-                   graph
-                   (dataflow:instruction-phi bounds ()) ;; FIXME: the () part is wrong
-                   then-pre-phi-id)))
-       (dataflow:instruction-if-set-then! instruction then-id)
-       (dataflow:instruction-if-set-else! instruction else-id)
-       (dataflow:graph-add-state-edge! graph else-pre-phi-id phi-id)
-       (dataflow:add-anf-to-graph! graph body phi-id)))
     ((anf:expression-return variables)
      (dataflow:graph-add-tail-instruction-after!
         graph
@@ -725,7 +770,7 @@
                (() (dataflow:add-anf-to-graph! graph else-expression id)))
        (dataflow:instruction-if-set-then! instruction then-id)
        (dataflow:instruction-if-set-else! instruction else-id)
-       -1)) ;; An intentionally invalid statee: the result should never be used.
+       -1)) ;; An intentionally invalid state: the result should never be used.
     ((anf:expression-tail-call procedure-name actuals)
      (dataflow:graph-add-tail-instruction-after!
         graph
@@ -743,41 +788,6 @@
         predecessor-id))
     (else
      (e1:error "dataflow:add-e0-to-graph!: invalid case or unimplemented"))))
-
-;;; FIXME: some optimizations over nested conditionals as generated by e1:and
-;;; and e1:or should be easy to perform by transforming the graph after its
-;;; construction: for example
-;;; (e1:define (f x y z t a b) (e1:if (e1:and x y z t) a b))
-;;; first computes a boolean value, then performs a further useless if over the
-;;; result.  Cases such as this should be recognized, and jump targets should be
-;;; changed generating converging edges.  No new phis or pre-phis would be needed,
-;;; and this seems safe.  The change would make some nodes inaccessible: they
-;;; could be removed from the graph, but even that doesn't look absolutely
-;;; necessary.  Opportunities to perform the new optimization would be found by
-;;; a form of constant folding in the graph, starting from each successor of an
-;;; if node up to the next further conditional which is discovered: when the
-;;; next further conditional destination can be determined by the analysis the
-;;; destination of the edge to the next conditioanl should be changed to skip
-;;; it.
-;;;
-;;; I strongly suspect the optimization would also eliminate unnecessary e1:not's:
-;;; (e1:define-macro (e1:notm x) `(e1:if ,x #f #t))
-;;; (e1:define (f x a b) (e1:if (e1:notm x) a b))
-;;;
-;;; Verify that the optimization also reduces more complicated cases such as
-;;; (e1:define (f x y z t a b) (e1:if (e1:and x (e1:or y z) t) a b)) .
-;;;
-;;; Similar cases or redundant conditionals also happen with pattern matching:
-;;; (e1:define-sum mylist (nil) (cons head tail))
-;;; (e1:define (mylength xs) (e1:match xs ((mylist-nil) 1) ((mylist-cons _ tail) (fixnum:1+ (mylength tail)))))
-;;; The last conditional, yielding a no-match error, cannot be eliminated this
-;;; way and requires a different e1:match form.  The current e1:match should
-;;; also remain available.
-
-;;; Also test these:
-;;; (e1:define (f a b c d) (e1:let ((x (e1:and a b))) (e1:if x c d)))
-;;; (e1:define (f a b c d) (e1:let ((x (e1:or a b))) (e1:if x c d)))
-;;; , which may be slightly more difficult.
 
 
 ;;;;; Liveness analysis
@@ -826,24 +836,27 @@
 
 ;;; FIXME: rename: use "kill-set" and "gen-set" 
 
+;;; Remove all the liveness information from the given graph.
+(e1:define (dataflow:clear-liveness! graph)
+  (e1:let ((states (dataflow:graph-get-states graph)))
+    (e1:dohash (_ state states)
+      (dataflow:state-set-in-lives! state list:nil)
+      (dataflow:state-set-out-lives! state list:nil))))
+
 (e1:define (dataflow:analyze-liveness! graph)
   (e1:let* ((end-id (dataflow:graph-get-end-id graph))
             (state-no (dataflow:graph-state-no graph))
             (iteration-counter (box:make 0))
-            ;; Building a worklist in this order is better for convenrgence speed:
-            ;; states are popped off the worklist from the end to the beginning,
-            ;; so that when state updates cause their predecessors to be pushed
-            ;; we don't work on the same states again.
-            (initial-worklist (list:cons 1
-                                         (list:append-reversed (list:range 2 (fixnum:1- state-no))
-                                                               (list:list 0))))
+            ;; FIXME: topologically sort the initial worklist end-to-beginning, to
+            ;; improve convergence speed.  After sorting we can always converge in
+            ;; one pass on an acyclic graph.
+            (initial-worklist (dataflow:graph->state-ids graph))
             (worklist-elements (unboxed-hash:make))
             #;(terminal-ids (dataflow:graph-predecessor-state-ids graph end-id)))
     (e1:dolist (id initial-worklist)
       (unboxed-hash:set! worklist-elements id #f))
     #;(fio:write "Liveness: end-id is " (i end-id) "\n")
     #;(fio:write "Liveness: terminal-ids has size " (i (list:length terminal-ids)) "\n")
-
     (e1:let loop ((worklist initial-worklist))
       #;(fio:write "\n* Liveness:\n  worklist has size " (i (list:length worklist)) "\n")
       (e1:unless (list:null? worklist)
@@ -854,7 +867,6 @@
                   (old-in-lives (dataflow:state-get-in-lives state))
                   (instruction (dataflow:state-get-instruction state))
                   (old-out-lives (dataflow:state-get-out-lives state))
-
                   ((defineds useds)
                    (dataflow:instruction->defineds-useds instruction))
                   (new-out-lives
@@ -880,7 +892,6 @@
           #;(anf:write-variables (io:standard-output) useds)
           #;(fio:write "}\n")
           #;(e1:unless (fixnum:zero? first-id)  )
-
           (dataflow:state-set-in-lives! state new-in-lives)
           (dataflow:state-set-out-lives! state new-out-lives)
           (e1:let ((new-worklist
@@ -909,8 +920,271 @@
                " iterations (states are " (i state-no) ").\n")))
 
 
-;;;;; Graph construction driver [FIXME: write this]
+;;;;; Control-flow graph: useless if skipping
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Some optimizations over nested conditionals, particularly as generated by
+;;; e1:and and e1:or, are quite easy to perform by transforming the graph after
+;;; its construction: for example
+;;; (e1:define (f x y z t a b) (e1:if (e1:and x y z t) a b))
+;;; first computes a boolean value, then performs a further useless conditional
+;;; over the result.  Another obvious case is boolean negation in a condition:
+;;; (e1:define-macro (e1:notm x) `(e1:if ,x #f #t))
+;;; (e1:define (f x a b) (e1:if (e1:notm x) a b)) .
+
+;;; Cases such as these should be recognized when possible, and jump targets
+;;; changed to generate converging edges.  The change can make some if nodes
+;;; inaccessible, and some pre-phi nodes useless.  Opportunities to perform this
+;;; optimization are found by a form of constant folding thru the graph.
+;;;
+;;; Similar cases or redundant conditionals also happen with pattern matching:
+;;; (e1:define-sum mylist (nil) (cons head tail))
+;;; (e1:define (mylength xs)
+;;;   (e1:match xs ((mylist-nil) 1)
+;;;                ((mylist-cons _ tail) (fixnum:1+ (mylength tail)))))
+;;; The last conditional, yielding a no-match error, cannot be eliminated this
+;;; way and requires a different e1:match form.  The current e1:match should
+;;; also remain available.
+
+(e1:define (dataflow:skip-useless-ifs! graph)
+  (e1:let* ((begin-id (dataflow:graph-get-begin-id graph))
+            (after-begin-ids (dataflow:graph-successor-state-ids graph begin-id))
+            (after-begin-id (e1:assert (fixnum:= (list:length after-begin-ids) 1))
+                            (list:head after-begin-ids)))
+    (dataflow:skip-useless-ifs-from! graph
+                                     begin-id
+                                     after-begin-id
+                                     alist:nil
+                                     list:nil
+                                     (string-hash:make))))
+
+;;; Return the given environment updated with the known bindings from a pre-phi
+;;; move.  For each bound variable the returned environment contains a binding
+;;; if the pre-phi instruction binds the corresponding source variable to a
+;;; variable whose value is already known in the environment, and contains no
+;;; binding otherwise.
+(e1:define (dataflow:bind-pre-phi env bounds sources)
+  (e1:cond ((list:null? bounds)
+            env)
+           ((list:null? sources)
+            (alist:unbind-keys-all env bounds))
+           (bind (first-bound (list:head bounds))
+                 (first-source (list:head sources))
+                 (other-bounds (list:tail bounds))
+                 (other-sources (list:tail sources)))
+           ((alist:has? env first-source)
+            (dataflow:bind-pre-phi (alist:bind env
+                                               first-bound
+                                               (alist:lookup env first-source))
+                                   other-bounds
+                                   other-sources))
+           (else
+            (dataflow:bind-pre-phi (alist:unbind-all env first-bound)
+                                   other-bounds
+                                   other-sources))))
+
+(e1:define (dataflow:skip-useless-ifs-from! graph predecessor-id id env branch-bounds visited)
+  (e1:unless (string-hash:has? visited (vector:vector predecessor-id id))
+    (string-hash:set! visited (vector:vector predecessor-id id) #f)
+    (e1:let* ((state (dataflow:graph-get-state graph id))
+              (instruction (dataflow:state-get-instruction state))
+              (successor-ids (dataflow:graph-successor-state-ids graph id))
+              (successor-id (e1:if (fixnum:zero? (list:length successor-ids))
+                              -1 ;; invalid
+                              (list:head successor-ids)))
+              (id-predecessor-no (dataflow:predecessor-no graph id))
+              ;;; If the id node has more than one predecessor then we cannot
+              ;;; assume that the variables bound in pre-phi nodes (kept in the
+              ;;; branch-bounds list) will be valid from all paths.
+              (new-env (e1:if (fixnum:< id-predecessor-no 2)
+                         env
+                         (alist:unbind-keys-all env branch-bounds))))
+      (e1:match instruction
+        ((or (dataflow:instruction-return _)
+             (dataflow:instruction-tail-call _ _)
+             (dataflow:instruction-tail-call-indirect _ _))) ;; do nothing and return
+        ((dataflow:instruction-literal bound content)
+         (e1:let ((new-env (alist:bind new-env bound content)))
+           (dataflow:skip-useless-ifs-from! graph id successor-id new-env branch-bounds visited)))
+        ((or (dataflow:instruction-undefined bound)
+             (dataflow:instruction-global bound _))
+         (e1:let ((new-env (alist:unbind-all new-env bound)))
+           (dataflow:skip-useless-ifs-from! graph id successor-id new-env branch-bounds visited)))
+        ((or (dataflow:instruction-primitive bounds _ _)
+             (dataflow:instruction-nontail-call bounds _ _)
+             (dataflow:instruction-nontail-call-indirect bounds _ _))
+         (e1:let ((new-env (alist:unbind-keys-all new-env bounds)))
+           (dataflow:skip-useless-ifs-from! graph id successor-id new-env branch-bounds visited)))
+        ((dataflow:instruction-pre-phi bounds sources)
+         (e1:let ((new-env (dataflow:bind-pre-phi new-env bounds sources))
+                  (branch-bounds (list:append-reversed bounds branch-bounds)))
+           (dataflow:skip-useless-ifs-from! graph id successor-id new-env branch-bounds visited)))
+        ((dataflow:instruction-if variable values then-id else-id)
+         (e1:if (alist:has? env variable)
+           (e1:let ((successor-id
+                     (e1:if (list:has? values (alist:lookup env variable))
+                       then-id
+                       else-id))
+                    #;(env (alist:unbind-keys-all env branch-bounds)))
+             (fio:write "Optimized away if: " (i predecessor-id) " -> " (i id) "\n")
+             (dataflow:graph-remove-state-edge! graph predecessor-id id)
+             (dataflow:graph-add-state-edge! graph predecessor-id successor-id)
+             ;; The old if successors may still be reachable from other if predecessors,
+             ;; so we still have to follow them both.
+             (dataflow:skip-useless-ifs-from! graph id then-id new-env branch-bounds visited)
+             (dataflow:skip-useless-ifs-from! graph id else-id new-env branch-bounds visited))
+           (e1:begin
+             (dataflow:skip-useless-ifs-from! graph id then-id new-env branch-bounds visited)
+             (dataflow:skip-useless-ifs-from! graph id else-id new-env branch-bounds visited))))
+        ((dataflow:instruction-end)
+         (e1:error "reached end: this should never happen"))
+        ((dataflow:instruction-phi _ _)
+         (e1:error "phi should no longer occur"))
+        (else
+         (fio:write "About the instruction ")
+         (dataflow:write-instruction (io:standard-output) instruction)
+         (fio:write ":\n")
+         (e1:error "dataflow:skip-useless-ifs-from!: unknown instruction"))))))
+
+;;; dataflow:skip-useless-ifs! can make some if nodes inaccessible.  It's
+;;; important to remove them before liveness analysis for them not to affect
+;;; liveness analysis, where information flows backwards: their use of variables
+;;; would keep alive some variables which are made dead by the optimization.
+(e1:define (dataflow:remove-inaccessible-states! graph)
+  ;;; Keep performing state removal passes until no more states are
+  ;;; inaccessible.
+  (e1:while (dataflow:remove-inaccessible-states!-one-pass graph)))
+
+;;; Return #t iff at least one state was removed.
+(e1:define (dataflow:remove-inaccessible-states!-one-pass graph)
+  (e1:let ((states (dataflow:graph-get-states graph))
+           (begin-id (dataflow:graph-get-begin-id graph))
+           (removed (box:make #f)))
+    (e1:dohash (state-id state states)
+      #;(fio:write "Considering state " (i state-id) ", with predecessors [ ")
+      #;(e1:dolist (predecessor-id (dataflow:graph-predecessor-state-ids graph state-id))
+        (fio:write (i predecessor-id) " "))
+      #;(fio:write "] and successors [ ")
+      #;(e1:dolist (successor-id (dataflow:graph-successor-state-ids graph state-id))
+        (fio:write (i successor-id) " "))
+      #;(fio:write "]...\n")
+      (e1:let ((instruction (dataflow:state-get-instruction state)))
+        (e1:when (e1:and (e1:not (dataflow:instruction-begin? instruction))
+                         (fixnum:zero? (dataflow:predecessor-no graph state-id)))
+          (fio:write "Removed inaccessible state " (i state-id) ":  ")
+          (dataflow:write-instruction (io:standard-output) instruction)
+          (fio:write "\n")
+          (box:set! removed #t)
+          (dataflow:graph-remove-state! graph state-id))))
+    (box:get removed)))
+
+
+;;;;; Control-flow graph: useless state removal
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Useless if removals will make some pre-phi nodes useless; such nodes are
+;;; easy to recognize thru liveness analysis, as pre-phi nodes where all bound
+;;; variables are dead.  Bypassing uselss pre-phi nodes may make other nodes
+;;; useless, and again they can be identified with liveness analysis.  This
+;;; analyze-remove loop may be repeated until convergence.
+
+;;; A useless state implements some operation with no observable effect whose
+;;; result is dead according to liveness analysis.  This procedure removes such
+;;; useless states from the given graph, which must contain liveness information
+;;; on entry.  Return non-#f iff at least one state was removed.
+(e1:define (dataflow:remove-useless-states! graph)
+  (e1:let ((states (dataflow:graph-get-states graph))
+           (removed (box:make #f)))
+    (e1:dohash (state-id state states)
+      (e1:let ((instruction (dataflow:state-get-instruction state))
+               (out-lives (dataflow:state-get-out-lives state)))
+        (e1:match instruction
+          ((dataflow:instruction-pre-phi bounds _)
+           (e1:when (set-as-list:empty? (set-as-list:intersection out-lives bounds))
+             (fio:write "Removed useless state " (i state-id) ":  ")
+             (dataflow:write-instruction (io:standard-output) instruction)
+             (fio:write "\n")
+             (box:set! removed #t)
+             (dataflow:graph-bypass-state! graph state-id)))
+          ((dataflow:instruction-primitive bounds primitive-name _)
+           (e1:when (e1:and (e1:not (state:primitive-get-side-effecting primitive-name))
+                            (set-as-list:empty? (set-as-list:intersection out-lives bounds)))
+             (fio:write "Removed useless state " (i state-id) ":  ")
+             (dataflow:write-instruction (io:standard-output) instruction)
+             (fio:write "\n")
+             (box:set! removed #t)
+             (dataflow:graph-bypass-state! graph state-id)))
+          ((or (dataflow:instruction-literal bound _)
+               (dataflow:instruction-global bound _)
+               (dataflow:instruction-undefined bound _))
+           (e1:unless (set-as-list:has? out-lives bound)
+             (fio:write "Removed useless state " (i state-id) ":  ")
+             (dataflow:write-instruction (io:standard-output) instruction)
+             (fio:write "\n")
+             (box:set! removed #t)
+             (dataflow:graph-bypass-state! graph state-id)))
+          (else)))) ;; do nothing for the other cases.
+    (box:get removed)))
+
+;;; FIXME: pre-phis binding variables which occur only once in the procedure can
+;;; be eliminated by renaming the bound variables to the used variables.
+
+
+;;;;; Control flow graph optimization driver
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Simplify the given control-flow graph, which is not required to have liveness
+;;; or register-allocation information at entry.  Such information will be present
+;;; [FIXME: actually do that for register allocation] when the procedure returns.
+(e1:define (dataflow:optimize-graph! graph)
+  ;; First skip useless ifs: this may generate some inaccessible states...
+  (dataflow:skip-useless-ifs! graph)
+  (fio:write "Skipped useless ifs with success.\n")
+  ;; ...that we can easily remove.
+  (dataflow:remove-inaccessible-states! graph)
+  (fio:write "Removed inaccessible states with success.\n")
+  ;; Now there may be useless pre-phi nodes; they are easy to recognize thru a
+  ;; liveness analysis.  Removing useless states may generate other useless
+  ;; states, recognizable again with a liveness analysis.  Repeat until
+  ;; convergence.
+  (dataflow:analyze-liveness! graph)
+  (e1:while (dataflow:remove-useless-states! graph)
+    (dataflow:clear-liveness! graph)
+    (dataflow:analyze-liveness! graph))
+  (fio:write "Removed useless states with success.\n"))
+
+
+;;;;; Control flow graph construction driver
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Return a control flow graph from the given epsilon0 espression, where the
+;;; given symbol list represents formal parameters, if any.  The control flow
+;;; graph contains liveness information and [FIXME: implement this] register
+;;; allocation for each variable.
+(e1:define (dataflow:make-expression-graph expression formals)
+  (e1:let* ((optimized-expression (e0:optimize-expression expression))
+            (() (fio:write "optimized the epsilon0 expression with success.\n"))
+            (alpha-converted-expression (e0:alpha-convert-expression optimized-expression))
+            (anf (anf:convert-tail alpha-converted-expression formals))
+            (() (fio:write "ANF-converted with success.\n"))
+            (graph (dataflow:make-graph)))
+    (fio:write "expression:\n" "  " (e expression) "\n")
+    (fio:write "optimized-expression:\n" "  " (e optimized-expression) "\n")
+    (fio:write "ANF expression:\n  ")
+    (anf:write-anf-expression (io:standard-output) anf)
+    (fio:write "\n")
+    (dataflow:add-anf-to-graph! graph anf (dataflow:graph-get-begin-id graph))
+    (fio:write "Made graph with success.\n")
+    (dataflow:optimize-graph! graph)
+    (fio:write "Analyzed liveness with success.\n")
+    graph))
+
+;;; Return a control-flow graph, as per dataflow:make-expression-graph , for the
+;;; epsilon0 procedure having the given name.
+(e1:define (dataflow:make-procedure-graph procedure-name)
+  (e1:let ((body (state:procedure-get-body procedure-name))
+           (formals (state:procedure-get-formals procedure-name)))
+    (dataflow:make-expression-graph body formals)))
 
 
 ;;;;; Debugging and graph output
@@ -919,11 +1193,14 @@
 (e1:define (dataflow:print-graph file-name graph graph-comment)
   (e1:let ((file (io:open-file file-name io:write-mode))
            (states (dataflow:graph-get-states graph))
-           (successors (dataflow:graph-get-successors graph)))
+           (successors (dataflow:graph-get-successors graph))
+           (begin-id (dataflow:graph-get-begin-id graph))
+           (end-id (dataflow:graph-get-end-id graph)))
     (fio:write-to file "digraph {
   rankdir = TB/*LR*/;
   graph [nodesep=\"1\", fizedsize=true];
   pack = true;
+  overlap = false;
   fizedsize=true;
   labelloc = top;
   labeljust = left;
@@ -955,9 +1232,10 @@
                                            (dataflow:instruction-tail-call? instruction)
                                            (dataflow:instruction-tail-call-indirect? instruction))
                                     "fillcolor=\"lightblue\", ")
-                                   ((e1:or (dataflow:instruction-begin? instruction)
-                                           (dataflow:instruction-end? instruction))
-                                    "shape=\"ellipse\", fillcolor=\"lightgrey\", color=\"lightgrey\", ")
+                                   ((dataflow:instruction-begin? instruction)
+                                    "shape=\"ellipse\", fillcolor=\"lightgrey\", color=\"lightgrey\", rank=min, ")
+                                   ((dataflow:instruction-end? instruction)
+                                    "shape=\"ellipse\", fillcolor=\"lightgrey\", color=\"lightgrey\", rank=max, ")
                                    (else
                                     "")))
                       "label=\"")
@@ -985,10 +1263,12 @@
       (e1:dolist (to-id to-ids)
         ;;(e1:unless (fixnum:= to-id 1)
           (fio:write-to file "  " (i from-id) " -> " (i to-id)
-                        (st (e1:if (e1:or (fixnum:= from-id 0)
-                                          (fixnum:= to-id 1))
-                              " [/*style=dashed,*/ color=grey] "
-                              ""))
+                        (st (e1:cond ((fixnum:= from-id begin-id)
+                                      "[/*style=dashed,*/ color=grey]")
+                                     ((fixnum:= to-id end-id)
+                                      "[/*style=dashed,*/ color=grey]")
+                                     (else
+                                      "")))
                         ";\n")));;)
     (fio:write-to file "}\n")
     (io:close-file file)))
@@ -999,24 +1279,10 @@
     (unix:system "dot /tmp/graph.dot -T pdf -o /tmp/a.pdf && echo xpdf /tmp/a.pdf")))
 
 (e1:define (dataflow:show-procedure-graph procedure-name)
-  (e1:let* ((body (state:procedure-get-body procedure-name))
-            (optimized-body (e0:optimize-expression body))
-            (formals (state:procedure-get-formals procedure-name))
-            (alpha-converted-body (e0:alpha-convert-expression optimized-body))
-            (anf (anf:convert-tail alpha-converted-body formals))
-            (() (fio:write "ANF-converted with success.\n"))
-            (graph (dataflow:make-graph)))
-    (fio:write "body:\n" "  " (e body) "\n")
-    (fio:write "optimized-body:\n" "  " (e optimized-body) "\n")
-    (fio:write "ANF body:\n  ")
-    (anf:write-anf-expression (io:standard-output) anf)
-    (fio:write "\n")
-    (dataflow:add-anf-to-graph! graph anf (dataflow:graph-get-begin-id graph))
-    (fio:write "Made graph with success.\n")
-    (dataflow:analyze-liveness! graph)
-    (fio:write "Analyzed liveness with success.\n")
-    (e1:let ((label-box (box:make (string:append "("
-                                                 (symbol:symbol->string procedure-name)))))
+  (e1:let ((graph (dataflow:make-procedure-graph procedure-name))
+           (formals (state:procedure-get-formals procedure-name)))
+    (e1:let ((label-box
+              (box:make (string:append "(" (symbol:symbol->string procedure-name)))))
       (e1:dolist (f formals)
         (box:set! label-box
                   (string:append (box:get label-box)

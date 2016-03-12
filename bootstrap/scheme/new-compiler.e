@@ -532,7 +532,7 @@
     ((dataflow:instruction-tail-call-indirect procedure actuals)
      (e1:bundle () (list:cons procedure actuals)))
     (else
-     (fio:error "dataflow:instruction->defineds-useds: invalid or unimplemented case"))))
+     (e1:error "dataflow:instruction->defineds-useds: invalid or unimplemented case"))))
 
 (e1:define (dataflow:make-graph)
   (e1:let* ((states (unboxed-hash:make))
@@ -1101,7 +1101,7 @@
         (e1:match instruction
           ((dataflow:instruction-pre-phi bounds _)
            (e1:when (set-as-list:empty? (set-as-list:intersection out-lives bounds))
-             (fio:write "Removed useless state " (i state-id) ":  ")
+             (fio:write "Removed useless pre-phi state " (i state-id) ":  ")
              (dataflow:write-instruction (io:standard-output) instruction)
              (fio:write "\n")
              (box:set! removed #t)
@@ -1109,7 +1109,7 @@
           ((dataflow:instruction-primitive bounds primitive-name _)
            (e1:when (e1:and (e1:not (state:primitive-get-side-effecting primitive-name))
                             (set-as-list:empty? (set-as-list:intersection out-lives bounds)))
-             (fio:write "Removed useless state " (i state-id) ":  ")
+             (fio:write "Removed useless primitive state " (i state-id) ":  ")
              (dataflow:write-instruction (io:standard-output) instruction)
              (fio:write "\n")
              (box:set! removed #t)
@@ -1118,7 +1118,7 @@
                (dataflow:instruction-global bound _)
                (dataflow:instruction-undefined bound _))
            (e1:unless (set-as-list:has? out-lives bound)
-             (fio:write "Removed useless state " (i state-id) ":  ")
+             (fio:write "Removed useless single-binding state " (i state-id) ":  ")
              (dataflow:write-instruction (io:standard-output) instruction)
              (fio:write "\n")
              (box:set! removed #t)
@@ -1198,8 +1198,9 @@
            (end-id (dataflow:graph-get-end-id graph)))
     (fio:write-to file "digraph {
   rankdir = TB/*LR*/;
-  graph [nodesep=\"1\", fizedsize=true];
-  pack = true;
+  //graph [nodesep=\"1\", fizedsize=true];
+  margin = 0; padding = 0;
+  pack = false;
   overlap = false;
   fizedsize=true;
   labelloc = top;
@@ -1207,6 +1208,8 @@
   label = \"" (st graph-comment) "\";
   node [shape=\"box\", /*style=\"rounded, filled\",*/ fillcolor=\"lavender\"]
   /*node [shape=\"box\", font=\"Courier\", style=\"rounded, filled\", color=\"white\" fillcolor=\"lavender\", margin=\"0\", pad=\"0\"];*/
+  edge [weight=1, ];
+  splines=true;
   /*edge [style=\">=stealth',shorten >=1pt\"];*/
 \n\n")
     (e1:dohash (id state states)
@@ -1239,37 +1242,33 @@
                                    (else
                                     "")))
                       "label=\"")
-        ;;(e1:unless (e1:or (fixnum:= id 0) (fixnum:= id 1))
-          (fio:write-to file "{")
-          (anf:write-variables file in-lives)
-          (fio:write-to file "}\\n");;)
-          (fio:write-to file (i id) ". ")
-          (dataflow:write-instruction file (dataflow:state-get-instruction state))
-          ;;(e1:unless (e1:or (fixnum:= id 0) (fixnum:= id 1))
-          (fio:write-to file "\\n{")
-          (anf:write-variables file out-lives)
-          (fio:write-to file "}");;)
-          (fio:write-to file "\"];\n")
-          ;;; Force orderining of conditional branches: then on the left and else
-          ;;; on the right, on the same rank.
-          (e1:match instruction
-            ((dataflow:instruction-if _ _ then else)
-             (fio:write-to file "  {rank=same " (i then) " " (i else) "};\n")
-             (fio:write-to file "  " (i then) " -> " (i else)
-                           " [style=\"invis\"];\n"))
-            (else)))) ;; do nothing in the other cases.
+        (fio:write-to file "{")
+        (anf:write-variables file in-lives)
+        (fio:write-to file "}\\n")
+        (fio:write-to file (i id) ". ")
+        (dataflow:write-instruction file (dataflow:state-get-instruction state))
+        (fio:write-to file "\\n{")
+        (anf:write-variables file out-lives)
+        (fio:write-to file "}")
+        (fio:write-to file "\"];\n")
+        ;; Force orderining of conditional branches: then on the left and else
+        ;; on the right, on the same rank.
+        (e1:match instruction
+          ((dataflow:instruction-if _ _ then else)
+           (fio:write-to file "  {rank=same " (i then) " -> " (i else)
+                         " [color=red, style=dashed, weight=1]};\n"))
+          (else)))) ;; do nothing in the other cases.
     (fio:write-to file "\n")
     (e1:dohash (from-id to-ids successors)
       (e1:dolist (to-id to-ids)
-        ;;(e1:unless (fixnum:= to-id 1)
-          (fio:write-to file "  " (i from-id) " -> " (i to-id)
-                        (st (e1:cond ((fixnum:= from-id begin-id)
-                                      "[/*style=dashed,*/ color=grey]")
-                                     ((fixnum:= to-id end-id)
-                                      "[/*style=dashed,*/ color=grey]")
-                                     (else
-                                      "")))
-                        ";\n")));;)
+        (fio:write-to file "  " (i from-id) " -> " (i to-id)
+                      (st (e1:cond ((fixnum:= from-id begin-id)
+                                    "[/*style=dashed,*/ color=grey]")
+                                   ((fixnum:= to-id end-id)
+                                    "[/*style=dashed,*/ color=grey]")
+                                   (else
+                                    "")))
+                      ";\n")))
     (fio:write-to file "}\n")
     (io:close-file file)))
 

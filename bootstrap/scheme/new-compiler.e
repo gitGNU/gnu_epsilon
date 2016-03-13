@@ -1282,17 +1282,143 @@
           (else)))) ;; do nothing for the other cases.
     (box:get removed)))
 
-;;; FIXME: pre-phis binding variables which occur only once in the procedure can
+
+;;;;; Control-flow graph: unique pre-phi removal
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Pre-phis binding variables which occur only once in the procedure can
 ;;; be eliminated by renaming the bound variables to the used variables.
+;;; This is important as it enables more optimizations.
+
+;;; Return non-#f iff at least a state was removed.
+(e1:define (dataflow:remove-unique-pre-phis! graph)
+  (e1:let ((states (dataflow:graph-get-states graph))
+           (variable->ids (unboxed-hash:make))
+           (removed (box:make #f)))
+    ;; Make a hash mapping each pre-phi-defined variable to a set-as-list of
+    ;; state ids defining it.
+    (e1:dohash (state-id state states)
+      (e1:let ((instruction (dataflow:state-get-instruction state)))
+        (e1:match instruction
+          ((dataflow:instruction-pre-phi bounds _)
+           (e1:dolist (bound bounds)
+             (e1:if (unboxed-hash:has? variable->ids bound)
+               (e1:let* ((other-ids (unboxed-hash:get variable->ids bound))
+                         (new-ids (set-as-list:with other-ids state-id)))
+                 (unboxed-hash:set! variable->ids bound new-ids))
+               (unboxed-hash:set! variable->ids bound (set-as-list:singleton state-id)))))
+          (else))))
+    ;; Now scan the hash we made: we can eliminate every pre-phi which is the
+    ;; only one to define a given variable, renaming each use.
+    (e1:dohash (variable state-ids variable->ids)
+      (e1:when (fixnum:= (list:length state-ids) 1)
+        (e1:let* ((state-id (list:head state-ids))
+                  (state (unboxed-hash:get states state-id))
+                  (instruction (dataflow:state-get-instruction state)))
+          (e1:match instruction
+            ;; FIXME: can I ignore undefined bindings to the same variable?
+            ;; I'm almost sure I can.
+            ((dataflow:instruction-pre-phi bounds sources)
+             ;; Since we already split pre-phis and introduced undefined nodes here
+             ;; we can assume that there is exactly one bound variable and one
+             ;; source variable.
+             (e1:require (fixnum:= (list:length bounds) 1))
+             (e1:require (fixnum:= (list:length sources) 1))
+             (e1:let ((bound (list:head bounds))
+                      (source (list:head sources)))
+               (box:set! removed #t)
+               (fio:write "Removing unique pre-phi " (i state-id) "\n")
+               (dataflow:graph-bypass-state! graph state-id)
+               (dataflow:graph-rename-uses! graph bound source)))
+            (else
+             (e1:assert #f)))))) ;; this is *must* belong to a pre-phi.
+    (box:get removed)))
+
+;;; Within every instruction in the given graph, change every use of the given
+;;; from variable to the given to variable.  Don't touch definitions.
+(e1:define (dataflow:graph-rename-uses! graph from to)
+  (e1:let ((states (dataflow:graph-get-states graph)))
+    (e1:dohash (state-id state states)
+      (e1:let ((instruction (dataflow:state-get-instruction state)))
+        (dataflow:instruction-rename-uses! instruction from to)))))
+
+;;; Destructively modify the given instruction changing every use of the given
+;;; from variable to the given to variable.  Don't touch definitions.
+(e1:define (dataflow:instruction-rename-uses! instruction from to)
+  ;;(fio:write "Renaming " (sy from) " to " (sy to) " in ")
+  ;;(dataflow:write-instruction (io:standard-output) instruction)
+  ;;(fio:write "\n")
+  (e1:match instruction
+    ((or (dataflow:instruction-begin)
+         (dataflow:instruction-end)
+         (dataflow:instruction-literal _ _)
+         (dataflow:instruction-undefined _)
+         (dataflow:instruction-global _ _))) ;; these instructions use no variables.
+    ((dataflow:instruction-return variables)
+     (dataflow:instruction-return-set-variables!
+         instruction
+         (dataflow:replace-in-list variables from to)))
+    ((dataflow:instruction-if discriminand _ _ _)
+     (dataflow:instruction-if-set-discriminand!
+         instruction
+         (dataflow:replace discriminand from to)))
+    ((dataflow:instruction-pre-phi _ sources)
+     (dataflow:instruction-pre-phi-set-sources!
+         instruction
+         (dataflow:replace-in-list sources from to)))
+    ((dataflow:instruction-phi _ _)
+     (e1:assert #f))
+    ((dataflow:instruction-primitive _ _ actuals)
+     (dataflow:instruction-primitive-set-actuals!
+         instruction
+         (dataflow:replace-in-list actuals from to)))
+    ((dataflow:instruction-nontail-call _ _ actuals)
+     (dataflow:instruction-nontail-call-set-actuals!
+         instruction
+         (dataflow:replace-in-list actuals from to)))
+    ((dataflow:instruction-nontail-call-indirect _ procedure actuals)
+     (dataflow:instruction-nontail-call-indirect-set-procedure!
+         instruction
+         (dataflow:replace procedure from to))
+     (dataflow:instruction-nontail-call-indirect-set-actuals!
+         instruction
+         (dataflow:replace-in-list actuals from to)))
+    ((dataflow:instruction-tail-call _ actuals)
+     (dataflow:instruction-tail-call-set-actuals!
+         instruction
+         (dataflow:replace-in-list actuals from to)))
+    ((dataflow:instruction-tail-call-indirect procedure actuals)
+     (dataflow:instruction-tail-call-indirect-set-procedure!
+         instruction
+         (dataflow:replace procedure from to))
+     (dataflow:instruction-tail-call-indirect-set-actuals!
+         instruction
+         (dataflow:replace-in-list actuals from to)))
+    (else
+     (e1:assert #f))))
+
+;;; Return the given variable as is, if it's not equal to from; otherwise return
+;;; to.
+(e1:define (dataflow:replace variable from to)
+  (e1:if (whatever:eq? variable from)
+    to
+    variable))
+
+;;; Return the given list of variables in the same order as given, replacing
+;;; every occurrence of from with to.  Non-destructive.
+(e1:define (dataflow:replace-in-list variables from to)
+  (e1:if (list:null? variables)
+    list:nil
+    (list:cons (dataflow:replace (list:head variables) from to)
+               (dataflow:replace-in-list (list:tail variables) from to))))
 
 
 ;;;;; Control flow graph optimization driver
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;; Simplify the given control-flow graph, which is not required to have liveness
-;;; or register-allocation information at entry.  Such information will be present
-;;; [FIXME: actually do that for register allocation] when the procedure returns.
-
+;;; Simplify the given control-flow graph, which is not required to have
+;;; liveness information at entry.  Such information will be present when the
+;;; procedure returns.
 (e1:define (dataflow:optimize-graph! graph)
   ;; Make pre-phi nodes only have one bound variable.  This enables more
   ;; optimization later on.
@@ -1301,22 +1427,31 @@
   ;; Turn pre-phi nodes with zero sources into explicit undefined nodes.
   (dataflow:turn-pre-phis-into-undefineds! graph)
   (fio:write "Turned pre-phis into undefineds with success.\n")
-  ;; Skip useless ifs: this may generate some inaccessible states...
-  (dataflow:skip-useless-ifs! graph)
-  (fio:write "Skipped useless ifs with success.\n")
-  ;; ...that we can easily remove.
-  (dataflow:remove-inaccessible-states! graph)
-  (fio:write "Removed inaccessible states with success.\n")
-  ;; Now there may be useless pre-phi nodes; they are easy to recognize thru a
-  ;; liveness analysis.  Removing useless states may generate other useless
-  ;; states, recognizable again with a liveness analysis.  By these
-  ;; transformations it's also possible to obtain trivial if nodes where both
-  ;; branches lead to the same node -- such nodes are considered useless and
-  ;; removed here.  Repeat until convergence.
-  (dataflow:analyze-liveness! graph)
-  (e1:while (dataflow:remove-useless-states! graph)
+  ;; The following optimizations may change the graph generating more
+  ;; opportunities to optimize again, so we run them in a loop until
+  ;; we reach convergence.
+  (e1:let loop ()
+    ;; Skip useless ifs: this may generate some inaccessible states...
+    (dataflow:skip-useless-ifs! graph)
+    (fio:write "Skipped useless ifs with success.\n")
+    ;; ...that we can easily remove.
+    (dataflow:remove-inaccessible-states! graph)
+    (fio:write "Removed inaccessible states with success.\n")
+    ;; Now there may be useless pre-phi nodes; they are easy to recognize thru a
+    ;; liveness analysis.  Removing useless states may generate other useless
+    ;; states, recognizable again with a liveness analysis.  By these
+    ;; transformations it's also possible to obtain trivial if nodes where both
+    ;; branches lead to the same node -- such nodes are considered useless and
+    ;; removed here.  The next two optimizations, particularly unique pre-phi
+    ;; removal, are likely to generate opportunities to remove more useless ifs.
     (dataflow:clear-liveness! graph)
-    (dataflow:analyze-liveness! graph))
+    (dataflow:analyze-liveness! graph)
+    (e1:let* ((changed-1 (dataflow:remove-useless-states! graph))
+              (() (fio:write "Removed useless states (did we?  " (b changed-1) ")\n"))
+              (changed-2 (dataflow:remove-unique-pre-phis! graph))
+              (() (fio:write "Removed unique pre-phis (did we?  " (b changed-2) ")\n")))
+      (e1:when (e1:or changed-1 changed-2)
+        (loop))))
   (fio:write "Optimized graph with success.\n"))
 
 

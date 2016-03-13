@@ -975,6 +975,96 @@
                " iterations (states are " (i state-no) ").\n")))
 
 
+;;;;; Control-flow graph: pre-phi splitting
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Split every pre-phi instruction in the graph.  Thanks to useless state
+;;; removal this may reduce the number of pre-phis in some cases, and in every
+;;; case there will be no pre-phi node with more than one bound variable.
+(e1:define (dataflow:split-pre-phis! graph)
+  (e1:let ((states (dataflow:graph-get-states graph)))
+    (e1:dohash (state-id _ states)
+      (dataflow:split-pre-phi! graph state-id))))
+
+;;; If the given state-id is a pre-phi instruction with more than one bound
+;;; variable, split the state into one state per bound variable.  Do nothing
+;;; otherwise.
+(e1:define (dataflow:split-pre-phi! graph state-id)
+  (e1:let* ((states (dataflow:graph-get-states graph))
+            (state (dataflow:graph-get-state graph state-id))
+            (instruction (dataflow:state-get-instruction state)))
+    (e1:match instruction
+      ((dataflow:instruction-pre-phi bounds sources)
+       (e1:when (fixnum:> (list:length bounds) 1)
+         (e1:let* ((successor-ids (dataflow:graph-successor-state-ids graph state-id))
+                   (successor-id (e1:assert (fixnum:= (list:length successor-ids) 1))
+                                 (list:head successor-ids))
+                   (bound (list:head bounds))
+                   (more-bounds (e1:if (list:null? bounds)
+                                   list:nil
+                                   (list:tail bounds)))
+                   (more-sources (e1:if (list:null? sources)
+                                   list:nil
+                                   (list:tail sources)))
+                   (new-instruction
+                    (e1:if (list:null? sources)
+                      (dataflow:instruction-undefined bound)
+                      (dataflow:instruction-pre-phi (list:list bound)
+                                                    (list:list (list:head sources)))))
+                   (new-rest-instruction (dataflow:instruction-pre-phi more-bounds
+                                                                       more-sources))
+                   (new-pre-phi-id (dataflow:graph-add-instruction-after! graph
+                                                                          new-rest-instruction
+                                                                          state-id)))
+           (dataflow:state-set-instruction! state new-instruction)
+           (dataflow:graph-remove-state-edge! graph state-id successor-id)
+           (dataflow:graph-add-state-edge! graph new-pre-phi-id successor-id)
+           (fio:write "Split " (i state-id) " into itself and " (i new-pre-phi-id) " \n")
+           (fio:write "  " (i state-id ) ".  ")
+           (dataflow:write-instruction (io:standard-output) instruction)
+           (fio:write "\n")
+           (fio:write "  -->  " (i state-id ) ".  ")
+           (dataflow:write-instruction (io:standard-output) new-instruction)
+           (fio:write "\n")
+           (fio:write "       " (i new-pre-phi-id ) ".  ")
+           (dataflow:write-instruction (io:standard-output) new-rest-instruction)
+           (fio:write "\n")
+           (dataflow:split-pre-phi! graph new-pre-phi-id))))
+      (else))))
+
+
+;;;;; Control-flow graph: turn zero-source pre-phis into undefineds
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Turn every pre-phi node having zero sources into undefined nodes, and
+;;; eliminate them altogether when they have zero results as well.  This assumes
+;;; that no pre-phi has more than one destination, which is true if
+;;; dataflow:split-pre-phis! has been run.
+(e1:define (dataflow:turn-pre-phis-into-undefineds! graph)
+  (e1:let ((states (dataflow:graph-get-states graph)))
+    (e1:dohash (state-id _ states)
+      (dataflow:turn-pre-phi-into-undefined! graph state-id))))
+
+;;; If the given node is a pre-phi with zero sources then turn it into an
+;;; undefined node or eliminate it altogether (when results are also zero);
+;;; otherwise do nothing.  This assumes that no pre-phi has more than one
+;;; destination, which is true if dataflow:split-pre-phis! has been run.
+(e1:define (dataflow:turn-pre-phi-into-undefined! graph state-id)
+  (e1:let* ((states (dataflow:graph-get-states graph))
+            (state (dataflow:graph-get-state graph state-id))
+            (instruction (dataflow:state-get-instruction state)))
+    (e1:match instruction
+      ((dataflow:instruction-pre-phi bounds sources)
+       (e1:assert (fixnum:<= (list:length bounds) 1))
+       (e1:when (list:null? sources)
+         (e1:if (list:null? bounds)
+           (dataflow:graph-bypass-state! graph state-id)
+           (e1:let ((new-instruction
+                     (dataflow:instruction-undefined (list:head bounds))))
+             (dataflow:state-set-instruction! state new-instruction)))))
+      (else))))
+
+
 ;;;;; Control-flow graph: useless if skipping
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -1202,8 +1292,16 @@
 ;;; Simplify the given control-flow graph, which is not required to have liveness
 ;;; or register-allocation information at entry.  Such information will be present
 ;;; [FIXME: actually do that for register allocation] when the procedure returns.
+
 (e1:define (dataflow:optimize-graph! graph)
-  ;; First skip useless ifs: this may generate some inaccessible states...
+  ;; Make pre-phi nodes only have one bound variable.  This enables more
+  ;; optimization later on.
+  (dataflow:split-pre-phis! graph)
+  (fio:write "Split pre-phis with success.\n")
+  ;; Turn pre-phi nodes with zero sources into explicit undefined nodes.
+  (dataflow:turn-pre-phis-into-undefineds! graph)
+  (fio:write "Turned pre-phis into undefineds with success.\n")
+  ;; Skip useless ifs: this may generate some inaccessible states...
   (dataflow:skip-useless-ifs! graph)
   (fio:write "Skipped useless ifs with success.\n")
   ;; ...that we can easily remove.
@@ -1211,13 +1309,15 @@
   (fio:write "Removed inaccessible states with success.\n")
   ;; Now there may be useless pre-phi nodes; they are easy to recognize thru a
   ;; liveness analysis.  Removing useless states may generate other useless
-  ;; states, recognizable again with a liveness analysis.  Repeat until
-  ;; convergence.
+  ;; states, recognizable again with a liveness analysis.  By these
+  ;; transformations it's also possible to obtain trivial if nodes where both
+  ;; branches lead to the same node -- such nodes are considered useless and
+  ;; removed here.  Repeat until convergence.
   (dataflow:analyze-liveness! graph)
   (e1:while (dataflow:remove-useless-states! graph)
     (dataflow:clear-liveness! graph)
     (dataflow:analyze-liveness! graph))
-  (fio:write "Removed useless states with success.\n"))
+  (fio:write "Optimized graph with success.\n"))
 
 
 ;;;;; Control flow graph construction driver
@@ -1231,6 +1331,7 @@
   (e1:let* ((optimized-expression (e0:optimize-expression expression))
             (() (fio:write "optimized the epsilon0 expression with success.\n"))
             (alpha-converted-expression (e0:alpha-convert-expression optimized-expression))
+            (() (fio:write "alpha-converted optimized epsilon0 expression with success.\n"))
             (anf (anf:convert-tail alpha-converted-expression formals))
             (() (fio:write "ANF-converted with success.\n"))
             (graph (dataflow:make-graph)))
@@ -1242,7 +1343,7 @@
     (dataflow:add-anf-to-graph! graph anf (dataflow:graph-get-begin-id graph))
     (fio:write "Made graph with success.\n")
     (dataflow:optimize-graph! graph)
-    (fio:write "Analyzed liveness with success.\n")
+    (fio:write "Optimized graph with success.\n")
     graph))
 
 ;;; Return a control-flow graph, as per dataflow:make-expression-graph , for the

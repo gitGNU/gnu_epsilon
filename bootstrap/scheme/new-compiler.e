@@ -627,10 +627,12 @@
 
 ;;; Remove the given state from the given graph, so that all its predecessors
 ;;; point to its successor.  Notice that this only makes sense when the
-;;; successor is unique: this procedure cannot be applied to an if node --
-;;; however the predecessors and successor are allowed to be an if node, and
-;;; where needed the predecessor instructions are updated to contain the new
-;;; jump destination.
+;;; successor is unique: this procedure cannot be applied to an if node having
+;;; two distinct successors (instructions such as "if x in {0} then 10 else 10"
+;;; can be bypassed, since they only have one successor) -- however the
+;;; predecessors and successor are allowed to be an if node, and where needed
+;;; the predecessor instructions are updated to contain the new jump
+;;; destination.
 (e1:define (dataflow:graph-bypass-state! graph state-id)
   (e1:let* ((states (dataflow:graph-get-states graph))
             (predecessors (dataflow:graph-predecessor-state-ids graph state-id))
@@ -1088,10 +1090,12 @@
 ;;; useless, and again they can be identified with liveness analysis.  This
 ;;; analyze-remove loop may be repeated until convergence.
 
-;;; A useless state implements some operation with no observable effect whose
-;;; result is dead according to liveness analysis.  This procedure removes such
-;;; useless states from the given graph, which must contain liveness information
-;;; on entry.  Return non-#f iff at least one state was removed.
+;;; A useless state implements some operation with no observable effect: either
+;;; its results are all dead according to liveness analysis and no side effect
+;;; can occur, or the instruction is a conditional jump where the two
+;;; destinations are the same.  This procedure removes such useless states from
+;;; the given graph, which must contain liveness information on entry.  Return
+;;; non-#f iff at least one state was removed.
 (e1:define (dataflow:remove-useless-states! graph)
   (e1:let ((states (dataflow:graph-get-states graph))
            (removed (box:make #f)))
@@ -1099,6 +1103,15 @@
       (e1:let ((instruction (dataflow:state-get-instruction state))
                (out-lives (dataflow:state-get-out-lives state)))
         (e1:match instruction
+          ((dataflow:instruction-if _ _ then-id else-id)
+           (e1:when (fixnum:= then-id else-id)
+             (fio:write "Removed useless if state " (i state-id) ":  ")
+             (dataflow:write-instruction (io:standard-output) instruction)
+             (fio:write "\n")
+             (box:set! removed #t)
+             ;; This is safe to perform, since successors are stored as a
+             ;; set-as-list: there is only one successor for instruction.
+             (dataflow:graph-bypass-state! graph state-id)))
           ((dataflow:instruction-pre-phi bounds _)
            (e1:when (set-as-list:empty? (set-as-list:intersection out-lives bounds))
              (fio:write "Removed useless pre-phi state " (i state-id) ":  ")

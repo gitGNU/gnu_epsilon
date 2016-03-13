@@ -22,9 +22,6 @@
 ;;;;; Administrative Normal Form (ANF) for epsilon0
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; FIXME: don't fail for underdimensioned expressions.  The problem is with
-;; code such as (list:head variables).
-
 (e1:define-sum anf:expression
   (let-undefined bound body)
   (let-value bound content body)
@@ -260,6 +257,7 @@
     ((e0:expression-call _ procedure-name actuals)
      (anf:convert-nontails actuals
                            bound-variables
+                           (list:length actuals)
                            (e1:lambda (actual-variables)
                              (anf:expression-tail-call procedure-name actual-variables))))
     ((e0:expression-call-indirect _ procedure-expression actuals)
@@ -271,6 +269,7 @@
            (e1:let ((procedure-variable (list:head procedure-variables)))
              (anf:convert-nontails actuals
                                    bound-variables
+                                   (list:length actuals)
                                    (e1:lambda (actual-variables)
                                      (anf:expression-tail-call-indirect procedure-variable
                                                                         actual-variables)))))))
@@ -288,28 +287,75 @@
     (else
      (e1:error "ANF convertion, tail: invalid expression"))))
 
+;;; Return the result of calling the given k on the given list of symbols, if
+;;; the list of symbols has length args-dimension.
+;;; If the symbols are too many then the expression is overdimensioned, and the
+;;; last symbols will be unused.  If the symbols are too few then the expression is
+;;; underdimensioned, and the returned expression will bind as many new undefined
+;;; symbols as needed before calling k on the list obtained by appending the given
+;;; symbols to the fresh ones.
+(e1:define (anf:combine k args args-dimension)
+  (e1:let ((args-no (list:length args)))
+    (e1:cond ((fixnum:= args-no args-dimension)
+              ;; The arguments number is exactly right.  Nothing to add.
+              (e1:call-closure k args))
+             ((fixnum:> args-no args-dimension)
+              ;; Overdimensioning: more arguments than expected.
+              (fio:write "Warning: overdimensioning ("
+                         (i args-no) " expecting " (i args-dimension) ")\n")
+              (e1:call-closure k (list:take args args-dimension)))
+             (else
+              ;; Underdimensioning: there are less arguments than expected, so
+              ;; we have to make up a few.  This pattern occurring in programs
+              ;; is occasionally useful, but if can often be a mistake.
+              (fio:write "Warning: underdimensioning ("
+                         (i args-no) " expecting " (i args-dimension) ")\n")
+              (anf:combine-underdimensioned k args (fixnum:- args-dimension args-no))))))
+
+;;; Return the result of calling the given k on args appended to fresh variables,
+;;; within an ANF expression binding the fresh variables to undefined values.
+(e1:define (anf:combine-underdimensioned k args args-to-make)
+  (e1:cond ((fixnum:zero? args-to-make)
+            (e1:call-closure k args))
+           ((fixnum:< args-to-make 0)
+            (e1:assert #f))
+           (else
+            (e1:let* ((fresh (symbol:fresh-with-prefix "u"))
+                      (new-args (list:append args (list:list fresh))))
+              (anf:expression-let-undefined
+                  fresh
+                  (anf:combine-underdimensioned k
+                                                new-args
+                                                (fixnum:1- args-to-make)))))))
+
 (e1:define (anf:convert-nontail e bound-variables out-dimension k)
   (e1:match e
     ((e0:expression-variable _ name)
      (e1:if (list:has? bound-variables name)
-       (e1:call-closure k (list:list name))
+       (anf:combine k (list:list name) out-dimension)
        (e1:let ((local-name (symbol:fresh-with-prefix "g")))
-         (anf:expression-let-global local-name name (e1:call-closure k (list:list local-name))))))
+         (anf:expression-let-global local-name
+                                    name
+                                    (anf:combine k (list:list local-name) out-dimension)))))
     ((e0:expression-value _ content)
      (e1:let ((name (symbol:fresh-with-prefix "l")))
-       (anf:expression-let-value name content (e1:call-closure k (list:list name)))))
+       (anf:expression-let-value name content (anf:combine k (list:list name) out-dimension))))
     ((e0:expression-bundle _ items)
-     (anf:convert-nontails items bound-variables k))
+     (anf:convert-nontails items bound-variables out-dimension k))
     ((e0:expression-primitive _ name actuals)
      (e1:let* ((result-no (state:primitive-get-out-dimension name))
+               (primitive-in-dimension (state:primitive-get-in-dimension name))
                (result-names (symbol:fresh-symbols-with-prefix result-no "pri")))
        (anf:convert-nontails actuals
                              bound-variables
+                             primitive-in-dimension
                              (e1:lambda (actual-variables)
                                (anf:expression-let-primitive result-names
                                                              name
                                                              actual-variables
-                                                             (e1:call-closure k result-names))))))
+                                                             (anf:combine k
+                                                                          result-names
+                                                                          out-dimension))))))
     ((e0:expression-let _ let-bound-variables bound-expression body)
      (anf:convert-nontail bound-expression
                           bound-variables
@@ -326,6 +372,7 @@
     ((e0:expression-call _ procedure-name actuals)
      (anf:convert-nontails actuals
                            bound-variables
+                           (list:length actuals)
                            (e1:lambda (parameter-variables)
                              (e1:let ((result-variables
                                        (symbol:fresh-symbols-with-prefix out-dimension
@@ -333,7 +380,9 @@
                                (anf:expression-let-call result-variables
                                                         procedure-name
                                                         parameter-variables
-                                                        (e1:call-closure k result-variables))))))
+                                                        (anf:combine k
+                                                                     result-variables
+                                                                     out-dimension))))))
     ((e0:expression-call-indirect _ procedure-expression actuals)
      (e1:let ((procedure-variable (symbol:fresh-with-prefix "prn")))
        (anf:convert-nontail procedure-expression
@@ -343,6 +392,7 @@
                               (anf:convert-nontails
                                   actuals
                                   bound-variables
+                                  (list:length actuals)
                                   (e1:lambda (parameter-variables)
                                     (e1:let ((result-variables
                                               (symbol:fresh-symbols-with-prefix
@@ -351,7 +401,9 @@
                                           result-variables
                                           (list:head procedure-variables)
                                           parameter-variables
-                                          (e1:call-closure k result-variables)))))))))
+                                          (anf:combine k
+                                                       result-variables
+                                                       out-dimension)))))))))
     ((e0:expression-if-in _ discriminand values then-expression else-expression)
      (e1:let ((discriminand-variable (symbol:fresh-with-prefix "d"))
               (result-variables (symbol:fresh-symbols-with-prefix out-dimension
@@ -377,7 +429,7 @@
                                   (e1:lambda (variables)
                                     (anf:expression-set-let-if-results result-variables
                                                                        variables)))
-             (e1:call-closure k result-variables))))))
+             (anf:combine k result-variables out-dimension))))))
     ((e0:expression-fork _ procedure-name actuals)
      (e1:error "fork (ANF conversion, nontail): unimplemented"))
     ((e0:expression-join _ future)
@@ -385,12 +437,12 @@
     (else
      (e1:error "ANF convertion, nontail: invalid expression"))))
 
-(e1:define (anf:convert-nontails es bound-variables k)
+(e1:define (anf:convert-nontails es bound-variables out-dimension k)
   (e1:let ((variables-box (box:make list:nil)))
-    (anf:convert-nontails-helper es bound-variables k variables-box)))
-(e1:define (anf:convert-nontails-helper es bound-variables k box)
+    (anf:convert-nontails-helper es bound-variables out-dimension k variables-box)))
+(e1:define (anf:convert-nontails-helper es bound-variables out-dimension k box)
   (e1:if (list:null? es)
-    (e1:call-closure k (list:reverse (box:get box)))
+    (anf:combine k (list:reverse (box:get box)) out-dimension)
     (anf:convert-nontail (list:head es)
                          bound-variables
                          1
@@ -399,6 +451,7 @@
                                                     (box:get box)))
                            (anf:convert-nontails-helper (list:tail es)
                                                         bound-variables
+                                                        out-dimension
                                                         k
                                                         box)))))
 

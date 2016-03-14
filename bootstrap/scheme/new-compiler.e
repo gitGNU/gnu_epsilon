@@ -1451,8 +1451,7 @@
               (changed-2 (dataflow:remove-unique-pre-phis! graph))
               (() (fio:write "Removed unique pre-phis (did we?  " (b changed-2) ")\n")))
       (e1:when (e1:or changed-1 changed-2)
-        (loop))))
-  (fio:write "Optimized graph with success.\n"))
+        (loop)))))
 
 
 ;;;;; Control flow graph construction driver
@@ -1477,8 +1476,11 @@
     (fio:write "\n")
     (dataflow:add-anf-to-graph! graph anf (dataflow:graph-get-begin-id graph))
     (fio:write "Made graph with success.\n")
-    (dataflow:optimize-graph! graph)
-    (fio:write "Optimized graph with success.\n")
+    (e1:let* ((in-state-no (dataflow:graph-state-no graph))
+              (() (dataflow:optimize-graph! graph))
+              (out-state-no (dataflow:graph-state-no graph)))
+      (fio:write "Optimized graph with success: "
+                 (i in-state-no) " -> " (i out-state-no) " states.\n"))
     graph))
 
 ;;; Return a control-flow graph, as per dataflow:make-expression-graph , for the

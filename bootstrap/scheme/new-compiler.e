@@ -1019,7 +1019,7 @@
            (dataflow:state-set-instruction! state new-instruction)
            (dataflow:graph-remove-state-edge! graph state-id successor-id)
            (dataflow:graph-add-state-edge! graph new-pre-phi-id successor-id)
-           (fio:write "Split " (i state-id) " into itself and " (i new-pre-phi-id) " \n")
+           (fio:write "Split " (i state-id) " into itself and " (i new-pre-phi-id) "\n")
            (fio:write "  " (i state-id ) ".  ")
            (dataflow:write-instruction (io:standard-output) instruction)
            (fio:write "\n")
@@ -1058,9 +1058,12 @@
        (e1:assert (fixnum:<= (list:length bounds) 1))
        (e1:when (list:null? sources)
          (e1:if (list:null? bounds)
-           (dataflow:graph-bypass-state! graph state-id)
+           (e1:begin
+             (fio:write "Removing zero-result zero-source pre-phi " (i state-id) ".\n")
+             (dataflow:graph-bypass-state! graph state-id))
            (e1:let ((new-instruction
                      (dataflow:instruction-undefined (list:head bounds))))
+             (fio:write "Turning zero-source pre-phi " (i state-id) " into undefined.\n")
              (dataflow:state-set-instruction! state new-instruction)))))
       (else))))
 
@@ -1454,6 +1457,125 @@
         (loop)))))
 
 
+;;;;; Control flow graph: alpha conversion
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Renaming variables in control-flow graphs may be a bad idea in general for
+;;; debugging, but having short names helps me when developing the compiler
+;;; backend and I have to reason about a lot of variables.
+
+;;; A map is an unboxed hash mapping old symbols to new symbols.
+
+;;; Consistently rename every variable in a graph to short, fresh symbols.
+;;; Variables are only fresh if alpha-convertion is systematically applied to
+;;; every instruction in an expression graph, touching every instruction exactly
+;;; once.  Return the map.
+(e1:define (dataflow:alpha-convert-graph! graph)
+  (e1:let ((states (dataflow:graph-get-states graph))
+           (map (unboxed-hash:make)))
+    (e1:dohash (_ state states)
+      (e1:let ((instruction (dataflow:state-get-instruction state)))
+        (dataflow:alpha-convert-instruction! instruction map)))
+    map))
+
+;;; Generate a short "fresh" variable (see the dataflow:alpha-convert-graph!
+;;; comment) at every call.
+(e1:define (dataflow:fresh-variable map)
+  (e1:let* ((index (unboxed-hash:element-no map))
+            (string
+             (e1:if (fixnum:< index 26)
+               (string:character->string (fixnum:+ #\a index))
+               (string:append "z" (string:fixnum->string (fixnum:- index 26))))))
+    (symbol:string->symbol string)))
+
+;;; Return the alpha-converted version of the given variable in the given map,
+;;; extending the map when needed.
+(e1:define (dataflow:alpha-convert-variable map variable)
+  (e1:if (unboxed-hash:has? map variable)
+    (unboxed-hash:get map variable)
+    (e1:let ((fresh (dataflow:fresh-variable map)))
+      (unboxed-hash:set! map variable fresh)
+      ;;(fio:write "Alpha: " (sy variable) " -> " (sy fresh) "\n")
+      fresh)))
+
+;;; Return a list of variables, each being the alpha-converted version of the
+;;; corresponding one in the given list.  The map is extended as needed.
+(e1:define (dataflow:alpha-convert-variables map variables)
+  (e1:if (list:null? variables)
+    list:nil
+    (list:cons (dataflow:alpha-convert-variable map (list:head variables))
+               (dataflow:alpha-convert-variables map
+                                                 (list:tail variables)))))
+
+(e1:define (dataflow:alpha-convert-instruction! instruction map)
+  (e1:match instruction
+    ((or (dataflow:instruction-begin)
+         (dataflow:instruction-end))) ;; There are no variables to rename.
+    ((dataflow:instruction-literal x _)
+     (dataflow:instruction-literal-set-bound! instruction
+                                              (dataflow:alpha-convert-variable map x)))
+    ((dataflow:instruction-undefined x)
+     (dataflow:instruction-undefined-set-bound! instruction
+                                                (dataflow:alpha-convert-variable map x)))
+    ((dataflow:instruction-global x _)
+     (dataflow:instruction-global-set-bound! instruction
+                                             (dataflow:alpha-convert-variable map x)))
+    ((dataflow:instruction-return variables)
+     (dataflow:instruction-return-set-variables!
+         instruction
+         (dataflow:alpha-convert-variables map variables)))
+    ((dataflow:instruction-if discriminand _ _ _)
+     (dataflow:instruction-if-set-discriminand!
+         instruction
+         (dataflow:alpha-convert-variable map discriminand)))
+    ((dataflow:instruction-pre-phi bounds sources)
+     (dataflow:instruction-pre-phi-set-bounds!
+         instruction
+         (dataflow:alpha-convert-variables map bounds))
+     (dataflow:instruction-pre-phi-set-sources!
+         instruction
+         (dataflow:alpha-convert-variables map sources)))
+    ((dataflow:instruction-phi _ _)
+     (e1:assert #f))
+    ((dataflow:instruction-primitive bounds _ actuals)
+     (dataflow:instruction-primitive-set-bounds!
+         instruction
+         (dataflow:alpha-convert-variables map bounds))
+     (dataflow:instruction-primitive-set-actuals!
+         instruction
+         (dataflow:alpha-convert-variables map actuals)))
+    ((dataflow:instruction-nontail-call bounds _ actuals)
+     (dataflow:instruction-nontail-call-set-bounds!
+         instruction
+         (dataflow:alpha-convert-variables map bounds))
+     (dataflow:instruction-nontail-call-set-actuals!
+         instruction
+         (dataflow:alpha-convert-variables map actuals)))
+    ((dataflow:instruction-nontail-call-indirect bounds procedure actuals)
+     (dataflow:instruction-nontail-call-indirect-set-bounds!
+         instruction
+         (dataflow:alpha-convert-variables map bounds))
+     (dataflow:instruction-nontail-call-indirect-set-procedure!
+         instruction
+         (dataflow:alpha-convert-variable map procedure))
+     (dataflow:instruction-nontail-call-indirect-set-actuals!
+         instruction
+         (dataflow:alpha-convert-variables map actuals)))
+    ((dataflow:instruction-tail-call _ actuals)
+     (dataflow:instruction-tail-call-set-actuals!
+         instruction
+         (dataflow:alpha-convert-variables map actuals)))
+    ((dataflow:instruction-tail-call-indirect procedure actuals)
+     (dataflow:instruction-tail-call-indirect-set-procedure!
+         instruction
+         (dataflow:alpha-convert-variable map procedure))
+     (dataflow:instruction-tail-call-indirect-set-actuals!
+         instruction
+         (dataflow:alpha-convert-variables map actuals)))
+    (else
+     (e1:assert #f))))
+
+
 ;;;;; Control flow graph construction driver
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -1476,6 +1598,8 @@
     (fio:write "\n")
     (dataflow:add-anf-to-graph! graph anf (dataflow:graph-get-begin-id graph))
     (fio:write "Made graph with success.\n")
+    (dataflow:alpha-convert-graph! graph)
+    (fio:write "Alpha-converted graph with success.\n")
     (e1:let* ((in-state-no (dataflow:graph-state-no graph))
               (() (dataflow:optimize-graph! graph))
               (out-state-no (dataflow:graph-state-no graph)))
@@ -1494,6 +1618,16 @@
 ;;;;; Debugging and graph output
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(e1:define dataflow:color-graph
+  (box:make #f))
+(e1:define (dataflow:graph-if-color x)
+  (e1:if (box:get dataflow:color-graph)
+    x
+    ""))
+(e1:define (dataflow:graph-if-ncolor x)
+  (e1:if (e1:not (box:get dataflow:color-graph))
+    x
+    ""))
 (e1:define (dataflow:print-graph file-name graph graph-comment)
   (e1:let ((file (io:open-file file-name io:write-mode))
            (states (dataflow:graph-get-states graph))
@@ -1510,69 +1644,70 @@
   labelloc = top;
   labeljust = left;
   label = \"" (st graph-comment) "\";
-  node [shape=\"box\", /*style=\"rounded, filled\",*/ fillcolor=\"lavender\"]
-  /*node [shape=\"box\", font=\"Courier\", style=\"rounded, filled\", color=\"white\" fillcolor=\"lavender\", margin=\"0\", pad=\"0\"];*/
+  node [shape=\"box\", style=\"filled, rounded\", margin=\"0.1\", pad=\"0\", "
+  (st (dataflow:graph-if-color "color=\"white\", fillcolor=\"lavender\", "))
+  (st (dataflow:graph-if-ncolor "color=\"black\", fillcolor=\"white\", "))
+  "]
   edge [weight=1, ];
-  splines=true;
-  /*edge [style=\">=stealth',shorten >=1pt\"];*/
-\n\n")
+  splines=true;\n\n")
     (e1:dohash (id state states)
       (e1:let ((in-lives (dataflow:state-get-in-lives state))
                (instruction (dataflow:state-get-instruction state))
                (out-lives (dataflow:state-get-out-lives state)))
-        (fio:write-to file "  " (i id)
-                      " [style=\"filled, rounded\", margin=\"0.1\", pad=\"0\", color=\"white\", "
-                      (st (e1:cond ((dataflow:instruction-if? instruction)
-                                    "/*shape=\"octagon\",*/ /*shape=\"diamond\",*/ /*shape=\"trapezium\",*/ shape=\"diamond\", fillcolor=\"yellow\", margin=\"0\",")
-                                   ((dataflow:instruction-pre-phi? instruction)
-                                    "shape=\"house\", margin=\"0\", ")
-                                   ((dataflow:instruction-phi? instruction)
-                                    "shape=\"invhouse\", fillcolor=\"yellow\", margin=\"0\", ")
-                                   ((dataflow:instruction-literal? instruction)
-                                    "fillcolor=\"aquamarine\", ")
-                                   ((dataflow:instruction-primitive? instruction)
-                                    "fillcolor=\"greenyellow\", ")
-                                   ((e1:or (dataflow:instruction-nontail-call? instruction)
-                                           (dataflow:instruction-nontail-call-indirect? instruction))
-                                    "fillcolor=\"lightsalmon\", ")
-                                   ((e1:or (dataflow:instruction-return? instruction)
-                                           (dataflow:instruction-tail-call? instruction)
-                                           (dataflow:instruction-tail-call-indirect? instruction))
-                                    "fillcolor=\"lightblue\", ")
-                                   ((dataflow:instruction-begin? instruction)
-                                    "shape=\"ellipse\", fillcolor=\"lightgrey\", color=\"lightgrey\", rank=min, ")
-                                   ((dataflow:instruction-end? instruction)
-                                    "shape=\"ellipse\", fillcolor=\"lightgrey\", color=\"lightgrey\", rank=max, ")
-                                   (else
-                                    "")))
-                      "label=\"")
-        (fio:write-to file "{")
-        (anf:write-variables file in-lives)
-        (fio:write-to file "}\\n")
-        (fio:write-to file (i id) ". ")
-        (dataflow:write-instruction file (dataflow:state-get-instruction state))
-        (fio:write-to file "\\n{")
-        (anf:write-variables file out-lives)
-        (fio:write-to file "}")
-        (fio:write-to file "\"];\n")
+        (e1:unless (e1:or (dataflow:instruction-begin? instruction)
+                          (dataflow:instruction-end? instruction))
+          (fio:write-to file "  " (i id)
+                        " [/*style=\"filled, rounded\", margin=\"0.1\", pad=\"0\",*/ "
+                        (st (e1:cond ((dataflow:instruction-if? instruction)
+                                      (string:append
+                                          "shape=\"diamond\", "
+                                          (dataflow:graph-if-color "fillcolor=\"yellow\", ")
+                                          "margin=\"0\","))
+                                     ((dataflow:instruction-pre-phi? instruction)
+                                      "shape=\"house\", margin=\"0\", ")
+                                     ((dataflow:instruction-phi? instruction)
+                                      "shape=\"invhouse\", fillcolor=\"yellow\", margin=\"0\", ")
+                                     ((dataflow:instruction-literal? instruction)
+                                      (dataflow:graph-if-color "fillcolor=\"aquamarine\", "))
+                                     ((dataflow:instruction-primitive? instruction)
+                                      (dataflow:graph-if-color "fillcolor=\"greenyellow\", "))
+                                     ((e1:or (dataflow:instruction-nontail-call? instruction)
+                                             (dataflow:instruction-nontail-call-indirect? instruction))
+                                      (dataflow:graph-if-color "fillcolor=\"lightsalmon\", "))
+                                     ((e1:or (dataflow:instruction-return? instruction)
+                                             (dataflow:instruction-tail-call? instruction)
+                                             (dataflow:instruction-tail-call-indirect? instruction))
+                                      (dataflow:graph-if-color "fillcolor=\"lightblue\", "))
+                                     (else
+                                      "")))
+                        "label=\"")
+          (fio:write-to file "{")
+          (anf:write-variables file in-lives)
+          (fio:write-to file "}\\n")
+          (fio:write-to file (i id) ". ")
+          (dataflow:write-instruction file (dataflow:state-get-instruction state))
+          (fio:write-to file "\\n{")
+          (anf:write-variables file out-lives)
+          (fio:write-to file "}")
+          (fio:write-to file "\"];\n"))
         ;; Force orderining of conditional branches: then on the left and else
         ;; on the right, on the same rank.
-        (e1:match instruction
+        #;(e1:match instruction
           ((dataflow:instruction-if _ _ then else)
            (fio:write-to file "  {rank=same " (i then) " -> " (i else)
-                         " [color=red, style=dashed, weight=1]};\n"))
+                         " [/*color=red, style=dashed,*/style=invis, weight=1]};\n"))
           (else)))) ;; do nothing in the other cases.
     (fio:write-to file "\n")
     (e1:dohash (from-id to-ids successors)
       (e1:dolist (to-id to-ids)
-        (fio:write-to file "  " (i from-id) " -> " (i to-id)
-                      (st (e1:cond ((fixnum:= from-id begin-id)
-                                    "[/*style=dashed,*/ color=grey]")
-                                   ((fixnum:= to-id end-id)
-                                    "[/*style=dashed,*/ color=grey]")
-                                   (else
-                                    "")))
-                      ";\n")))
+        (e1:cond ((fixnum:= from-id begin-id)
+                  (fio:write-to file "  B" (i to-id) " -> " (i to-id) ";\n")
+                  (fio:write-to file "B" (i to-id) " [rank=min, style=\"invisible\"];\n"))
+                 ((fixnum:= to-id end-id)
+                  (fio:write-to file "  " (i from-id) " -> E" (i from-id) ";\n")
+                  (fio:write-to file "E" (i from-id) " [rank=max, style=\"invisible\"];\n"))
+                 (else
+                  (fio:write-to file "  " (i from-id) " -> " (i to-id) ";\n")))))
     (fio:write-to file "}\n")
     (io:close-file file)))
 

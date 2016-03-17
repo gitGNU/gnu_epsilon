@@ -3250,6 +3250,164 @@
                                                               sexpression:nil)))
 
 
+;;;;; String lexicographic comparison
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; FIXME: after I have something along the lines of ML functors or C++
+;;; templates I can add some facility for generic lexicographic comparison, with
+;;; a parametric comparison for elements.
+
+;;; Return -1 if a precedes b, 0 if a is equal to be, 1 if b precedes a.
+(e1:define (string:compare a b)
+  (string:compare-from a b 0))
+
+(e1:define (string:compare-from a b i)
+  (e1:let ((a-length (string:length a))
+           (b-length (string:length b)))
+    (e1:cond ((fixnum:= a-length i)
+              (e1:if (fixnum:= b-length i)
+                0
+                -1))
+             ((fixnum:= b-length i)
+              1)
+             (bind (ai (string:get a i))
+                   (bi (string:get b i)))
+             ((fixnum:< ai bi)
+              -1)
+             ((fixnum:> ai bi)
+              1)
+             (else
+              (string:compare-from a b (fixnum:1+ i))))))
+
+(e1:define (string:<= a b)
+  (e1:case (string:compare a b)
+    ((-1 0) #t)
+    (else #f)))
+(e1:define (string:= a b)
+  (fixnum:= (string:compare a b) 0))
+(e1:define (string:< a b)
+  (fixnum:= (string:compare a b) -1))
+(e1:define (string:> a b)
+  (string:< b a))
+(e1:define (string:>= a b)
+  (string:<= b a))
+
+
+;;;;; Symbol comparison, by lexicographic comparison over names
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (symbol:< a b)
+  (string:< (symbol:symbol->string a) (symbol:symbol->string b)))
+(e1:define (symbol:> a b)
+  (string:> (symbol:symbol->string a) (symbol:symbol->string b)))
+(e1:define (symbol:<= a b)
+  (string:<= (symbol:symbol->string a) (symbol:symbol->string b)))
+(e1:define (symbol:>= a b)
+  (string:>= (symbol:symbol->string a) (symbol:symbol->string b)))
+
+
+;;;;; List and vector sorting
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; The sort is currently stable, but there is no guarantee that this will be
+;;; the case in the future.
+
+;;; FIXME: this is relatively inefficient and should be done better.  It can be
+;;; done by keeping the exact same interface for compatibility, and better
+;;; (later) after introducing something in the style of ML functors or C++
+;;; templates.
+;;;
+;;; An efficient implementation should be based on destructive operations over
+;;; vectors, with a simple wrapper for working nondestructively over vectors or
+;;; over lists -- more or less the opposite of this.
+
+;;; Return the given list sorted according to the closure <=.
+(e1:define (list:sort list <=)
+  (list:merge-sort list <= (e1:lambda (x y) (e1:call-closure <= y x))))
+
+;;; Return a vector containing the same elements as the given vector, sorted
+;;; according to the closure <=.
+(e1:define (vector:sort vector <=)
+  (e1:let* ((list (vector:vector->list vector))
+            (sorted-list (list:sort list <=)))
+    (vector:list->vector sorted-list)))
+
+;;; Sort the given vector in place according to the closure <=.
+(e1:define (vector:sort! vector <=)
+  (e1:let ((length (vector:length vector))
+           (sorted-vector (vector:sort vector <=)))
+    (vector:blit vector 0 sorted-vector 0 length)))
+
+(e1:define (list:merge-sort list <= >=)
+  (e1:if (e1:or (list:null? list)
+                (list:null? (list:tail list)))
+    list
+    (e1:let* (((list-a list-b) (list:merge-sort-split list))
+              (reverse-sorted-a (list:merge-sort list-a >= <=))
+              (reverse-sorted-b (list:merge-sort list-b >= <=)))
+      (list:merge-reversed reverse-sorted-a reverse-sorted-b <=))))
+
+(e1:define (list:merge-sort-split list)
+  (list:merge-sort-split-helper list #f list:nil list:nil))
+(e1:define (list:merge-sort-split-helper list b acc-a acc-b)
+  (e1:cond ((list:null? list)
+            (e1:bundle acc-a acc-b))
+           (bind (first (list:head list))
+                 (rest (list:tail list)))
+           (b
+            (list:merge-sort-split-helper rest #f (list:cons first acc-a) acc-b))
+           (else
+            (list:merge-sort-split-helper rest #t acc-a (list:cons first acc-b)))))
+
+(e1:define (list:merge-reversed list-a list-b <=)
+  (list:merge-reversed-acc list-a list-b <= list:nil))
+(e1:define (list:merge-reversed-acc list-a list-b <= acc)
+  (e1:cond ((list:null? list-a)
+            (list:append-reversed list-b acc))
+           ((list:null? list-b)
+            (list:append-reversed list-a acc))
+           (bind (first-a (list:head list-a))
+                 (rest-a (list:tail list-a))
+                 (first-b (list:head list-b))
+                 (rest-b (list:tail list-b)))
+           (else
+            (e1:if (e1:call-closure <= first-b first-a)
+              (list:merge-reversed-acc rest-a list-b <= (list:cons first-a acc))
+              (list:merge-reversed-acc list-a rest-b <= (list:cons first-b acc))))))
+
+
+;;;;; Sorting utilities
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(e1:define (list:sort-fixnums xs)
+  (list:sort xs (e1:lambda (x y) (fixnum:<= x y))))
+(e1:define (vector:sort-fixnums xs)
+  (vector:sort xs (e1:lambda (x y) (fixnum:<= x y))))
+(e1:define (vector:sort-fixnums! xs)
+  (vector:sort! xs (e1:lambda (x y) (fixnum:<= x y))))
+
+(e1:define (list:sort-fixedpoints xs)
+  (list:sort xs (e1:lambda (x y) (fixedpoint:<= x y))))
+(e1:define (vector:sort-fixedpoints xs)
+  (vector:sort xs (e1:lambda (x y) (fixedpoint:<= x y))))
+(e1:define (vector:sort-fixedpoints! xs)
+  (vector:sort! xs (e1:lambda (x y) (fixedpoint:<= x y))))
+
+(e1:define (list:sort-strings xs)
+  (list:sort xs (e1:lambda (x y) (string:<= x y))))
+(e1:define (vector:sort-strings xs)
+  (vector:sort xs (e1:lambda (x y) (string:<= x y))))
+(e1:define (vector:sort-strings! xs)
+  (vector:sort! xs (e1:lambda (x y) (string:<= x y))))
+
+(e1:define (list:sort-symbols xs)
+  (list:sort xs (e1:lambda (x y) (symbol:<= x y))))
+(e1:define (vector:sort-symbols xs)
+  (vector:sort xs (e1:lambda (x y) (symbol:<= x y))))
+(e1:define (vector:sort-symbols! xs)
+  (vector:sort! xs (e1:lambda (x y) (symbol:<= x y))))
+
+
 ;;;;; Hash multiple bindings
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

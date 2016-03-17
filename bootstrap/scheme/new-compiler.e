@@ -1473,10 +1473,14 @@
 ;;; every instruction in an expression graph, touching every instruction exactly
 ;;; once.  Return the map.
 (e1:define (dataflow:alpha-convert-graph! graph)
-  (e1:let ((states (dataflow:graph-get-states graph))
-           (map (unboxed-hash:make)))
-    (e1:dohash (_ state states)
-      (e1:let ((instruction (dataflow:state-get-instruction state)))
+  (e1:let* ((states (dataflow:graph-get-states graph))
+            (state-ids (unboxed-hash:keys states))
+            (map (unboxed-hash:make)))
+    ;; We want to reserve the first names for the variables in the first states,
+    ;; for readability; therefore we work in order, by state id.
+    (e1:dolist (state-id (list:sort-fixnums state-ids))
+      (e1:let* ((state (unboxed-hash:get states state-id))
+                (instruction (dataflow:state-get-instruction state)))
         (dataflow:alpha-convert-instruction! instruction map)))
     map))
 

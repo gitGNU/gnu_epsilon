@@ -46,7 +46,8 @@ EXTRA_DIST =
 data_DATA =
 nodist_data_DATA =
 AM_LDFLAGS =
-AUTOMAKE_OPTIONS = subdir-objects
+#AUTOMAKE_OPTIONS = subdir-objects
+AUTOMAKE_OPTIONS = subdir-objects info-in-builddir
 
 AM_YFLAGS = -d
 AM_LFLAGS = -s
@@ -133,9 +134,6 @@ AM_LDFLAGS += @GUILE_LDFLAGS@
 
 # This is needed for config.h
 AM_CFLAGS += -I @builddir@
-
-AM_MAKEINFOFLAGS = --no-split
-AM_MAKEINFOHTMLFLAGS = --no-split --number-sections
 
 EXTRA_DIST += \
   BUGS NO-WARRANTY doc/COPYING.DOC PLATFORMS TODO \
@@ -621,15 +619,51 @@ profile-driven-feedback: clean
 
 
 ## ####################################################### Documentation: begin
-info_TEXINFOS = doc/epsilon.texi
+#TEXIINFO_OPTIONS = \
+  --set-customization-variable top_builddir=@abs_top_builddir@
+TEXIINFO_OPTIONS = \
+  -I @abs_top_builddir@/doc
+AM_MAKEINFOFLAGS = \
+  --no-split $(TEXIINFO_OPTIONS)
+AM_MAKEINFOHTMLFLAGS = \
+  $(AM_MAKEINFOFLAGS) --number-sections --fill-column=100
+TEXI2DVI = \
+  texi2dvi $(TEXIINFO_OPTIONS)
+TEXI2PDF = \
+  $(TEXI2DVI) --pdf --batch $(TEXIINFO_OPTIONS)
+
+BUILT_SOURCES += \
+  @abs_top_builddir@/doc/epsilon-tutorial-tex.texi \
+  @abs_top_builddir@/doc/epsilon-tutorial-nottex.texi
+@abs_top_builddir@/doc/epsilon-tutorial-nottex.texi: doc/epsilon-tutorial.texi.in
+	cat "$^" \
+	  > "$@"
+@abs_top_builddir@/doc/epsilon-tutorial-tex.texi: @abs_top_builddir@/doc/epsilon-tutorial-nottex.texi
+	cat "$^" \
+	  | tr '\n' '\000' \
+	  | sed 's/[₀₁₂₃₄₅₆₇₈₉]//g' > "$@.tmp.1"
+	for x in `seq 1 100`; do \
+	  sed 's/@\(mycolor\|green\|yellow\|red\)\({[^{}]*}\)/\2/g' < "$@.tmp.1" > "$@.tmp.2"; \
+	  mv "$@.tmp.2" "$@.tmp.1"; \
+	done
+	cat "$@.tmp.1" \
+	  | sed 's/@mycolor{\|@green{\|@yellow{\|@red{/{/g' \
+	  | tr '\000' '\n' \
+	  > "$@"
 doc_epsilon_TEXINFOS = \
+  @abs_top_builddir@/doc/epsilon-tutorial-tex.texi \
+  @abs_top_builddir@/doc/epsilon-tutorial-nottex.texi
+
+info_TEXINFOS = doc/epsilon.texi
+epsilon_TEXINFOS = \
   @srcdir@/doc/gpl.texi \
   @srcdir@/doc/fdl.texi
 text: $(TEXT_FILES)
 TEXT_FILES = doc/epsilon.text
 doc/epsilon.text: @srcdir@/doc/epsilon.texi
-	$(MAKEINFO) --footnote-style=end --no-split --no-headers \
-	            --number-sections -o $@ @srcdir@/doc/epsilon.texi
+	$(MAKEINFO) $(AM_MAKEINFOHTMLFLAGS) \
+		    --footnote-style=end --no-headers \
+	            -o $@ @srcdir@/doc/epsilon.texi
 # The info file is generated under @srcdir@ because GNU standards dictate it should
 # be distributed in source archives.
 EPSILON_MANUAL_FILES = \
@@ -639,6 +673,7 @@ EPSILON_MANUAL_FILES = \
   doc/epsilon.dvi \
   doc/epsilon.ps \
   doc/epsilon.pdf
+
 MANUAL_FILES =
 MANUAL_FILES += \
   $(EPSILON_MANUAL_FILES)

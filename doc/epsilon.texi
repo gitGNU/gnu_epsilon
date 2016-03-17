@@ -1,8 +1,10 @@
-\input color % Incredibly, this kludge works. Oh, yes, this is -*- texinfo -*-...
-\input texinfo.tex @c ...indeed, it is Texinfo.
+\input color % This kludge works.  This is -*- texinfo -*-... -*- coding: utf-8 -*-
+\input texinfo.tex
+
+@c Old first line:
 
 @c This file is part of the GNU epsilon manual.
-@c Copyright (C) 2005, 2013, 2015  Luca Saiu
+@c Copyright (C) 2005, 2013, 2015, 2016  Luca Saiu
 @c Copyright (C) 2012  Université Paris 13
 @c Written by Luca Saiu
 
@@ -23,6 +25,11 @@
 @include version.texi
 @settitle epsilon @value{EDITION}
 
+@dircategory Programming Languages
+@direntry
+* epsilon: (epsilon). A programming language
+@end direntry
+
 @c %**end of header
 
 @c To do: when the current solution looks bad in Info, change @emph to
@@ -33,10 +40,13 @@
 
 @setchapternewpage odd
 
+@documentencoding UTF-8
+
 @c ------------------------------------------------------------------------
 @c %**end of header
 @c ------------------------------------------------------------------------
 
+@node Top
 @copying
 This is the manual documenting epsilon (version @value{VERSION},
 last updated on @value{UPDATED}).
@@ -67,11 +77,6 @@ A copy of the license is included in the section entitled ``GNU Free
 Documentation License''. 
 @end quotation
 @end copying
-
-@dircategory Programming Languages
-@direntry
-* epsilon: (epsilon). A programming language
-@end direntry
 
 
 @c @@@@@ Macros
@@ -178,10 +183,91 @@ epsilon\subscript\
 @c DEPRECATED
 @alias todo=fixme
 
-@macro bzz{text}
-\text\
+@c -----------------------------------------
+
+@iftex
+@macro qepsilon{}
+@inlineraw{tex,$@varepsilon$}
+@end macro
+@end iftex
+@ifnottex
+@ifhtml
+@macro qepsilon{}
+@inlineraw{html,&epsilon;}
+@end macro
+@end ifhtml
+@ifnothtml
+@macro qepsilon{}
+epsilon
+@end macro
+@end ifnothtml
+@end ifnottex
+
+@iftex
+@macro qlambda{}
+@inlineraw{tex,$@lambda$}
+@end macro
+@end iftex
+@ifnottex
+@ifhtml
+@macro qlambda{}
+@inlineraw{html,&lambda;}
+@end macro
+@end ifhtml
+@ifnothtml
+@macro qlambda{}
+lambda
+@end macro
+@end ifnothtml
+@end ifnottex
+
+@iftex
+@macro qpi{}
+@inlineraw{tex,$@pi$}
+@end macro
+@end iftex
+@ifnottex
+@ifhtml
+@macro qpi{}
+@inlineraw{html,&pi;}
+@end macro
+@end ifhtml
+@ifnothtml
+@macro qpi{}
+pi
+@end macro
+@end ifnothtml
+@end ifnottex
+
+
+@macro colorForth{}
+@red{color}@green{Forth}
 @end macro
 
+@alias colorforth = colorForth
+
+@alias somewhere = move
+
+
+@c @c The string starting with "_POSTTITLE", both delimiters included, is
+@c @c automatically replaced by the title filter.
+@c @c @emph{_POSTTITLE\id\_} (@url{BLOGURLROOTHTMLROOTBLOGDIRECTORY/posts/\id\})
+@c @c ``_POSTTITLE\id\_'' (@url{BLOGURLROOTHTMLROOTBLOGDIRECTORY/posts/\id\})
+@c @macro linkpostquote{id}
+@c ``_POSTTITLE\id\_'' (@url{BLOGURLROOTHTMLROOTBLOGDIRECTORY/posts/\id\})
+@c @end macro
+@c @macro linkpostemph{id}
+@c @emph{_POSTTITLE\id\_} (@url{BLOGURLROOTHTMLROOTBLOGDIRECTORY/posts/\id\})
+@c @end macro
+
+@c @c We don't need intentation in examples, when formatting to HTML.  We
+@c @c obtain the same graphical effect with CSS, and the code is easier
+@c @c to cut/paste this way:
+@c @html
+@c @exampleindent 0
+@c @end html
+
+@c -----------------------------------------
 
 @c @@@@@ Title page
 @c @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -197,32 +283,46 @@ epsilon\subscript\
 @insertcopying
 @end titlepage
 
-
-@c @@@@@ Contents
-@c @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-@c So the toc is printed in the right place.
-@contents
-
-@c If not generating TeX output, make this one the Top node and insert
-@c brief copying conditions:
 @ifnottex
 @top epsilon
 @insertcopying
 @end ifnottex
 
-@node Top
+@c @@@@@ Contents
+@c @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+@c @c So the toc is printed in the right place.
+@c @contents
+
+@c If not generating TeX output, make this one the Top node and insert
+@c brief copying conditions:
+@c @ifnottex
+@c @node top
+@c @top epsilon
+@c @insertcopying
+@c @end ifnottex
+@c @iftex
+@c @node top
+@c @top epsilon
+@c @end iftex
+
+@c @node top
+@c @top epsilon
+
+
+@c @node Top
 @c @@@@@ Body
 @c @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 @c Main menu
 @menu
-* This manual is incomplete::  Please come back later -- unless you're curious
-* A declaration of intent::    Why we need this new programming language
+* This manual is incomplete::  Please come back later --- unless you're curious.
+* A declaration of intent::    Why we need this new programming language.
+* Tutorial::                   An introduction to epsilon starting from scratch.
 @c * Introduction::               What epsilon is
 @c * Library::                    sdf..sad.sa.d.saed
 @c * Something::                  sdf..sad.sa.d.saed
-* Compilers::                  How to use and modify epsilon compilers
+* Compilers::                  How to use and modify epsilon compilers.
 @c * Appendices::                 Some stuff not fitting in the body
 @c * GNU General Public License:: The GNU General Public License says
 @c                                how you can copy and share epsilon
@@ -306,6 +406,18 @@ the idea in a new chapter}
 
 @fill
 
+@c ==============================================================
+@part Part I @* Tutorial
+
+@iftex
+@include epsilon-tutorial-tex.texi
+@end iftex
+@ifnottex
+@include epsilon-tutorial-nottex.texi
+@end ifnottex
+
+@c ==============================================================
+@part Part II @* Internals and foreign API
 
 @c ==============================================================
 @node Compilers

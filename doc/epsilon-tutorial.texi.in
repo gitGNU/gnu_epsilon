@@ -1,0 +1,2931 @@
+@c This file is part of the GNU epsilon manual.
+@c Copyright (C) 2013, 2016  Luca Saiu
+@c Written by Luca Saiu
+
+@c Permission is granted to copy, distribute and/or modify this document
+@c under the terms of the GNU Free Documentation License, Version 1.3
+@c or any later version published by the Free Software Foundation;
+@c with no Invariant Sections, no Front-Cover Texts, and no Back-Cover
+@c Texts.  A copy of the license is included in the section entitled ``GNU
+@c Free Documentation License''.
+
+@c Written by Luca Saiu
+
+@c This is -*- texinfo -*-... -*- coding: utf-8 -*-
+@node Tutorial
+@chapter Tutorial
+
+Several people wrote me in private about epsilon, requesting a
+tutorial or at least some practical information about how to run the
+thing.
+@c
+I'm very happy about the feedback I received, from people I already
+knew and from others who had just discovered my work on the net.  I
+hadn't anticipated it: thanks.  The insterest I saw motivated me to
+write this informal, hands-on introduction.
+
+@c What follows is a very informal introduction.  Please bear with me for
+@c all the initial premises and philosophical explanations: @qepsilon is
+@c an unusual language, and I don't want you to get confused.
+@c OK, I'm gonna write something quick about the language in its current
+@c implementation, just to let people get started.
+
+Of course I'll also prepare reference documentation, but not at this
+time: I won't actually start working on a proper manual until the
+language reaches a reasonably stable state.  However I plan to adapt
+this post into a chapter to be kept up to date and added to the
+``official'' manual,
+@c as a soft introduction.
+in a first part named @emph{Tutorial Introduction}.
+
+I'm very interested in your feedback about my presentation style:
+please write to @code{epsilon-devel} or to me personally if you have
+constructive suggestions.
+
+In this post @emph{color is significant}: unless you're already an
+epsilon expert you will follow much more easily using a graphic web
+browser supporting CSS.  You should see @red{this text} in red,
+@green{this other text} in green and @yellow{the latest one} in
+yellow.  This posts also uses Unicode subscripts and, since I'm
+already requiring all of this anyway, a couple Greek letters as well.
+I apologize to the users of w3m, links and lynx: it's for this
+one time only.
+
+@section Audience
+
+This post doesn't belong to the series of short articles I plan to write
+``for myself'' about current developments in epsilon; the idea of
+this introduction is just to show interested people how to start, so
+that they can explore the system themselves.
+
+The current implementation can be played with, but is far from
+friendly.  In its current state I can only recommend it in good
+conscience to @emph{experienced programmers who already know some Lisp
+dialect} (Scheme, Common Lisp or Emacs Lisp),
+@c and are competent using
+and can competently use a GNU/Linux system.
+@c  Here I'm describing a system in rapid evolution, with no guarantees of future compatibility.
+
+@section Lexical conventions
+The name ``@qepsilon'' comes from the Mathematical Analysis naming
+convention for @emph{small} variables.  When I'm limited to
+traditional character sets or if I feel less smug I write it in Latin
+characters as ``epsilon''; in any case, to convey the idea of the
+language smallness, I always write ``epsilon'' lowercase, even at the
+beginning of a sentence.  The names of the core language @epsilonzero
+and the high-level personality @epsilonone can be written in Latin
+characters as @code{epsilon0} and @code{epsilon1} (again, always
+lowercase) or abbreviated into @code{e0} and @code{e1} when part of
+program identifiers.
+
+@section Rationale and introduction
+A sentence by Chuck Moore resonates with me: @emph{current software is
+shameful}@footnote{See @url{http://www.colorforth.com/cf.htm}.  Mr Moore
+was writing about conventional software as compared to @colorforth,
+his minimal Forth dialect.  @qepsilon and @colorforth are very
+different systems, but they share much in terms of philosophy and
+rationale.  I believe both to be @emph{local optima} in
+the language design space, following McCarthy's intuition of
+@url{http://www-formal.stanford.edu/jmc/lisp20th.html}.}.  It feels
+strangely right for being such an extreme idea.
+
+@c I have first-hand experience of supporting a strong position in
+@c public, and then changing my mind and regretting that.  Still.
+
+My ideal environment is different from Mr Moore's, but I
+share his opinion about most software, which is indeed bloated and
+overcomplicated.
+@c  --- plus, I'd add @emph{still weak}@footnote{Some complexity has
+@c good reason: Emacs, for example, is not a minimal system by any
+@c means; but it's incredibly powerful and flexible.  By contrast the
+@c average GUI application is bloated @emph{and still not powerful
+@c enough} to be exploited by competent users.  Web interfaces, even
+@c ignoring the software freedom issues which shouldn't be ignored,
+@c are even worse than GUI programs.};
+@c and
+More importantly, we're
+developing things the wrong way: our tools are at the same time too
+complex, not powerful enough, and not suitable to formal automatic
+reasoning.
+
+In my vision a programming language should be @emph{extensible}, so that the
+user may bind it to her needs and to the problem.  The language should
+be built upon a @emph{very small and simple core} using powerful
+@emph{syntactic extension} capabilities, such as macros.  This way, a
+program written using extensions is automatically rewritten into the
+core language, to be then executed or compiled.  A program should be
+able to inspect its own state, including procedures and globals, and
+self-modify.
+
+With some important philosophical differences explained in my PhD
+thesis introduction, the idea is accomplishing the vision expressed by
+Guy Steele in his marvelous 1998 talk @emph{Growing a Language}, which
+hasn't materialized yet out of the Lisp world.  You can read a
+transcription at the address
+@url{http://cs.au.dk/~hosc/local/HOSC-12-3-pp221-236.pdf}, but I
+@emph{highly} recommend the video recording of the original talk.
+Download it, and watch it as soon as you have an hour to spare:
+@example
+youtube-dl www.youtube.com/watch?v=_ahvzDzKdB0
+@end example
+
+The @qepsilon core language, an imperative first-order language, is
+called @epsilonzero.  It's inconvenient for humans to use for serious
+problems, yet simple and potentially very efficient.
+Using @epsilonzero I've built @epsilonone, a higher-level language
+with a Lispy feel, but untyped --- @emph{not} dynamically typed like
+Lisp: @emph{untyped}, like Forth and machine language.
+
+@epsilonone is defined with macros and expression-to-expression
+transformations, in a way such that any piece of @epsilonone code is
+automatically rewritten into @epsilonzero before execution.  This
+strategy simplifies the system a lot, since it only needs an
+interpreter or compiler for @epsilonzero: everything else, including
+the @epsilonone extension machinery, can be run as @epsilonzero code
+--- it doesn't matter if machine-generated.
+
+@epsilonone is usable as a programming language, if a little
+unforgiving to beginners.  Within the architecture of epsilon,
+@epsilonone can be thought of as one
+@emph{personality}@footnote{Some research operating systems are based
+on micro-kernels on which @emph{several different libraries} libraries
+emulate @emph{several different operating system APIs}, at the same
+time: each library is called a ``personality''.}  built on top of the
+core language, useful to build more high-level personalities: the user
+is free to radically change the language and build something
+potentially very different, for example including static or dynamic
+typing, object orientation, or continuations.  If some user dislikes
+@epsilonone, she's free to change it into something else which
+rewrites into @epsilonzero: Lispy features such as s-expressions are
+not hardwired in @epsilonzero, and can be replaced with something else as well
+if a user so prefers.
+
+@epsilonzero and @epsilonone programs can @emph{self-modify}, creating or
+removing procedures and global variables at run time.  This adds power,
+but makes the language difficult to reason about and compile in the
+general case; however in the particular case of a program eventually
+reaching a ``static'' (which is to say, not self-modifying) state, we
+can use ordinary compilation techniques to translate the final static
+@epsilonzero program into native code, and recover efficiency --- I'll
+write about my compilation hacks in some forthcoming post.
+
+In a style similar to compilation, a program can @emph{unexec} to a
+file, to be later loaded and interpreted, possibly with a different runtime
+library or on another machine.  The unexec operation entails freezing
+the current dynamic state of the program (@emph{including procedures}),
+to be resumed later.
+
+Thanks to reflection, @emph{unexecing and compiling don't need to be
+special language features,
+but are instead ordinary procedures} accessing the currently active
+global definitions as data structures.  This is part of a general
+pattern: what in other languages is hardwired, in @qepsilon becomes
+defined by the user and changeable: in a sense I chose to move
+complexity from the language definition, which is to say Mathematics,
+to much more flexible @emph{code}.
+
+I call @qepsilon @emph{the whole system or set of languages/layers},
+starting from @epsilonzero and @epsilonone, up to the higher-level
+personalities (not yet existing at this point) on top of them.
+
+@qepsilon is radical and somewhat subversive: since mainstream languages
+aren't up to the task and aren't getting better, I propose an
+open-ended system which the user can grow in any direction.  Don't
+worry about compatibility: @emph{dialect proliferation is good}.  When
+the right ideas emerge we can think of standardizing a personality, or
+some subset of it@footnote{As an example of a similar initiative, the
+SRFI effort (@url{http://srfi.schemers.org/}) in the Scheme community
+is working well: that may be the closest thing yet to Steele's vision
+of a maintainer coordinating users' improvements.  And it's very loose
+as an organization, which is good.} --- but not now.  First we need
+language experimentation, again: the software crisis isn't anywhere
+near solved.  Let the people play.
+
+@subsection My PhD thesis
+I've been pondering about programming languages for a long time, and
+epsilon has actually had several implementations already@footnote{The first
+one, from 2001, was only my @emph{second} compiler.  My early
+attempts look a little embarrassing now.}, each less naïve and
+more ambitious than the previous.  The current rewrite has also been
+the topic of my recently completed PhD thesis.
+My thesis describes the core language in close detail, and gives a
+pretty good overview of extension mechanisms.  Of course a thesis is
+@emph{not} software documentation: it contains a formal mathematical
+description of the language and its properties, and as such the bulk
+of it isn't conceived for the end user.
+
+At the beginning I was thinking to make my thesis very accessible: in
+my original intentions a formally-minded programmer would've been able
+to follow the treatment, without any specific prerequisites.  That
+attempt ultimately failed: describing epsilon requires some mathematical
+sophistication, and since the design contains non-standard choices I've
+developed a non-standard mathematical notation, which many people find
+heavyweight.
+@*
+I like another phrase which I've heard said by some Forther, I
+think Greg Bailey or Jeff Fox if not Chuck Moore himself:
+@emph{simple but not trivial}.  And that can certainly be said of @qepsilon:
+it's simple --- @emph{very} simple --- but still not trivial.
+Despite the inherent non-triviality of the matter, some chapters of my
+thesis remain pretty accessible to motivated programmers, particularly
+Chapter 1, the commentary part of Chapter 2, the whole Chapter 3 and
+@c the programming part
+most
+of Chapter 5.
+
+@c @itemize
+@c @item Chapter 1, ``Introduction'',
+@c explains my design philosophy and rationale.  It's easy to read;
+@c @item Chapter 2, ``The @epsilonzero core language'',
+@c explains the core language syntax and semantics.  The operational
+@c semantics part may be a little hard to digest, but the commentary
+@c should provide a pretty good intuitive description.  Understanding the
+@c @emph{intuitive} semantics of @epsilonzero (not necessarily the formal
+@c part) is nececessary for using the language;
+@c @item Chapter 3, ``Relfection and self-modification'',
+@c deals with global definition, self-modifying programs and unexec.  It's accessible;
+@c @item Chapter 5, ``Syntactic extension'',
+@c opens with a reminder and critique of Lisp, of which I'm personally
+@c very satisfied.  I feel that a good programmer with some patience can
+@c really understand Lisp from it without previous exposure.
+@c @c@*
+@c This should enable Lispers and non-Lispers alike to really understand
+@c the idea of extensibility as conceived in epsilon.
+@c @*
+@c The rest of the chapter is long and complex, but of a different kind
+@c of complexity than the rest: it describes the bootstrap process in
+@c detail, showing how the language gets defined first from Scheme, then
+@c using itself: the difficulty is about programming, not mathematics.
+@c @end itemize
+The text is available in color for on-screen reading at the address
+@url{http://ageinghacker.net/publications/luca-saiu--phd-thesis-color.pdf},
+or black-and-white, for printing, at
+@url{http://ageinghacker.net/publications/luca-saiu--phd-thesis-bw.pdf}.
+
+I spent a long time working on this document, and I'd be happy if
+others could get something out of it.  Have a look.
+
+@subsection Implementation, and the relation beteen @epsilonzero and @epsilonone
+I implemented @qepsilon in itself; in particular, I used @epsilonzero
+to implement an @epsilonzero interpreter with its reflective data
+structures (what these structures are will become clear below), and
+syntactic extension mechanisms: @emph{macros} and @emph{transforms}.
+This first part of the implementation was painful to write since @epsilonzero
+is by design a weak language, without much abstraction power.
+
+Then of course I built @epsilonone using @epsilonzero with macros and
+transforms: and each new syntactic form I added became immediately
+available to define another one.  In a somewhat arbitrary fashion, I
+called ``@epsilonone'' the final state of this extension process,
+blessing it as a personality.
+@*
+@epsilonone contains all of @epsilonzero plus syntactic extension
+mechanisms, and a @emph{library of syntactic extensions} including
+variadic syntax, blocks, closures, imperative loops, sum types,
+pattern matching, futures, unexec, and so on --- none of these
+features is present in @epsilonzero, and the distance
+between @epsilonzero and @epsilonone feels very wide.
+
+The idea of building @epsilonone in @epsilonzero is not only
+aesthetically pleasing; it is a way of associating a formal
+specification to @epsilonone.  Since I gave a formal mathematical
+specification of @epsilonzero (in my thesis), everything defined in it
+inherits its rigorously formal nature; but, again, @epsilonone is
+defined with @emph{code} rather than logic rules and equations.
+
+Just to complete the picture: the runtime is of course written in C.
+In particular, I have two garbage collectors written by me, one of
+which parallel, not yet integrated.  The code generated by the native
+compilers I'm working on (compilers are written in @epsilonone, of
+course) also require a little assembly code.  Right now I support MIPS
+and x86_64; more backends will come including bytecode for a virtual
+machine, as a fallback case.
+
+@subsubsection The bootstrap problem
+How did I implement @epsilonzero, to run it the first time?  I used
+GNU Guile (@url{http://www.gnu.org/software/guile}) for bootstrapping,
+extended with a little C to implement @qepsilon data as a
+SMOB@footnote{See @url{http://www.gnu.org/software/guile/manual/html_node/Defining-New-Types-_0028Smobs_0029.html}.
+My implementation of the @emph{whatever} ``type'' (static typing
+proponents are already throwing a fit at this point) is very
+inefficient; even sticking to SMOBs, there are better solutions than
+mine.  I stuck with something simple; there's no point in optimizing
+now, because I'll soon get rid of the ``whatever'' runtime.}, yielding
+what I call @command{guile+whatever}.  The implementation still
+depends on Guile at the present time, but only for relatively minor
+functionality such as s-expression parsing and printing.  I'll have to
+re-implement this functionality in @qepsilon itself, remove Guile, and
+then the system will be completely self-hosting.
+
+Don't get me wrong: I love Guile; I really do.  It's an awesome
+system, well documented, with a good library, and getting faster.
+I also like the people working on it.  But I need to remove Guile as a
+dependency: @qepsilon is not Scheme (@epsilonzero is @emph{much} more
+minimal than Scheme), and it should stand on its own.  In
+particular, @qepsilon can be used as a very low level language if the
+user prefers so, and I plan to support very small systems@footnote{If
+you search for my name in recent Usenet messages, you'll find a cool
+sub-project of mine, still in the planning stage.} as compilation
+targets.
+
+@c @todo{Guile helped me, but now the thing is in a messy state}
+
+@c @todo{things to recover/integrate from previous implementations}
+
+@section Setup
+I assume you're running a GNU/Linux system.  I develop and regularly
+test on little-endian MIPS and x86_64; however any other GNU system
+should work as well, including GNU/Hurd.  I suppose the software
+also works on BSD systems, with few or no changes.
+
+You need (including development packages, if you don't compile dependencies yourself):
+@itemize
+@item GNU Guile,
+version 1.8.@emph{x} or 2.0.@emph{x}  @emph{(Guile 1.8 is faster with epsilon,
+because of my ugly macro hacks)};
+@item Bohem's garbage collector: @url{http://www.hpl.hp.com/personal/Hans_Boehm/gc/};
+@item GNU libunistring;
+@item GNU Bison;
+@item flex;
+@item GNU autoconf and automake;
+@item GNU Texinfo
+(but you don't need @TeX{});
+@item A reasonable compilation environment: GCC, make, the GNU libc headers.
+@item bzr,
+for getting the sources
+@end itemize
+
+Get a copy of the epsilon trunk from the bzr repository on Savannah (@url{http://savannah.gnu.org/bzr/?group=epsilon}):
+@example
+bzr branch bzr://bzr.savannah.gnu.org/epsilon/trunk epsilon-trunk
+cd epsilon-trunk
+@end example
+
+Generate the configuration machinery, configure and compile:
+@example
+./autogen.sh && ./configure && make && echo SUCCESS
+@end example
+If you have all the dependencies listed above everything should work,
+and after a little while you should see the @code{SUCCESS} message.
+You don't need to install.
+
+As this is the first time you use the system, you have to bootstrap it
+from Guile.  Enter the bootstrap source directory (which, at the
+current time, actually contains much more than what's needed for
+bootstrap; yes, I should rename it).
+@example
+cd bootstrap/scheme
+@end example
+
+Enter @command{guile+whatever}.  If you're using Guile 1.8.@emph{x}, type:
+@example
+../../bin/guile+whatever
+@end example
+If instead you're using Guile 2.0.@emph{x}, type:
+@example
+../../bin/guile+whatever --no-auto-compile
+@end example
+You need the option @code{--no-auto-compile} because of a couple dirty
+kludges I did with Guile macros, which prevent bytecode compilation.
+This is not Guile's fault: Guile 2 is great, and also a tremendous
+improvement over Guile 1, but unfortunately I've abused the language.
+It's not worth fixing that part: you'll never need to touch it, and
+I'll drop the Guile dependency anyway.
+
+At @command{guile+whatever}'s prompt, type:
+@example
+(load "bootstrap.scm")
+@end example
+
+This will take a while: the system builds itself from a
+temporary @epsilonzero implementation written with Scheme macros,
+before unexecing.  You don't need to understand the details.
+
+If there are no error messages, you can test the bootstrapped system.
+Exit @command{guile+whatever} by pressing @kbd{Ctrl+D}, re-enter @command{guile+whatever}
+like above (don't forget the @code{--no-auto-compile} option on Guile
+2.0.@emph{x}), and at the prompt type:
+@example
+(load "quick-start.scm")
+@end example
+This should be much faster.
+
+@c @subsection How to re-enter the system from now on
+You won't need to bootstrap again unless you modify some file under
+@file{bootstrap/scheme/}.  So from the next time, if the sources haven't
+changed, you can simply come back to @file{bootstrap/scheme/}, run
+@command{guile+whatever} (with @code{--no-auto-compile} if needed) and
+execute @code{(load "quick-start.scm")} from the prompt.
+
+@subsection Writing more comfortably, from @command{guile+whatever} and Emacs
+It's nearly always a good idea to enable Guile's readline support.
+Execute these lines at @command{guile+whatever}'s prompt:
+@example
+(use-modules (ice-9 readline))
+(activate-readline)
+@end example
+If you add the two lines to your @file{~/.guile}, they will be
+executed automatically when you enter Guile, and
+@command{guile+whatever} as well.
+
+@c If you're writing nontrivial @epsilonone or @epsilonzero code,
+I strongly recommend the Emacs major mode for epsilon (actually @epsilonone) which I derived
+from Scheme mode.  I find it already useful for indentation and font
+locking, even if at this stage it can't interact with external
+processes yet: you'll have to explicitly kill&yank from the editor to
+the @command{guile+whatever} REPL.
+@*
+Visit @file{epsilon-trunk/emacs/epsilon.el} and do @command{M-x
+eval-buffer}.  You can toggle the major mode when you're visiting an
+epsilon file with @command{M-x epsilon-mode}.  If you like
+@emph{ParEdit} (@url{http://www.emacswiki.org/emacs/ParEdit}) for
+editing s-expressions you can enable that as well.
+
+@c @center @image{emacs-mode,,,A screenshot of Emacs with epsilon mode}
+
+Visit @file{epsilon-trunk/bootstrap/scheme/core.e}
+and
+@file{epsilon-trunk/bootstrap/scheme/epsilon1.scm}: they will be
+useful to keep around for reference while playing with predefined
+procedure.
+
+@section Basics of @epsilonone
+We're now goning to play with @epsilonone.  As part of this first
+introduction we'll only show already existing forms, without
+discussing how the user can define her own macros and transforms.
+@*
+Notice, however, that the symbol names starting with the conventional
+prefix @samp{e1:} are all defined as macros (in some cases also
+relying on transforms): essentially @emph{all} forms occurring in user
+expressions don't come predefined in @epsilonzero.
+
+You'll need @epsilonone also in the future to do more complicated
+things such as defining new extensions, and possibly even to write
+another personality to replace @epsilonone itself: using @epsilonzero
+only is way too cumbersome in practice, and I won't cover @epsilonzero
+at all here.
+@c Just in case you're curious, @epsilonzero is a strict subset
+@c of @epsilonone, except for syntax.  But I'll say more about that
+@c next time.
+
+@command{guile+whatever} is an extended Guile, so Scheme is still available:
+@example
+(+ 1 2)
+@result{} 3
+@end example
+Scheme has been very useful for me during the initial implementation,
+where I had to carefully mix languages; but it's more of a source of
+confusion for users at this point.  You'll have to live with the
+nuisance of having two different interpreters on the same REPL, for
+the time being.
+
+@c @subsection Data structures in @epsilonone: fixnums, pointers, buffers
+@subsection The stuff values are made of: fixnums, pointers, buffers
+We want to distinguish our data and operations from Scheme's
+predefined versions, which are incompatible with ours.  By convention,
+we name our global identifiers with prefixes associated to informal
+``name spaces'': for example our sum operation over @emph{fixnums}
+(integers small enough in modulo to fit within a machine register,
+possibly minus a few reserved bits) is @code{fixnum:+}, different from
+Guile's @code{+} which operates on Guile's s-expressions.  At the
+current time we also need@footnote{In some cases using the macro may
+not actually be necessary, but recognizing all such cases requires
+knowledge of the implementation.  @emph{Always} using
+@code{e1:toplevel} at the top level for @epsilonone forms is never an
+error.} to wrap toplevel expressions within the @code{e1:toplevel}
+Guile macro, to tell the system that what's contained should be
+evaluated in @epsilonone, not Guile.  Again, remember that this is
+just a convention I adopt: I've simply decided to use the character
+@samp{:} to delimit prefixes, even if @samp{:} is not special in any
+way and can be used anywhere within symbol names.
+
+I won't waste time describing @epsilonone's syntax: all @epsilonone
+forms are encoded as s-expressions, like in Lisp, and in fact
+@epsilonone's syntax is very similar to Lisp's: if you can read some
+Lisp dialect you can read @epsilonone, even if it's not compatible
+with any particular Lisp dialect.  As for semantics, @epsilonone
+evaluation is call-by-value, left-to-right; tail calls don't consume
+stack space.
+@example
+3
+@result{} 3 @emph{;; no e1:toplevel: again this was Scheme, not @epsilonone}
+(e1:toplevel 3)
+@result{} @green{3}
+(e1:toplevel (fixnum:+ 1 2))
+@result{} @green{3}
+@end example
+The REPL prints the result in color, to make it clear that it's
+an @qepsilon value.  Unboxed objects are green, boxed objects red (or
+yellow when they have already been printed as part of the same data
+structure).  Notice that @emph{all} unboxed objects are shown as
+fixnums.
+
+@todo{I think this should be moved}
+@example
+(e1:toplevel (e1:begin @emph{;; like begin in Scheme and progn in other Lisps}
+               1              ;; first run this, ignoring result(s)@dots{}
+               (fixnum:+ 2 3) ;; @dots{}then this, again ignoring result(s)@dots{}
+               8))            ;; @dots{}till the last form: return its result(s)
+@result{} @green{8}
+@end example
+
+Let's try @code{cons:make}, a procedure allocating two-element buffers:
+@example
+(e1:toplevel (cons:make 7 9))
+@result{} @red{0x2af7350[@green{7} @green{9}]} @emph{;; a pair, also called a cons}
+(e1:toplevel (cons:make 7 9))
+@result{} @red{0x3636fe0[@green{7} @green{9}]} @emph{;; another pair (different pointer)}
+(e1:toplevel (cons:make 1 (cons:make 10 20)))
+@result{} @red{0x306b240[@green{1} 0x306b200[@green{10} @green{20}]]} @emph{;; a pair with another pair inside}
+@end example
+The red or yellow hexadecimal numbers represent pointers, and of
+course their specific values may vary from machine to machine and from
+execution to execution.  The elements between brackets right after each
+``red'' pointer represent the epsilon objects contained in the pointed
+buffer; such elements in their turn may be boxed or unboxed.  In
+order to avoid potentially infinite printings, yellow pointers are
+printed without their elements, which are already known anyway.  We'll
+encounter a yellow pointer soon.
+
+These objects printed in colors are the @emph{whatever} part of
+@command{guile+whatever}, whatever meaning @emph{untyped}: the
+implementation needs to represent ``whatevers'' differently from
+Guile's predefined s-expressions, which carry tags at runtime; in
+@command{guile+whatever}, an epsilon datum is one of a wealth of
+s-expressions cases: in ``pure'' @qepsilon implementations such as the
+one I'll get after removing the Guile dependency, there are
+@qepsilon data @emph{only}.  Later I'll show two already existing
+examples of pure @qepsilon implementations, not depending on Guile.
+The idea is that the same program can be run with different runtime
+libraries, representing objects in a different way: some will be more
+efficient, others more forgiving to the programmer.
+
+The form @code{e1:define} adds or replaces a toplevel definition: like
+in Scheme@footnote{This syntax description is very informal: body
+forms may be zero or more, in either case.  A more correct definition
+should actually use dot notation: since parameters are zero or more
+and body expressions are zero or more, we can express the two cases as
+@code{(e1:define @var{x} . @var{expressions})} and @code{(e1:define
+(@var{x} . @var{formals}) . @var{expressions})}.  I'm trying to be
+friendly to less expert Lispers, avoiding dot notation in this first
+introduction.}, the same definition form works for both procedures and
+non-procedures, according to the shape of the first parameter:
+@itemize
+@item
+@code{(e1:define @var{x} @var{expression1} @dots{} @var{expressionm})}
+defines @var{x} as a global, the result of @var{expressionm}, obtained after first evaluating
+the previous expressions for side effects.
+@item
+@code{(e1:define (@var{x} @var{y1} @dots{} @var{yn}) @var{expression1}
+@dots{} @var{expressionm})} defines @var{x} as a procedure taking the
+formals @var{y1} @dots{} @var{yn}, and having the sequence
+@var{expression1} @dots{} @var{expressionm} as body.  The procedure has
+the same result(s)@footnote{I'll not cover multiple results here.}
+as the last expression in its body.
+@end itemize
+Definition themselves return zero results.  Notice that global
+definitions are expressions: they can occur anywhere expressions can.
+Differently from Scheme's @code{define}, @epsilonone's
+@code{e1:define} always affects @emph{global} bindings, even if it's used
+within a deeply-nested expression.
+
+As a special case for convenience you are allowed @emph{not} to wrap
+a toplevel @code{e1:define} in @command{guile+whatever} within
+@code{e1:toplevel}; so for example
+@code{(e1:toplevel (e1:define x 10))}
+can be also written more simply as
+@code{(e1:define x 10)}.
+
+So, let's define a global variable:
+@example
+(e1:define c (cons:make 100 200))
+@result{} @emph{;; zero results}
+@end example
+@code{c} is now a pair holding two fixnums:
+@example
+(e1:toplevel c)
+@result{} @red{0x2b71c80[@green{100} @green{200}]}
+(e1:toplevel c)
+@result{} @red{0x2b71c80[@green{100} @green{200}]} @emph{;; the same object, of course: same pointer}
+@end example
+All boxed objects are mutable@footnote{Before functional programming fundamentalists jump at my throat: I'm not saying that it's a good idea to use mutation everywhere;  I like @emph{mostly} functional programming myself.  But in some cases, imperative mutation provides just the right kind of modularity, as shown for example in SICP: @url{http://mitpress.mit.edu/sicp/full-text/sicp/book/node53.html}.
+@*
+I have some experience of purely functional programming: I implemented an entire canonical LR(1) parser generator in the second implementation of @qepsilon, which was purely functional.  It was very painful to write, and the result didn't come out particularly beautiful, simple or more maintainable.  It was definitely @emph{longer} than an alternative with assignments could've been.
+
+Back to the main point, @emph{competent programmers don't need to be protected from themselves}.  If you want a bondage language, I don't think you'll like @epsilonzero and @epsilonone.}.  The procedure @code{buffer:set!} takes three parameters:
+the object to update, a 0-based field index, and the new value for the field.
+
+@qepsilon follows the Scheme convention of using a @samp{!} suffix when naming
+procedures used for their side effects.
+@example
+(e1:toplevel (buffer:set! c 0 75))
+@result{} @emph{;; zero results}
+(e1:toplevel c)
+@result{} @red{0x2b71c80[@green{75} @green{200}]} @emph{;; the pointer didn't change}
+@end example
+With mutation it's easy to build an object referring itself, which yields our first
+``yellow'' pointer:
+@example
+(e1:toplevel (buffer:set! c 1 c))
+@result{} @emph{;; zero results}
+(e1:toplevel c)
+@result{} @red{0x2b71c80[@green{75} @yellow{0x2b71c80}]} ;; @emph{c is now cyclic}
+@end example
+Of course @code{buffer:set!} isn't limited to pairs.  You can create a buffer of any size
+with the procedure @code{buffer:make}, which takes the number of elements as parameter,
+and update it:
+@example
+(e1:define b (buffer:make 4)) @emph{;; make a buffer of four cells}
+@result{} @emph{;; zero results}
+(e1:toplevel b)
+@result{} @red{0x149ae10[@green{127 127 127 127}]}
+@end example
+@command{guile+whatever} currently fills every cell which haven't been explicitly
+initialized with the @code{@green{127}} fixnum.
+
+We can update the buffer now named @code{b}, and look up its elements with @code{buffer:get}:
+@example
+(e1:toplevel (buffer:set! b 2 99)) @emph{;; make the third element (indexed 2) be @green{99}}
+@result{} @emph{;; zero results}
+(e1:toplevel b)
+@result{} @red{0x149ae10[@green{127 127 99 127}]} @emph{;; same pointer, updated element}
+(e1:toplevel (buffer:get b 0))
+@result{} @green{127}
+(e1:toplevel (buffer:get b 2))
+@result{} @green{99}
+@end example
+Fixnums and buffers are @emph{the stuff @qepsilon values are made of}:
+every datum in @qepsilon, (including even reflective objects such as
+expressions: see below) is in fact encoded using only fixnums and
+buffers.
+
+You can write booleans as @code{#t} and @code{#f}, like in Scheme; but in fact
+any non-@code{#f} value is taken as true, and @code{#f} is just another notation
+for @code{@green{0}}:
+@example
+(e1:toplevel #f)
+@result{} @green{0} @emph{;; the false value #f is just the @green{0} fixnum}
+(e1:toplevel #t)
+@result{} @green{1} @emph{;; any non-@green{0} value is "true", but using #t is cleaner}
+@end example
+In @epsilonzero @emph{characters} are just fixnums as well:
+@example
+(e1:toplevel #\a) @emph{;; lowercase 'a' character (Scheme notation)}
+@result{} @green{97} @emph{;; Unicode code point, same as in ASCII}
+@end example
+
+@subsubsection Error situations in @epsilonone
+What happens if we go out of bounds in a buffer access?
+@example
+(e1:toplevel (buffer:get b 50))
+@error{} @emph{out of bounds memory access}
+@end example
+Nothing good happens, of course.  Errors are not recoverable in
+@epsilonone: there is no @emph{exception} or @emph{condition}
+mechanism at this level.  What you should do is to @strong{prevent}
+error situations from ever happening.
+
+@example
+(e1:toplevel (fixnum:/ 10 0)) @emph{;; divide ten by zero}
+@error{} @emph{division by zero}
+@end example
+
+The runtime of @command{guile+whatever} is relatively friendly: it
+prints out an error message, then goes back to the REPL; but that is
+not necessarily the case for efficent runtimes: in the same situation
+a runtime conceived for speed may crash with a Segmentation Fault,
+give a wrong result, or silently affect the system state: for example
+if you're @emph{writing} out of the bounds of a buffer, an efficient
+runtime may silently corrupt some unrelated data structure.
+
+Personalities at a level higher than
+@epsilonone will provide error handing facilities, but here I made
+the choice to sacrifice any feature which may impact performance or
+minimality.  The details become more apparent when looking at
+@epsilonzero.
+
+@subsection Slightly higher-level data structures: vectors, strings, boxes, tuples, records
+
+Manipulating buffers using only @code{buffer:make}, @code{buffer:get}
+and @code{buffer:set!} can become tedious.  That's why I also provide
+convenient syntax to make initialized buffers of any fixed size,
+called @emph{tuples}:
+@example
+(e1:toplevel (tuple:make 10 b #t))
+@result{} @red{0x21f0850[@green{10} 0x149ae10[@green{127 127 99 127}] @green{1}]} @emph{;; a three-element buffer}
+(e1:toplevel (tuple:make 10 b #t 20 #f))
+@result{} @red{0x21f82c0[@green{10} 0x149ae10[@green{127 127 99 127}] @green{1 20 0}]} @emph{;; a five-element buffer}
+(e1:toplevel (tuple:make (fixnum:+ 2 2)
+                         (fixnum:1+ 2))) @emph{;; as 1+ in Lisp: the successor of @green{2}}
+@result{} @red{0x167f5f0[@green{4 3}]} @emph{;; arguments are evaluated}
+@end example
+The result of evaluating a tuple is just an ordinary buffer: the
+result of @code{tuple:make} can't be distinguished by a buffer made by
+@code{buffer:make} and filled by @code{buffer:set!} calls.
+
+As another convenience feature for working on buffers, @emph{records}
+provide a way of accessing fields by name in fixed-size buffers:
+@example
+(e1:toplevel (record:define point x y))
+@print{} Defining the procedure point...
+@print{} Defining the procedure point-make-uninitialized...
+@print{} Defining the procedure point-explode...
+@print{} Defining the procedure point-explode-from-second-element...
+@print{} Defining the procedure point-get-x...
+@print{} Defining the procedure point-with-x...
+@print{} Defining the procedure point-set-x!...
+@print{} Defining the procedure point-get-y...
+@print{} Defining the procedure point-with-y...
+@print{} Defining the procedure point-set-y!...
+@result{} @emph{;; zero results}
+@end example
+Records are a good example of this general way of using the system:
+when we called @code{record:define} to define the record type
+@code{point}, the effect was to automatically generate useful
+procedures to work on points.  Such procedures aren't special: they
+work on buffers and fixnums, and you could write them by hand as well;
+but having them automatically generated when defining a record is a
+good use of @emph{syntactic abstraction}: I defined
+@code{record:define} (as a macro) once and for all, and from now you can use it as
+@c shall I really use the word ``primitive'' here?
+if it were primitive, thinking at a higher level:
+@example
+(e1:define p (point 10 20))
+@result{} @emph{;; zero results}
+(e1:toplevel p)
+@result{} @red{0x24c3830[@green{10 20}]}
+(e1:toplevel (point-explode p))
+@result{} @green{10} @emph{;; point-explode yields two results...}
+@result{} @green{20} @emph{;; ...you don't know how to use them yet}
+(e1:toplevel (point-get-x p))
+@result{} @green{10}
+(e1:toplevel (point-set-x! p (fixnum:+ (point-get-x p) 100)))
+@result{} @emph{;; zero results}
+(e1:toplevel p)
+@result{} @red{0x24c3830[@green{110 20}]}
+(e1:toplevel (point-with-y p 57)) @emph{;; make @strong{a copy} of p with a different y}
+@result{} @red{0x268fa30[@green{110 57}]} @emph{;; different address}
+(e1:toplevel p)
+@result{} @red{0x24c3830[@green{110 20}]} @emph{;; p didn't change}
+@end example
+If you @emph{only} use the procedures automatically generated by
+@code{record:define} to work on point data structures, you can ignore
+their internal representation
+@c(particularly the field older,
+@c --- how fields are ordered,
+@c in this case.
+--- in this case just the relative order of @code{x} and @code{y}.
+However @emph{@epsilonone never hides information}, by design: the
+underlying representation is always visible and accessible by
+@code{buffer:get} and @code{buffer:set!}.  Using these generic buffer
+accessors indiscriminately doesn't sound like a good idea in general,
+but @emph{the system won't stop you}: you're supposed to
+@c be more intelligent than my implementation.
+@c be more intelligent than my implementation.
+know what you're doing.
+
+@emph{Vectors} are more or less what you would expect: collections of
+objects (@emph{any} object, possibly with different shapes), which can
+be addressed by index:
+@example
+(e1:define v (vector:make 10))
+(e1:toplevel v)
+@result{} @red{0x72ec30[@green{10 127 127 127 127 127 127 127 127 127 127}]}
+@end example
+The underlying implementation is obvious: vectors are just buffers where the
+first element holds the number of ``payload'' elements --- which is to say,
+the number of cells excluding the first cell itself.
+
+@code{vector:get} and @code{vector:set!} work on payload indices,
+``skipping'' the first element.  Again, you could use
+@code{buffer:get} and @code{buffer:set!} with incremented indices
+instead, but that will only be worth the trouble if you're
+@c doesn't sound like a good idea, unless you're really
+desperate for optimization.
+@example
+(e1:toplevel (vector:get v 0))
+@result{} @green{127} @emph{;; not @green{10}: this is the first @strong{payload} element}
+(e1:toplevel (vector:get v 2))
+@result{} @green{127}
+(e1:toplevel (vector:set! v 2 324))
+(e1:toplevel (vector:get v 2))
+@result{} @green{324}
+(e1:toplevel v)
+@result{} @red{0x72ec30[@green{10 127 127 324 127 127 127 127 127 127 127}]}
+@end example
+As for generic buffers, @emph{there's no guarantee that bounds are
+checked}, in general.  Because it's a development tool
+@command{guile+whatever} actually checks and in case of failure prints
+a reasonable error message; but you shouldn't expact even that from
+the efficient runtimes.
+
+Since the length is stored within the data structure, you can read it back:
+@example
+(e1:toplevel (vector:length v))
+@result{} @green{10}
+@end example
+You can concatenate vectors:
+@example
+(e1:toplevel (vector:append v (vector:make 3)))
+@result{} @red{0x72efb0[@green{13 127 127 324 127 127 127 127 127 127 127 127 127 127}]}
+(e1:define w (vector:make 2))
+(e1:toplevel (vector:set! w 0 4))
+(e1:toplevel w)
+@result{} @red{0x70c240[@green{2 4 127}]}
+(e1:toplevel (vector:append w w w w)) @emph{;; any number of parameters!}
+@result{} @red{0x6c9850[@green{8 4 127 4 127 4 127 4 127}]}
+@end example
+Notice however that @code{vector:append} doesn't deep-clone elements:
+@example
+(e1:define vv (vector:make 2))
+(e1:toplevel (vector:set! vv 0 (tuple:make 1 2 3)))
+(e1:toplevel vv)
+@result{} @red{0x240d7f0[@green{2} 0x2433d80[@green{1 2 3}] @green{127}]}
+(e1:toplevel (vector:append vv (vector:make 2)))
+@result{} @red{0x1bad9f0[@green{4} 0x2433d80[@green{1 2 3}] @green{127 127 127}]} @emph{;; shares 0x2433d80 with vv}
+@end example
+
+
+If @epsilonzero characters are just fixnums, as you may
+guess @emph{strings} are just vectors of fixnums:
+@example
+(e1:toplevel "aa")
+@result{} @red{0x16032b0[@green{2 97 97}]} @emph{;; two characters: #\a and #\a}
+(e1:toplevel (string:append "aa" "bb")) @emph{;; string:append is just an alias}
+@result{} @red{0x15d7a00[@green{4 97 97 98 98}]}
+(e1:toplevel (vector:append "aa" "bb")) @emph{;; this works just as well}
+@result{} @red{0x16c0520[@green{4 97 97 98 98}]}
+(e1:toplevel (string:length "foobar")) @emph{;; an alias as well}
+@result{} @green{6}
+@end example
+Fixnums have a wide enough range to cover all Unicode code points,
+which is good, but I don't want to get into the UTF/UCF encoding
+craziness: so I always use this internal one-fixnum-per-character
+representation.  The implementation uses the nice GNU libunistring
+(@url{http://www.gnu.org/software/libunistring}) by Bruno Haible for
+input and output.
+@example
+(e1:toplevel (string:write "Hello there!\n"))
+@result{} @emph{;; zero results}
+@print{} Hello there!
+@end example
+As a temporary limitation of @command{guile+whatever}, you shouldn't
+expect to see output until you also write a final newline character.
+
+@epsilonone vectors are @emph{not} resizable: re-allocating a vector
+entails changing its address in memory, hence its @emph{identity}.
+You can implement resizable vectors, if you want them, by adding a
+level of indirection: the data structure pointer refers a single-cell
+buffer @emph{pointing} to a vector like the one above, which you can
+replace on resize.  This is what I actually did for hash tables, which
+are implemented as a vector which must be able to accommodate more
+elements without raising the fill factor over a certain threshold.
+
+This idea of one-element buffers adding a level of indirection for
+mutable structures is generally useful.  I call
+@emph{box}@footnote{Scheme's SRFI 111 specifies a feature with essentially the
+same interface, even if not based on exposed untyped buffers:
+@url{http://srfi.schemers.org/srfi-111/}.
+Boxes are also similar to ML's @code{ref}s, of course
+without the type restrictions.  I've used a different name because I
+don't like unnecessary abbreviations,
+@c boxes don't necessarily contain ``references'',
+and the word ``box'' is just as long as @code{ref}.}
+ such a
+one-element buffer.  I've defined procedures to allocate, lookup and
+update boxes:
+@example
+(e1:define b1 (box:make 10))
+(e1:toplevel b1)
+@result{} @red{0x799280[@green{10}]} @emph{;; just a one-element buffer}
+(e1:toplevel (box:get b1))
+@result{} @green{10}
+(e1:toplevel (box:set! b1 45))
+@result{} @emph{;; zero results}
+(e1:toplevel (box:get b1))
+@result{} @green{45}
+(e1:toplevel b1)
+@result{} @red{0x799280[@green{45}]} @emph{;; same address.  Here it's important!}
+@end example
+I've hinted at boxes maintaining an ``identity'' for a vector which
+can be replaced with a resized version.  That's quite easy, if you
+keep in mind that @code{box:make} just allocates a box holding the
+word you pass, be it a fixnum @emph{or a pointer} --- but the content
+is not recursively cloned:
+@example
+(e1:toplevel v)
+@result{} @red{0x72ec30[@green{10 127 127 324 127 127 127 127 127 127 127}]} @emph{;; v is 0x72ec30}
+(e1:define b2 (box:make v)) @emph{;; make a box pointing to the vector}
+(e1:toplevel b2)
+@result{} @red{0x79a5e0[0x72ec30[@green{10 127 127 324 127 127 127 127 127 127 127}]]} @emph{;; same vector: 0x72ec30}
+(e1:toplevel (box:get b2))
+@result{} @red{0x72ec30[@green{10 127 127 324 127 127 127 127 127 127 127}]}
+(e1:toplevel (vector:set! (box:get b2) 0 4)) @emph{;; update the vector}
+(e1:toplevel (box:get b2))
+@result{} @red{0x72ec30[@green{10 4 127 324 127 127 127 127 127 127 127}]} @emph{;; same (now updated) vector}
+(e1:toplevel v)
+@result{} @red{0x72ec30[@green{10 4 127 324 127 127 127 127 127 127 127}]} @emph{;; notice the 4}
+(e1:toplevel (box:set! b2 w)) @emph{;; replace the pointer in the box}
+(e1:toplevel b2)
+@result{} @red{0x79a5e0[0x70c240[@green{2 4 127}]]} @emph{;; same box, different content}
+(e1:toplevel v)
+@result{} @red{0x72ec30[@green{10 4 127 324 127 127 127 127 127 127 127}]} @emph{;; still 0x72ec30}
+@end example
+Exercise: implement @code{resizable-vector:make}, @code{resizable-vector:get}, @code{resizable-vector:set!}, @code{resizable-vector:length}, @code{resizable-vector:resize!}, using boxes and vectors.
+
+@subsection Equality and boxedness tags
+I always try to be precise when speaking about pointers and shared
+data, because the idea is important for equality.  The
+procedure @code{whatever:eq?} corresponds to @code{eq} in Common Lisp
+or Emacs Lisp and @code{eq?} in Scheme@footnote{According to the specifications, Scheme systems aren't technically forced to implement @code{eq?} as an equality by identity.  But I don't want to be anal, and we all know that @emph{in practice} @code{eq?} just compares two words.  As for @qepsilon, by talking about data structures at a low level with pointers, buffers and fixnums, I can afford the luxury of stating what really happens in the implemented system.}: it's an @emph{equality by identity}.
+@*
+Again, we follow the Scheme naming convention according to which
+a name ending in @samp{?} identifies a procedure returning a boolean.
+
+Let's look at how @code{whatever:eq?} behaves.  Unboxed objects are easy to compare:
+@example
+(e1:toplevel (whatever:eq? 7 3))
+@result{} @green{0} @emph{;; the word @green{7} is different from the word @green{3}}
+(e1:toplevel (whatever:eq? 3 3))
+@result{} @green{1} @emph{;; the word @green{3} is equal to the word @green{3}}
+(e1:toplevel (whatever:eq? 97 #\a))
+@result{} @green{1} @emph{;; the fixnum @green{97} is the fixnum @green{97}}
+@end example
+Notice that @code{whatever:eq?} is an ordinary procedure, so its receives its
+parameters already evaluated (as usual, call-by-value left-to-right):
+@example
+(e1:toplevel (whatever:eq? (fixnum:+ 2 2)
+                           4))
+@result{} @green{1} @emph{;; the word @green{4} is equal to the word @green{4}}
+@end example
+In case of boxed objects, @code{whatever:eq?} only looks at the two pointers:
+@example
+(e1:define t1 (tuple:make 1 2 3))
+(e1:toplevel t1)
+@result{} @red{0x15e5200[@green{1 2 3}]}
+(e1:define t2 (tuple:make 1 2 3))
+(e1:toplevel t2)
+@result{} @red{0x183a0c0[@green{1 2 3}]} @emph{;; same content as t1}
+(e1:toplevel (whatever:eq? t1 t2))
+@result{} @green{0} @emph{;; 0x15e5200 is different from 0x183a0c0: not the same object}
+@end example
+What happens if we compare a boxed object with a fixnum having the same
+value as the pointer?  Let's see:
+@example
+(e1:toplevel t1)
+@result{} @red{0x15e5200[@green{1 2 3}]} @emph{;; t1 is 0x15e5200}
+#x15e5200 @emph{;; use Guile to print the address in decimal}
+@result{} 22958592
+(e1:toplevel (whatever:eq? 22958592 t1))
+@result{} @green{1} @emph{;; the fixnum is "the same" as the pointer}
+@end example
+So the answer is that @code{whatever:eq?} doesn't distinguish between
+pointers and non-pointers when comparing.
+
+This issue is actually deeper than it looks.
+@c @*
+I've already made clear that in @qepsilon, differently from Lisp,
+objects doesn't carry their ``type'': an integer, a boolean or a
+character are represented in the exact same way.  However, you might
+wonder how the system can print its nice object ``dumps'' distinguishing
+pointers from non-pointers, also writing buffers with the correct
+number of elements.
+
+The answer is that, even if there are no types,
+@command{guile+whatever} represents @emph{boxedness tags}: for
+each @qepsilon object the runtime keeps track of its fixnum-vs.-pointer
+nature, and also associates a word containing its length to each
+buffer.  This is not guaranteed to happen in all runtimes: later we
+will see an example of a more efficient runtime which doesn't store
+this information.  With that runtime, of course, it won't be possible
+to dump objects using our color notation, or in any other way:
+numbers and pointers are indistinguishable, in the general case.
+
+Even if it's possible to represent boxedness tags without too much
+overhead, I like the idea of not depending on them, particularly when
+compiling for very small targets where code size counts; for this
+reason, @qepsilon permits you to use them if you prefer so, but you can
+do away with them if you want to build something really lean and
+minimal.  Fixnums may be more narrow on efficient runtimes
+representing boxedness tags: a good implementation reserves one bit
+for this information within each fixnum/pointer.
+
+There are procedures to access boxedness tags, which always fail in
+runtimes not representing them: @code{boxedness:fixnum?},
+@code{boxedness:buffer?} and @code{boxedness:buffer-length}.  If you
+want your program to run on all runtimes, @emph{don't use them}.
+
+
+@code{boxedness:fixnum?} returns a non-@code{@green{0}} value if and
+only if its parameter is a fixnum, which is to say a non-pointer:
+@example
+(e1:define n 10)
+(e1:define b (box:make 10))
+(e1:toplevel (boxedness:fixnum? n))
+@result{} @green{1}
+(e1:toplevel (boxedness:fixnum? b))
+@result{} @green{0}
+@end example
+Conversely, @code{boxedness:buffer?} returns a non-@code{@green{0}} value if and
+only if its parameter is a pointer:
+@example
+(e1:toplevel (boxedness:buffer? n))
+@result{} @green{0}
+(e1:toplevel (boxedness:buffer? b))
+@result{} @green{1}
+@end example
+@code{boxedness:buffer-length} returns the length of the buffer
+pointed by its argument.  You shouldn't ever pass it a non-pointer:
+@command{guile+whatever} will fail with an error message, but as usual
+efficient runtimes may just crash:
+@example
+(e1:toplevel (boxedness:buffer-length (buffer:make 4)))
+@result{} @green{4}
+(e1:toplevel (boxedness:buffer-length b))
+@result{} @green{1} @emph{;; one element}
+(e1:toplevel (boxedness:buffer-length n))
+@error{} @strong{size of non-pointer} @emph{;; likely crash, on efficient runtimes}
+@end example
+
+At the cost of being obnoxious let me stress again that
+@code{boxedness:fixnum?}, @code{boxedness:buffer?} and
+@code{boxedness:buffer-length} are only available on runtimes which
+represent boxedness tags: calling any of them on a runtime without
+boxedness tags yields a failure situation, or again a crash.
+
+@subsection Lists, and simple programming examples
+Lists are really nothing new: you just obtain them by chaining
+@emph{conses}@footnote{I often use the name ``cons'' to speak of generic pairs, as it's
+common in the Lisp jargon.  In the ML and Haskell communities,
+``conses'' are just used in lists.  But since there's absolutely no
+difference between the two kinds of pairs in @epsilonone, I adopt
+the Lisp convention.}, which is to say two-element buffers, by convention
+right-deep, like in Lisp.  By convention the empty list is
+@code{@green{0}}, which can't be confused with a pointer on modern
+machines@footnote{I can also support older or less conventional machines
+such as VAXen or the target of my @emph{cool sub-project}, which violate this
+rule: The idea is to have the heap start at some fixed address higher
+than 0: every number lower than the minimum will always be a
+non-pointer for our purposes, even independently of boxedness tags.},
+where memory addresses never have very low values.
+
+More formally, we could state that (by induction) @emph{a list is
+either the empty list @code{@green{0}} or a cons containing an element
+on the left and another list on the right}.
+
+You can use @code{0} and @code{cons:make} or @code{tuple:make} to make
+lists, one cons at a time:
+@example
+(e1:toplevel 0)
+@result{} @green{0} @emph{;; the empty list}
+(e1:toplevel (cons:make 10 (cons:make 20 0)))
+@result{} @red{0x14670b0[@green{10} 0x14670f0[@green{20 0}]]} @emph{;; a list containing @green{10} and @green{20}}
+@end example
+Of course the system doesn't force you to nest on the right side: for
+example we wouldn't call a ``list'' this left-deep structure, which is
+the mirror image of the previous example:
+@example
+(e1:toplevel (cons:make (cons:make 0 20) 10))
+@result{} @red{0x14a0050[0x14a0010[@green{0 20}] @green{10}]}
+@end example
+Even if the left-deep nested pair above is still a perfectly valid
+memory data structure, the @epsilonone convenience syntax and
+procedures work on ordinary lists, which are right-deep and terminated
+with @code{@green{0}}.  When used on non-list structures, predefined
+functions for lists may fail or give unexpected results.
+
+Given a list, you can check if it's empty or obtain its @emph{head}
+(first element) and @emph{tail} (list of all the elements except the
+first) with the procedures @code{list:null?},
+@code{list:head} and @code{list:tail}:
+@example
+(e1:define my-list (cons:make 100 (cons:make 200 0)))
+(e1:toplevel (list:null? my-list))
+@result{} @green{0}
+(e1:toplevel (list:null? 0))
+@result{} @green{1} @emph{;; the empty list is empty}
+(e1:toplevel (list:head my-list))
+@result{} @green{100}
+(e1:toplevel (list:tail my-list))
+@result{} @red{0x7ddb50[@green{200 0}]}
+@end example
+@code{list:head} and @code{list:tail} don't allocate new buffers: they
+just return what's contained in the given cons.  In other words, they are
+@emph{accessors}:
+@example
+(e1:toplevel my-list)
+@result{} @red{0x7ddc50[@green{100} 0x7ddb50[@green{200 0}]]} @emph{;; 0x7ddb50, as the tail above}
+(e1:toplevel (list:tail my-list))
+@result{} @red{0x7ddb50[@green{200 0}]} @emph{;; 0x7ddb50 again}
+@end example
+@code{list:head} and @code{list:tail} are very fast (they are
+essentially calls to @code{buffer:get} with index @code{@green{0}} or
+@code{@green{1}}), but as usual in @epsilonone they don't check for errors:
+you shouldn't ever call them on an empty list --- and using them on
+something different than a cons which is part of a list is probably a
+bad idea.
+@example
+(e1:toplevel (list:head 0))
+@error{} @emph{buffer:get on a non-buffer --- or simply crash}
+(e1:toplevel (list:tail (tuple:make 1 2 3)))
+@result{} @green{2} @emph{;; not a list!  This isn't an error, but using list:tail on non-lists is confusing}
+@end example
+
+
+I've defined several utility procedures working on lists.  One of them is 
+the one-parameter procedure @code{list:iota} (name inspired by APL,
+thru Guile and MIT Scheme) returns a list holding all fixnums from
+@code{@green{0}} included to the argument excluded.
+@example
+(e1:toplevel (list:iota 0))
+@result{} @green{0} @emph{;; the empty list}
+(e1:toplevel (list:iota 2))
+@result{} @red{0x14a8100[@green{0} 0x14a80a0[@green{1 0}]]}
+(e1:toplevel (list:iota 10))
+@result{} @red{0x14b02d0[@green{0} 0x14b0270[@green{1} 0x14b0230[...]]]}
+@end example
+The REPL didn't print the complete structure, because we hit the depth
+limit.  We can raise or eliminate the limit by calling
+@code{set-whatever-dump-maximum-depth!}, which is currently @emph{a
+Guile procedure} --- which means that we @emph{can't} use
+@code{e1:toplevel}.  We can give the procedure either a natural
+number, of @code{#f} to mean ``no limit'':
+@example
+(set-whatever-dump-maximum-depth! #f)
+(e1:toplevel (list:iota 10))
+@result{} @red{0x14b85d0[@green{0} 0x14b8570[@green{1} 0x14b8530[@green{2} 0x14b84f0[@green{3} 0x14b8490[@green{4} 0x14b8430[@green{5} 0x14b83d0[@green{6} 0x14b8370[@green{7} 0x14b8310[@green{8} 0x14b82b0[@green{9 0}]]]]]]]]]]}
+@end example
+A generalization of @code{list:iota} is @code{list:range}, a
+procedure taking two fixnum parameters and returning a list of
+fixnums, from the the first to the second, both included --- or an
+empty list if the first parameter is greater than the second:
+@example
+(e1:toplevel (list:range 10 25))
+@result{} @red{0x12701d0[@green{10} 0x11ec730[@green{11} 0x11ec6d0[@green{12} 0xde34d0[@green{13} 0x105d290[@green{14} 0x105d230[@green{15} 0x11a82e0[@green{16} 0x891af0[@green{17} 0x1208e70[@green{18} 0x90e010[@green{19} 0x90dfb0[@green{20} 0x65ed00[@green{21} 0x65eca0[@green{22} 0x76c900[@green{23} 0x6d1830[@green{24} 0x7f7830[@green{25 0}]]]]]]]]]]]]]]]]}
+@end example
+The @code{e1:length} procedure takes a list and returns its length, as a fixnum:
+@example
+(e1:toplevel (list:length (list:iota 10000)))
+@result{} @green{10000} @emph{;; the first 10000 naturals are 10000 in number}
+(e1:toplevel (list:length 0))
+@result{} @green{0} @emph{;; the empty list has zero elements}
+@end example
+
+Re-defining list utility procedures is a good programming exercise.
+Let's implement @code{mylength}, our own version of
+@code{list:length}.
+
+@code{mylength} will be a recursive procedure doing a case analysis on
+its parameter.  You'll need a conditional. @epsilonone has a good
+variety of Lisp-style conditionals, including:
+@itemize
+@item one-way:
+@code{e1:when}, @code{e1:unless};
+@item one- or two-way:
+@code{e1:if};
+@item multi-way:
+@code{e1:cond}, @code{e1:case}.
+@end itemize
+Syntax and semantics follow Scheme conventions, apart from the usual
+@samp{e1:} prefix.
+
+Our length procedure has only two cases: empty list, or non-empty
+list.  The length of an empty list is zero, and the length of a
+non-empty list is one plus the length of its tail.  We can compute
+``one plus'' with either the two-parameter @code{fixnum:+} (giving
+it @code{1} as one parameter) or with the one-parameter @code{fixnum:1+}.
+
+As a naming convention, I sometimes use ``plural'' variable names such
+as @code{as}, @code{bs}, @code{xs} and @code{ys} for list objects.
+
+@example
+(e1:define (mylength xs)
+  (e1:if (list:null? xs)
+    0
+    (fixnum:1+ (mylength (list:tail xs)))))
+@end example
+
+Does it work?
+@example
+(e1:toplevel (mylength (list:iota 100)))
+@result{} @green{100}
+@end example
+It seems to work.  But if we test it with a bigger list, the thing fails:
+@example
+(e1:toplevel (mylength (list:iota 1000000))) @emph{;; @strong{dangerous}: don't try this}
+@error{} @emph{some strange error or crash}
+@end example
+I was careful to make @code{list:iota} tail-recursive but
+@code{mylength} is clearly not (the recursive call occurs in a
+non-tail position, as the argument of a @code{fixnum:1+} call).  Since
+@code{mylength} consumies an unbounded quantity of stack space
+proportional to the list length, it isn't really usable on large
+arguments.
+
+It's easy to redefine @code{mylength} to be tail-recursive:
+@example
+(e1:define (mylength xs)
+  (mylength-acc xs 0))
+(e1:define (mylength-acc xs acc)
+  (e1:if (list:null? xs)
+    acc
+    (mylength-acc (list:tail xs) (fixnum:1+ acc))))
+@end example
+The new @code{mylength} can compute the length of any list in
+constant space:
+@example
+(e1:toplevel (mylength (list:iota 1000000)))
+@result{} @green{1000000}
+@end example
+
+As a further example, let's compute the last element of the given list.
+There are three cases: an empty list (on which we fail), a one-element
+list, (of which we know the last element), or a list with two or more
+elements:
+@example
+(e1:define (mylast xs)
+  (e1:cond ((list:null? xs)
+            (e1:error "mylast of empty list"))
+           ((list:null? (list:tail xs))
+            (list:head xs))
+           (else @emph{;; #t works as well, like t in Common Lisp/Emacs Lisp}
+            (mylast (list:tail xs)))))
+@end example
+The only recursive call is already in tail position.
+
+You should think of @code{e1:myerror} as a procedure which potentially
+crashes the system or brings it into an unrecoverable ``failure
+state''.  However, before crashing, @code{e1:error} will at least
+print an error message.  If you want to optimize at the cost of being
+even more unforgiving than @code{e1:error}, you can remove the first
+@code{e1:cond} case:
+@example
+(e1:define (mylast xs)
+  (e1:cond ((list:null? (list:tail xs))
+            (list:head xs))
+           (else
+            (mylast (list:tail xs)))))
+@end example
+A two-way @code{e1:cond} may look better as an @code{e1:if}:
+@example
+(e1:define (mylast xs)
+  (e1:if (list:null? (list:tail xs))
+    (list:head xs))
+    (mylast (list:tail xs)))
+@end example
+We may want to factor away the two calls to @code{list:tail}, even if
+in practice they aren't that expensive and the implementation is not
+yet particularly efficient@footnote{The current implementation of
+local variable is naïve, and the code will actually run @emph{slower}
+after this change.  However, that's hardly the point.  I will make the
+implementation efficient in the future.}.  The idea, of course, is
+using a @code{let} block.  @epsilonone has Lisp-style @code{e1:let}
+and @code{e1:let*}:
+@example
+@c (e1:toplevel (e1:let ((a 10))
+@c                a))
+@c @result{} @green{10}
+(e1:toplevel (e1:let ((a 1)
+                      (b 2))
+               (fixnum:+ a b)))
+@result{} @green{3} @emph{;; e1:let* would behave just as e1:let here}
+(e1:define g 100)
+(e1:toplevel (e1:let ((g 10)
+                      (b g)) @emph{;; this sees the @strong{global} g}
+               (fixnum:+ g b)))
+@result{} @green{110}
+(e1:toplevel (e1:let* ((g 10)
+                       (b g)) @emph{;; this sees the @strong{local} g}
+               (fixnum:+ g b)))
+@result{} @green{20}
+@end example
+Using a block, the fast but unfriendly version of @code{mylast} becomes:
+@example
+(e1:define (mylast xs)
+  (e1:let ((tail (list:tail xs)))
+    (e1:if (list:null? tail)
+      (list:head xs)
+      (mylast tail))))
+@end example
+If you want to do exercises, you can re-implement in @epsilonone any
+of the list procedures in @file{core.e} and @file{epsilon1.scm}, using
+recursion.  You'll see that the source files are divided into
+``sections'', delimited by a line full of semicolons plus another
+comment line containing a title.  Look at sections containing the word
+``List'' in their names.
+
+When testing your code, you'll probably want to use the @epsilonone form
+@code{list:list}, which resembles Lisp's @code{list}:
+@example
+(e1:toplevel (list:list 1 (fixnum:+ 10 20) 435 -2))
+@result{} @red{0xcfbbc0[@green{1} 0xcfc000[@green{30} 0x840650[@green{435} 0xe59640[@green{-2 0}]]]]}
+(e1:toplevel (mylast (list:list 1 2 3 4 5)))
+@result{} @green{5}
+@end example
+@subsubsection Digression: a look at @epsilonzero
+@code{list:list} may be convenient, but it's nothing very deep: it's
+just a macro which expands to an expression using @code{list:cons} as
+many times as needed, with the correct nesting.  Even without knowing
+anything about macros, we can check this with the Guile debugging
+procedure @code{meta:macroexpand} (notice the quote):
+@example
+(meta:macroexpand '(list:list 1 (fixnum:+ 10 20) 435 -2))
+@print{} [call list:cons @green{1}₆₈₆₀₀ [call list:cons [call fixnum:+ @green{10}₆₈₆₀₁ @green{20}₆₈₆₀₂]₆₈₆₀₃ [call list:cons @green{435}₆₈₆₀₄ [call list:cons @green{-2}₆₈₆₀₅ list:nil₆₈₆₀₆]₆₈₆₀₇]₆₈₆₀₈]₆₈₆₀₉]₆₈₆₁₀
+@end example
+What's that strange notation?  Well, for the first time @emph{you're
+looking at @epsilonzero expressions}, which I intentionally made visually
+distinct, using brackets.  In fact when an @epsilonone macro call is
+completely expanded, it always yields its result as an @epsilonzero
+expression, ready to be executed or compiled.  Even if you don't
+know @epsilonzero yet, you can already read this: the expression
+consists in nested procedure calls, using as arguments either fixnum
+literals, or @code{list:nil}; @code{list:nil} is just a global
+variable, defined as @code{@green{0}}.  The subscript numbers are
+@emph{handles}, unique identifiers attached to each @epsilonzero
+expression. @code{list:cons} is just an alias of @code{cons:make}.
+
+Just to have a peek at @epsilonzero, let's look at the definitions of
+some simple procedures, with their bodies already expanded
+to @epsilonzero expressions:
+@example
+(meta:print-procedure-definition 'list:length)
+@print{} Formals: (x)
+@print{} [call list:length-acc x₂₆₆ @green{0}₂₆₇]₂₆₈
+(meta:print-procedure-definition 'list:length-acc)
+@print{} Formals: (x acc)
+@print{} [if x₂₆₉ ∈ @{@green{0}@} then acc₂₇₀ else [call list:length-acc [call list:tail x₂₇₁]₂₇₂ [call fixnum:1+ acc₂₇₃]₂₇₄]₂₇₅]₂₇₆
+@end example
+The only conditional in @epsilonzero is a slightly unusual ``@code{[if
+@var{e} ∈ @var{constants} then @var{e} else @var{e}]}''; the reason is
+efficiency: such conditionals are easy to nest and compile using jump
+tables or comparison trees, which may be an important optimization for
+some styles of programming.  See how small these handles are?  The list
+length procedures were defined very early in the bootstrap process.
+
+You don't really need to do anything with @epsilonzero at this time:
+the only thing you should remember is that each piece of @epsilonone
+code is always translated into @epsilonzero before execution,
+compilation, or even procedure definition.  The expanded @epsilonzero
+code will usually be longer and less human-friendly
+@c readable
+than the
+corresponding @epsilonone version, but much easier to execute and analyze.
+
+Now that you've seen @code{meta:print-procedure-definition}, we can use it
+to look at how @code{list:null?} works:
+
+@example
+(meta:print-procedure-definition 'list:null?)
+@print {} Formals: (list)
+@print {} [call whatever:zero? list₂₅₈]₂₅₉
+@end example
+
+@code{whatever:zero?} computes what you'd expect, but its definition may look unusual:
+
+@example
+(meta:print-procedure-definition 'whatever:zero?)
+@print{} Formals: (x)
+@print{} [call e1:not x₂₅₈]₂₅₉
+@end example
+
+@code{e1:not} is also interesting, by the way:
+
+@example
+(meta:print-procedure-definition 'e1:not)
+@print{} Formals: (condition)
+@print{} [if condition₅₀₈₈ ∈ @{@green{0}@} then @green{1}₅₀₈₇ else @green{0}₅₀₈₉]₅₀₉₀
+@end example
+
+Now, can you explain why @code{whatever:zero?} and @code{list:null?}
+are essentially aliases for @code{e1:not}?
+
+@section Practical programming in @epsilonone
+@fill
+
+@subsection Sums
+Look again at our formal definition of lists:
+@emph{by induction, a list is either the empty list or a cons containing an element and another list}.
+
+This data structure definition @emph{by alternative cases} which are
+allowed to be recursive is a useful idea, more general than lists.
+For example, let's say that we want to define binary trees.  We might
+say that ``by induction, a binary tree is either empty or a non-empty
+triple containing a left (sub-)tree, a root element, and a right
+(sub-)tree''.
+
+This kind of structure definition is popular in the functional
+programming community where it's known as @emph{sum} or
+@emph{sum-of-products} --- a ``product'' being an n-uple, and a
+``sum'' being a union of disjoint sets where each element of the union
+conceptually carries a tag representing the origin set.
+
+Differently from most functional languages and as usual in
+@epsilonone, the system won't force you to respect any ``typing''
+constraint: for example storing something different from a tree in the
+@code{left} field of a tree is confusing, but you can do it if you
+want.
+
+Like I did for records, I provide a form to automatically generate
+the needed constructor and accessor procedures, given a sum
+definition.
+
+Here's a definition in @epsilonone for our sample binary tree, having
+two @emph{cases}: the @code{empty} case with no fields, and the
+@code{non-empty} case having fields named @code{left}, @code{root} and
+@code{right}:
+@example
+(e1:toplevel (sum:define tree
+               (empty)
+               (non-empty left root right)))
+@print{} Defining the procedure tree-empty...
+@print{} Defining the procedure tree-empty?...
+@print{} Defining the procedure tree-empty-explode...
+@print{} Defining the procedure tree-non-empty...
+@print{} Defining the procedure tree-non-empty-make-uninitialized...
+@print{} Defining the procedure tree-non-empty-explode...
+@print{} Defining the procedure tree-non-empty-explode-from-second-element...
+@print{} Defining the procedure tree-non-empty-get-left...
+@print{} Defining the procedure tree-non-empty-with-left...
+@print{} Defining the procedure tree-non-empty-set-left!...
+@print{} Defining the procedure tree-non-empty-get-root...
+@print{} Defining the procedure tree-non-empty-with-root...
+@print{} Defining the procedure tree-non-empty-set-root!...
+@print{} Defining the procedure tree-non-empty-get-right...
+@print{} Defining the procedure tree-non-empty-with-right...
+@print{} Defining the procedure tree-non-empty-set-right!...
+@print{} Defining the procedure tree-non-empty?...
+@end example
+Of course trees are just buffers and fixnums.  We can look at their
+memory representation by building two small samples: an empty tree,
+and a non-empty tree having @code{@green{42}} as its root and empty
+left and right subtrees:
+@example
+(e1:toplevel (tree-empty))
+@result{} @green{0}
+(e1:toplevel (tree-non-empty (tree-empty) 42 (tree-empty))) @emph{;;  42}
+@result{} @red{0x12376e0[@green{0 42 0}]}                                         @emph{;; /  \}
+@end example
+The representation in memory is efficient, and very similar to what
+we already saw about lists: the empty tree is @code{@green{0}}, and
+non-empty trees point to @emph{three}-element buffers containing in order
+left subtree, root, and right subtree.
+
+Of course we can build trees of any size:
+@example
+@c (e1:define t (tree-non-empty (tree-non-empty (tree-empty)  @emph{;;    2}
+@c                                              1             @emph{;;   / \}
+@c                                              (tree-empty)) @emph{;;  1   3}
+@c                              2                             @emph{;; / \ / \}
+@c                              (tree-non-empty (tree-empty)
+@c                                              3
+@c                                              (tree-empty))))
+(e1:define t (tree-non-empty (tree-non-empty (tree-empty) 1 (tree-empty))   @emph{;;   2}
+                             2                                              @emph{;;  / \}
+                             (tree-non-empty (tree-empty) 3 (tree-empty)))) @emph{;; 1  3}
+(e1:toplevel t)                                                             @emph{;;/ \/ \}
+@result{} @red{0x1021e80[0xfe0040[@green{0 1 0}] @green{2} 0xfdff20[@green{0 3 0}]]}
+@end example
+Since sums usually have more than one case, it's useful to @emph{query the case} of a given object: of course you shouldn't use tree procedures on anything but trees, but for any given sum all cases (in this case empty and non-empty) are always safe for case-querying:
+@example
+(e1:toplevel (tree-empty? (tree-empty)))
+@result{} @green{1} @emph{;; the empty tree is in fact empty}
+(e1:toplevel (tree-non-empty? (tree-empty)))
+@result{} @green{0} @emph{;; the empty tree isn't non-empty}
+(e1:toplevel (tree-non-empty? t))
+@result{} @green{1}
+@end example
+If you are sure that the object is the appropriate case of a sum you can use accessors, which are essentially the same as for records:
+@example
+(e1:toplevel (tree-non-empty-get-right t))
+@result{} @red{0xfdff20[@green{0 3 0}]}
+(e1:toplevel (tree-non-empty-get-root t))
+@result{} @green{2}
+(e1:toplevel (tree-non-empty-get-root (tree-non-empty-get-left t)))
+@result{} @green{1} @emph{;; the root of the left subtree of t}
+@end example
+
+Since you can't resize existing buffers or update unboxed objects, you can't in general mutate an object from a case to another.
+However in @epsilonone you can always mutate sum @emph{fields}, and you get handy procedures for that:
+
+@example
+(e1:toplevel (tree-non-empty-set-right! t (tree-empty)))
+@emph{;; t's left subtree is now empty}
+(e1:toplevel t)
+@result{} @red{0x1021e80[0xfe0040[@green{0 1 0}] @green{2 0}]}
+@end example
+Like for records, you can make copies with a different field:
+@example
+(e1:toplevel (tree-non-empty-with-left t (tree-empty)))
+@result{} @red{0x1a202a0[@green{0 2 0}]}
+(e1:toplevel t)
+@result{} @red{0x1021e80[0xfe0040[@green{0 1 0}] @green{2 0}]} @emph{;; t didn't change}
+@end example
+
+Well-designed recursive sums lend themselves particularly well to
+recursive programming, since case analysis tends to follow the
+structure of sum cases, with recursive calls occurring on
+recursive substructures.
+
+As a simple example, let the @emph{height} of a tree be zero for empty
+trees; and for non-empty trees, let it be one plus the height of the
+tallest subtree (left or right).  Easy enough:
+@example
+(e1:define (height t)
+  (e1:if (tree-empty? t)
+    0
+    (e1:let ((left-height (height (tree-non-empty-get-left t)))
+             (right-height (height (tree-non-empty-get-right t))))
+      (fixnum:1+ (e1:if (fixnum:> left-height right-height)
+                   left-height
+                   right-height)))))
+@end example
+It works:
+@example
+(e1:toplevel (height t))
+@result{} @green{2} @emph{;; the left subtree has height one, the right one is empty}
+@end example
+@code{height} was a little clumsy to write.  We can make the definition much
+nicer if we recognize that the inner @code{e1:if} above is just the
+computation of the maximum between two fixnums.
+
+There is already a @code{fixnum:max} procedure; but even if you forgot
+about that, you could redefine a maximum procedure for fixnums by yourself:
+@example
+(e1:define (my-max a b)
+  (e1:if (fixnum:> a b)
+    a
+    b))
+@end example
+And so, thanks to procedural abstraction, we can refactor
+@code{height} to be much more readable:
+@example
+(e1:define (height t)
+  (e1:if (tree-empty? t)
+    0
+    (fixnum:1+ (fixnum:max (height (tree-non-empty-get-left t))
+                           (height (tree-non-empty-get-right t))))))
+@c (e1:toplevel (height t))
+@c @result{} @green{2}
+@end example
+
+Sums work nicely, but they potentially hide a tricky representation
+problem.  Think once more about case-querying; how can the system
+distinguish one case from another, for our trees?  Sums must work on
+every runtime, so case-querying procedures can't rely on boxedness
+tags.
+
+What distinguishes an empty tree from a non-empty tree?  More
+generally, what distinguishes a boxed sum case from an unboxed case,
+and one case from another?
+
+@example
+(e1:toplevel (sum:define s1
+               (a)
+               (b)
+               (c)))
+@print{} @emph{;; [procedures are automatically defined, as usual]}
+@end example
+The @code{s1} sum has three cases: @code{a}, @code{b} and @code{c},
+all with zero fields.  In practice an @code{s1} object is nothing more
+than an @code{enum} type in C: every @code{s1} is @code{a}, or @code{b}, or
+@code{c}; nothing more.  The implementation is also just as trivial:
+@example
+(e1:toplevel (s1-a))
+@result{} @green{0}
+(e1:toplevel (s1-b))
+@result{} @green{1}
+(e1:toplevel (s1-c))
+@result{} @green{2}
+@end example
+So cases with no arguments can always be represented as unboxed objects,
+distinct from one another.  The constructors for such cases always return the
+same results when called multiple times:
+@example
+(e1:toplevel (s1-a))
+@result{} @green{0} @emph{;; again}
+(e1:toplevel (s1-a))
+@result{} @green{0} @emph{;; no pointers: there is really only one a}
+@end example
+Notice also that @code{@green{0}} is the representation of both the
+@code{a} case of @code{s1}, and of the @code{empty} case of
+@code{tree}: it's impossible to distinguish them from one another,
+even you can always tell apart different cases @emph{of the same sum}.
+
+Let's define a sum having more than one case with fields:
+@example
+(e1:toplevel (sum:define s2
+               (a m n)
+               (b q)))
+@print{} @emph{;; [automatic procedure definitions]}
+@end example
+An @code{s2} may be either an @code{a}, containing two fields @code{m}
+and @code{n}, or a @code{b}, containing one field @code{q}.  Ok, but
+how are @code{s2}'s represented in memory?
+@example
+(e1:toplevel (s2-a 100 200))
+@result{} @red{0x19ba510[@green{0 100 200}]}
+(e1:toplevel (s2-a 100 200))
+@result{} @red{0x19c0410[@green{0 100 200}]} @emph{;; different pointer!}
+(e1:toplevel (s2-b 500))
+@result{} @red{0x19c5f70[@green{1 500}]}
+@end example
+Of course both cases are boxed now; but the interesting difference is
+how the first work of each object is now a @emph{tag} identifying the
+case: either @code{@green{0}} for @code{a}, or @code{@green{1}} for
+@code{b}.  Of course you don't need to remember the presence of the
+tag if you use the automatically-generated accessors for working with
+fields:
+@example
+(e1:toplevel (s2-b-get-q (s2-b 600)))
+@result{} @green{600} @emph{;; you don't need to remember that q is the second field}
+(e1:toplevel (s2-a? (s2-b 700)))
+@result{} @green{0}
+(e1:toplevel (s2-b? (s2-b 800)))
+@result{} @green{1}
+@end example
+Sums only need to contain tag words when they have @emph{more than
+one} boxed case.
+
+Unboxed cases can always be distinguished from pointers even without
+boxedness tags, because they are @emph{small} numbers: no modern
+system will allocate a heap buffer at an address such as @code{0},
+@code{1}, @code{2} or even @code{1024}, which is still a reasonable
+upper bound on the number of cases, even in pathological situations.
+Thanks to this fact, we can afford a much more efficient
+representation for cases with no fields.
+
+We have already said that lists are a sum: indeed, @file{epsilon1.scm}
+contains the definition:
+@example
+(e1:toplevel (sum:define list:list
+               (nil)
+               (cons head tail)))
+@end example
+Of course there are convenience aliases for common operations; for
+example @code{list:head}, which we've already shown, is easier to
+write than the automatically-generated name
+@samp{list:list-cons-get-head}; however the underlying representation
+exactly follows our description above: one unboxed case,
+@code{@green{0}}, plus one boxed case with two fields.  Tag words
+aren't needed, so list conses can be represented 
+@c in a reasonably compact way
+in a compact way
+@c compactly
+in memory, using only two words per cons.  Since some lists may
+contain a very large number of elements, saving one word per element
+can make quite a
+@c difference.
+difference for performance.
+
+An @emph{open sum} is a sum to which you can add more cases later on.
+Since there's no way to tell how many boxed cases will be needed in
+the end, all boxed cases have to contain a tag word; apart from this
+slight inefficiency, open sums work just like non-open sums.
+
+Let's define an open sum named @code{os}.  You can use form
+@code{sum:define-open} (which of course is defined as a macro as well)
+just like @code{sum:define}:
+@example
+(e1:toplevel (sum:define-open os
+               (x)
+               (y a)))
+@print{} @emph{;; automatic procedure definitions...}
+(e1:toplevel (os-y 68))
+@result{} @red{0x901640[@green{1 68}]}
+@end example
+We gave our sum @code{os} two cases named @code{x} and @code{y}.
+Let's add one more, @code{z}:
+@example
+(e1:toplevel (sum:extend-open os
+               (z a)))
+@print{} @emph{;; automatic procedure definitions...}
+(e1:toplevel (os-z 6))
+@result{} @red{0x8a7608[@green{2 6}]}
+(e1:toplevel (os-y 6))
+@result{} @red{0x8a5bd0[@green{1 6}]} @emph{;; "old" cases still work}
+@end example
+We can keep adding cases even after we've started to make instances,
+as you already saw.  Let's add two more, @code{t1} and @code{t2}:
+@example
+(e1:toplevel (sum:extend-open os
+               (t1 a b c)
+               (t2)))
+@print{} @emph{;; automatic procedure definitions...}
+(e1:toplevel (os-t1 10 20 30))
+@result{} @red{0xcdc3d8[@green{3 10 20 30}]}
+(e1:toplevel (os-y 7))
+@result{} @red{0x8a30e8[@green{1 7}]}
+@end example
+
+@subsection A programming example: structural equality with boxedness tags
+At this point you should be ready to do some simple @epsilonone
+programming, trying to come up with an implementation before reading
+my code.
+
+If we accept to rely on boxedness tags, we can have a @emph{structural
+equality} procedure similar to @code{equal} in Common Lisp and Emacs
+Lisp or to @code{equal?} in Scheme.  Boxedness tags are necessary,
+since we can't know the object shape in advance, and if we are to
+dereference pointers to compare corresponding buffers, we also need to
+recognize them as pointers, and obtain buffer lengths.
+
+Defining the procedure @code{whatever:equal?} is a good programming
+exercise.  It only relies on Lisp-style @code{if}, @code{cond},
+@code{let}, @code{and}, @code{not} (all available in @epsilonone with
+the prefix @samp{e1:}), plus trivial arithmetics (such procedures are
+already available for fixnums, with the prefix @samp{fixnum:}).
+
+Our @code{whatever:equal?} is a typical recursive procedure of two
+arguments, performing case analysis.  There are three possible cases:
+@itemize
+@item @emph{both arguments are fixnums}:
+we can use @code{whatever:eq?};
+@item @emph{both arguments are pointers}
+(the most difficult case): we use a helper function;
+@item @emph{one argument is a fixnum, the other is a pointer}:
+the arguments are different.
+@end itemize
+Even if we haven't written the helper procedure
+@code{whatever:buffer-equal?} yet, we can already define the main
+procedure:
+@example
+(e1:define (whatever:equal? a b)
+  (e1:let ((fixnum-a (boxedness:fixnum? a))
+           (fixnum-b (boxedness:fixnum? b)))
+    (e1:cond ((e1:and fixnum-a fixnum-b)
+              (whatever:eq? a b))
+             ((e1:and (e1:not fixnum-a) (e1:not fixnum-b))
+              (whatever:buffer-equal? a b))
+             (else
+              #f))))
+@end example
+Two buffers are equal when they have the same length, and all
+corresponding elements are equal.
+
+There are several ways of defining @code{whatever:buffer-equal?}, but
+the easiest is probably using another helper procedure (this time
+recursive), checking the array content from a given index to the end.
+However, we don't even need to look at the elements if the two buffers
+have different lengths:
+@example
+(e1:define (whatever:buffer-equal? pointer-1 pointer-2)
+  (e1:let ((length-1 (boxedness:buffer-length pointer-1))
+           (length-2 (boxedness:buffer-length pointer-2)))
+    (e1:if (whatever:eq? length-1 length-2) ;; lengths are fixnums
+      (whatever:buffer-equal-from-length? pointer-1 pointer-2 0 length-1)
+      #f)))
+@end example
+And now, finally, the recursive helper function.  It returns @code{#f}
+immediately if it finds a difference at some point, in which case it's
+useless to look at the rest.  If the procedure reaches the buffer
+ends without having found a difference, it concludes that the buffers
+were equal --- @code{whatever:buffer-equal-from-to?} is only used on
+buffers of the same length, so we don't have to worry about reaching the end
+on just one of the two buffers.
+@*
+Notice that @code{whatever:buffer-equal-from-to?} recursively calls
+@code{whatever:equal?}  when comparing buffer elements: this is
+reasonable, because the two corresponding elements can themselves be
+any combination of fixnums and pointers.
+@example
+(e1:define (whatever:buffer-equal-from-length? pointer-1 pointer-2 from length)
+  (e1:cond ((whatever:eq? from length)
+            #t)
+           ((whatever:equal? (buffer:get pointer-1 from)
+                             (buffer:get pointer-2 from))
+            (whatever:buffer-equal-from-length? pointer-1
+                                                pointer-2
+                                                (fixnum:1+ from)
+                                                length))
+           (else
+            #f)))
+@end example
+We can now test @code{whatever:equal?}:
+@example
+(e1:toplevel (whatever:equal? (tuple:make 1 (tuple:make 43 56))
+                              (tuple:make 1 (tuple:make 43 56) 1)))
+@result{} @green{0}
+(e1:toplevel (whatever:equal? (tuple:make 1 (tuple:make 43 56) 1)
+                              (tuple:make 1 (tuple:make 43 56) 2)))
+@result{} @green{0}
+(e1:toplevel (whatever:equal? (tuple:make 1 (tuple:make 43 56) 1)
+                              (tuple:make 1 (tuple:make 43 7) 1)))
+@result{} @green{0}
+(e1:toplevel (whatever:equal? (tuple:make 1 (tuple:make 43 56) 1)
+                              (tuple:make 1 (tuple:make 43 56) 1)))
+@result{} @green{1}
+@end example
+@c The procedure works, even if it will be much slower than @code{whatever:eq?}.
+
+If you want to do another similar exercise by yourself you can write
+a deep-cloning procedure, a hashing procedure, or a
+lexicographic comparison procedure.
+
+You could also try to improve @code{whatever:equal} so that it never
+loops on cyclic structures, but that's @emph{much} more difficult
+(Hint: you need two associative data structures using pointers as keys
+and sets of pointers as data, to keep track of tentative and proved
+equalities).
+@c FIXME: speak of this in a separate post.  Cite
+@c http://users.encs.concordia.ca/~grogono/Writings/CopyCompare.pdf
+
+
+@subsection A look at reflective data structures
+The @epsilonone form @code{e1:value} resembles Lisp's @code{quote},
+and serves to tell the system that we are interested in some immediate
+constant @emph{as a data structure}; it is mainly useful for symbols:
+@code{(e1:value foo)} evaluates to the symbol @code{foo} as a data
+structure, which of course isn't the same as @emph{the variable named
+@code{foo}}.  On the other hand @code{(e1:value 42)} works exactly
+like @code{42} in @epsilonone.
+
+Let's have a look at the symbol @code{foo} as a data structure:
+@example
+(e1:toplevel (e1:value foo))
+@result{} @red{0x1484770[0x9a60b0[@green{3 102 111 111}] @green{0 127 0 0 0 0 0 0 0 0}]}
+@end example
+It's a large boxed data structure --- don't worry, you won't need to
+remember all fields, or their positions.
+@*
+The first field is the
+string @code{@red{0x9a60b0[@green{3 102 111 111}]}}, containing its
+length followed by the characters 102, 111 and 111; which is to say @code{"foo"}, the symbol name.
+@c (@code{f}, @code{o} and @code{o} in Unicode, one character per word).
+The other fields
+contain the symbol value as a global, a procedure, a macro, and other
+such information.  Since @code{foo} isn't the global name of anything,
+there is nothing very interesting to see: we just have
+@code{@green{0}} in fields which otherwise would usually point to boxed data.
+The @code{@green{127}} fixnum is actually irrelevant, and could be any
+other value; that field holds the value associated to @code{foo} as a
+global variable, if any: the previous field is a flag saying whether
+such value exists, and in this case it's @code{@green{0}}, because
+there's no global variable named @code{foo}.  The flag is necessary
+since any value, boxed or unboxed, including @code{@green{0}} or
+@code{@green{127}}, is a potentially valid value for a global
+variable.
+
+@c @move{Notice that characters are not distinguished in any way from integers, flags, booleans, enumerates or other ``fixed'' values.  @todo{shall I introduce boxedness tags here?}}
+
+Of course named symbols are unique after interning, like in Lisp.
+Therefore we can check whether two symbols are equal with
+@code{whatever:eq?}  --- in practice by comparing their pointers,
+which is a very fast operation:
+@example
+(e1:toplevel (e1:value foo)) @emph{;; same symbol name as before...}
+@result{} @red{0x1484770[0x9a60b0[@green{3 102 111 111}] @green{0 127 0 0 0 0 0 0 0 0}]} @emph{;; ...same pointer!}
+(e1:toplevel (whatever:eq? (e1:value foo)
+                           (e1:value foo)))
+@result{} @green{1} @emph{;; 0x1484770 is equal to 0x1484770}
+@end example
+
+Now let's define a global named @samp{foo}, then look at the symbol again:
+@example
+(e1:define foo 671)
+(e1:toplevel (e1:value foo))
+@result{} @red{0x1484770[0x9a60b0[@green{3 102 111 111}] @green{1 671 0 0 0 0 0 0 0 0}]}
+@end example
+What happened shouldn't be surprising at this point: the symbol now
+@emph{has} a global value, so the flag changed from @code{@green{0}}
+to @code{@green{1}}; and the field following it changed from
+@code{@green{127}}, which was unused with the flag set to
+@code{@green{0}}, to the appropriate value @code{@green{671}}.
+
+Of course the symbol field holds its @emph{global} value.  Formal
+parameters or local variables named @samp{foo} don't affect it:
+@example
+(e1:define (bar foo)
+  (fixnum:+ foo foo))
+(e1:toplevel (bar 57))
+@result{} @green{114}
+(e1:toplevel (e1:let* ((a 10)
+                       (foo (+ a 2)))
+               foo))
+@result{} @green{12}
+(e1:toplevel (e1:value foo)) @emph{;; nothing changed in foo}
+@result{} @red{0x1484770[0x9a60b0[@green{3 102 111 111}] @green{1 671 0 0 0 0 0 0 0 0}]}
+@end example
+To make things more interesting, now let's define @emph{a procedure}
+named @samp{foo}.  Our procedure will be a trivial zero-argument
+@emph{constant function}, always returning @code{@green{82}}.
+@example
+(e1:define (foo)
+  82)
+(e1:toplevel (e1:value foo))
+@result{} @red{0x1484770[0x9a60b0[@green{3 102 111 111}] @green{1 671 0 @red{0xd74d98[@green{1 68979 82}]} 0 0 0 0 0 0}]}
+@end example
+You can immediately notice that the global binding to
+@code{@green{671}} survived: this means that a symbol can hold a
+global non-procedure and a global procedure @emph{at the same time},
+like in Common Lisp and Emacs Lisp, but differently from Scheme:
+@example
+(e1:toplevel (foo))
+@result{} @green{82}
+(e1:toplevel foo)
+@result{} @green{671}
+@end example
+This possibility of mapping different global entities (non-procedures,
+procedures, macros, ...) to the same name is a natural consequence of
+how symbols work.
+
+You can also see that our (simple) procedure doesn't look very hard to
+read in the data structure: what changed is just the new buffer
+@code{@red{0xd74d98[@green{1 68979 82}]}}.  Can we understand it?  It
+turns out that yes, we can read it quite easily.  Since the buffer
+contains the fixnum @code{@green{82}}, you may guess that the buffer
+at @code{0xd74d98} represents the procedure body; indeed it does.
+
+Look for the section named ``Expressions as an open sum type'' in
+@file{epsilon1.scm}.  You'll find this code:
+@example
+(e1:toplevel (sum:define-open e0:expression
+               (variable handle name)
+               (value handle content)
+               (bundle handle items)
+               (primitive handle name actuals)
+               (let handle bound-variables bound-expression body)
+               (call handle procedure-name actuals)
+               (call-indirect handle procedure-expression actuals)
+               (if-in handle discriminand values then-branch else-branch)
+               (fork handle procedure-name actuals)
+               (join handle future)))
+@end example
+The section title says it all: @emph{@epsilonzero expressions are an
+open sum}.  The sum cases you see above are everything which remains
+after macroexpanding and transforming; some cases which are added
+later are always rewritten away before execution or compilation, until
+you get only @epsilonzero expressions as specified above; there is
+really nothing more.
+
+@move{Let me stress again how simple @epsilonzero expressions are: at
+@emph{ten cases} total, this is much simpler than any mainstream
+language including ``small'' languages such as Scheme and SML, and
+much smaller than @epsilonone as well.}
+
+I won't explain every case now; you can already understand several of
+them.  You should notice that all cases are boxed, and they all
+contain a handle as their first element: you already saw handles
+before, printed as subscript numbers by the debugging facility.
+
+Now you have all the information you need to understand
+@code{@red{0xd74d98[@green{1 68979 82}]}}
+as an @code{e0:expression} sum: it has a tag word @code{@green{1}},
+hence it's the second case from the beginning, @code{value}; it
+contains a @code{handle} with value @code{@green{68979}}, and a
+@code{content} with value @code{@green{82}}.
+
+You can check this reasoning with @code{meta:print-procedure-definition}:
+@example
+(meta:print-procedure-definition 'foo)
+@print{} Formals: ()
+@print{} @green{82}₆₈₉₇₉
+@end example
+
+Let's redefine the procedure @code{foo} as something slightly more
+complex: let's make it the @emph{identity function}, taking one
+parameter and returning it unchanged.  Now, to make our dump a little
+easier to read, I'll use @code{foo} @emph{as the formal parameter
+name} as well.
+@example
+(e1:define (foo foo)
+  foo)
+@end example
+You shouldn't worry about @code{foo} being associated at the same time
+with a global, a procedure and a parameter: @code{foo} as occurs in
+the body can't be a procedure reference, and in @epsilonone (like in
+any other reasonable language) a parameter binding takes precedence
+over a global binding.
+@example
+(e1:toplevel foo)
+@result{} @green{671} @emph{;; our non-procedure global}
+(e1:toplevel (foo 3))
+@result{} @green{3}
+@end example
+Everything works.  Let's look at the symbol again:
+@example
+(e1:toplevel (e1:value foo))
+@result{} @red{0x1484770[0x9a60b0[@green{3 102 111 111}] @green{1 671 @red{0xf44178[@green{@yellow{0x1484770} 0}]} @red{0xf44638[@green{0 69017 @yellow{0x1484770}}]} 0 0 0 0 0 0}]}
+@end example
+There are two differences with respect to the previous version:
+@itemize
+@item
+right after the global value @code{@green{671}} there is the buffer
+@code{@red{0xf44178[@green{@yellow{0x1484770} 0}]}} instead of
+@code{@green{0}};
+@item
+the procedure body has changed: now it's
+@code{@red{0xf44638[@green{0 69017 @yellow{0x1484770}}]}}.
+@end itemize
+
+The first difference shows that a symbol field contains a list of
+formal parameters, as symbols.  When the procedure had zero parameters
+the list was empty, now it's a one-element list containing
+@code{@yellow{0x1484770}}, which is @code{foo} itself.
+@*
+The second change is even easier to follow: the procedure body is now
+the first case (tag @code{@green{0}}) of @code{e0:expression}, named
+@code{variable}: and the variable is @code{@yellow{0x1484770}} ---
+once more, the symbol @code{foo}.  Finally the new expression got a
+fresh handle, @code{@green{69017}}.
+@example
+(meta:print-procedure-definition 'foo)
+@print{} Formals: (foo)
+@print{} foo₆₉₀₁₇
+@end example
+
+Within the @code{e0:expression} sum, variables are always represented
+as symbols, and sequences (be they variables, values or expressions)
+as lists.  Of course all sub-expressions are @code{e0:expression}
+sums: the @code{e0:expression} sum is recursive.
+
+As another example, let's see how a slightly more complicated expression
+translates to @epsilonzero.  The @code{e1:bundle} form serves to
+return multiple results, like @code{values} in Scheme and Common Lisp:
+@example
+(e1:define (my-procedure)
+  (e1:bundle 60
+             70))
+(e1:toplevel (my-procedure))
+@result{} @green{60}
+@result{} @green{70}
+@end example
+Good, @code{my-procedure} works.  Let's look at its body:
+@example
+(e1:toplevel (e1:value my-procedure))
+@result{} @red{0xb56ab8[0xb3d3b0[@green{12 109 121 45 112 114 111 99 101 100 117 114 101}] @green{0 127 0} 0xaf14e8[@green{2 75167} 0xaf14b8[0x1a597c8[@green{1 75165 60}] 0xaf3bd8[0xaf3bb8[@green{1 75166 70}] @green{0}]]] @green{0 0 0 0 0 0}]}
+@end example
+We got the information we wanted, but we saw the whole symbol as well.
+If we only want the procedure body, we can use the procedure
+@code{state:procedure-get-body}, which takes a symbol and returns the
+body of the procedure named after it.  Actually
+@code{state:procedure-get-body} is a simple selector looking up the
+given buffer at the appropriate index --- notice that @code{@green{0}}
+isn't a valid value for any @code{e0:expression} case, so a
+@code{@green{0}} result represents the absence of a procedure
+binding; we don't need a separate flag as for non-procedure bindings.
+@example
+(e1:toplevel (state:procedure-get-body (e1:value my-procedure)))
+@result{} @red{0xaf14e8[@green{2 75167} 0xaf14b8[0x1a597c8[@green{1 75165 60}] 0xaf3bd8[0xaf3bb8[@green{1 75166 70}] @green{0}]]]}
+(e1:toplevel (state:procedure-get-body (e1:value this-is-not-a-procedure-name)))
+@result{} @green{0}
+(e1:toplevel (e1:value this-is-not-a-procedure-name))
+@result{} @red{0x43d05e0[0x43cf7f0[@green{28 116 104 105 115 45 105 115 45 110 111 116 45 97 45 112 114 111 99 101 100 117 114 101 45 110 97 109 101}] @green{0 127 0 0 0 0 0 0 0 0}]} @emph{;; the body field is @green{0}}
+@end example
+So we've seen that the bundle expression indeed contains a list of
+value expressions.  Let's check:
+@example
+(meta:print-procedure-definition 'my-procedure)
+@print{} Formals: ()
+@print{} [bundle @green{60}₇₅₁₆₅ @green{70}₇₅₁₆₆]₇₅₁₆₇
+@end example
+
+Thanks to their structure, it's easy to work on expressions with
+recursive procedures: notably it's easy to write an @epsilonzero
+interpreter in @epsilonone, and in fact you can find one in @file{core.e}
+--- actually written in a very restricted subset of @epsilonone,
+very close to @epsilonzero.  Much in the same way, it's not hard to write
+a compiler in @epsilonone which translates @epsilonzero into native
+code --- and I did that as well: see @file{compiler.e}.
+
+In order for a compiler to work, it has to access all global
+definitions.  As you saw, global procedures and non-procedures for a
+given symbol are easy to find; but where do you find @emph{all}
+interned symbols?  The answer, of course, is @emph{in the symbol
+table}.
+
+It may look a little frightening because of its size, but in the end
+the symbol table (a hash table mapping symbol names as strings into
+symbols) is just a data structure like any others, made of fixnums and
+pointers. Its written dump is very large, and not by accident: starting
+from the symbol table you can reach every symbol, and symbols point to
+their global definitions as globals and procedures...  Since procedure
+formals and bodies contain symbols, you'll see many ``yellow'' pointers
+as well.
+@example
+(e1:toplevel symbol:table)
+@result{} @code{@red{0x946950[0x946990[@green{4096 1993} 0xc095b0[0xc09670[0xa1d780[@green{0}] 0xa1d700[@yellow{0xa1d780} @green{0 127 0 0 0 0 0 0 0 0}]] 0xc095f0[0xc09630[0x980980[@green{10 99 111 110 100 105 116 105 111 110 115}] 0x980900[@yellow{0x980980} @green{0 127 0 0 0 0 0 0 0 0}]] @green{0}]] 0xc09530[0xc09570[0xb7dfa0[@green{10 98 111 117 110 100 45 102 111 114 109}] 0xb7df20[@yellow{0xb7dfa0} @green{0 127 0 0 0 0 0 0 0 0}]] @green{0}] @green{0 0 0} 0xc094b0[0xc094f0[0xa17200[@green{14 115 117 109 58 100 101 115 99 114 105 112 116 111 114}] 0xa8fad0[@yellow{0xa17200} @green{0 127} 0xa90200[0xa17110[0xa17190[@green{7 116 114 105 118 105 97 108}] @green{0 127 0 0 0 0 0 0 0 0}] 0xa90240[0xa16fd0[0xa17050[@green{17 99 97 115 101 115 45 115 101 120 112 114 101 115 115 105 111 110}] @green{0 127 0 0 0 0 0 0 0 0}] @green{0}]] 0xa8fb50[@green{4 18816} 0xa901c0[0xa8fc80[0xa8fd00[@green{3 95 57 52}] @green{0 127 0 0 0 0 0 0 0 0}] @green{0}] 0xa900f0[@green{5 18815} 0x95ca20[0x95cd00[@green{11 98 117 102 102 101 114 58 109 97 107 101}] @green{0 127} 0x95ccc0[0x95cbc0[0x95cc40[@green{10 101 108 101 109 101 110 116 45 110 111}] @green{0 127 0 0 0 0 0 0 0 0}] @green{0}] 0x95caf0[@green{3 188} @yellow{0x95ca20} 0x95cb40[0x95cb80[@green{0 187} @yellow{0x95cbc0}] @green{0}]] @green{0 0} 0x95caa0[@green{1 1 0 0 4}] @green{0 0 0}] 0xa90140[0xa90180[@green{1 18814 2}] @green{0}]] 0xa8fba0[@green{4 18813 0} 0xa8ff20[@green{5 18806} 0x95c0b0[0x95c410[@green{18 98 117 102 102 101 114 58 105 110 105 116 105 97 108 105 122 101 33}] @green{0 127} 0x95c350[0x954760[0x9547e0[@green{6 98 117 102 102 101 114}] @green{0 127 0 0 0 0 0 0 0 0}] 0x95c390[0x954640[0x9546c0[@green{5 105 110 100 101 120}] @green{0 127 0 0 0 0 0 0 0 0}] 0x95c3d0[0x95b270[0x95b2f0[@green{11 110 101 119 45 101 108 101 109 101 110 116}] @green{0 127 0 0 0 0 0 0 0 0}] @green{0}]]] 0x95c180[@green{3 201} @yellow{0x95c0b0} 0x95c1d0[0x95c310[@green{0 198} @yellow{0x954760}] 0x95c210[0x95c2d0[@green{0 199} @yellow{0x954640}] 0x95c250[0x95c290[@green{0 200} @yellow{0x95b270}] @green{0}]]]] @green{0 0} 0x95c130[@green{3 0 1 0 9}] @green{0 0 0}] 0xa8ff70[0xa900b0[@green{0 18803} @yellow{0xa8fc80}] 0xa8ffb0[0xa90070[@green{1 18804 0}] 0xa8fff0[0xa90030[@green{0 18805} @yellow{0xa17110}] @green{0}]]]] 0xa8fbf0[@green{4 18812 0} 0xa8fd50[@green{5 18810} @yellow{0x95c0b0} 0xa8fda0[0xa8fee0[@green{0 18807} @yellow{0xa8fc80}] 0xa8fde0[0xa8fea0[@green{1 18808 1}] 0xa8fe20[0xa8fe60[@green{0 18809} @yellow{0xa16fd0}] @green{0}]]]] 0xa8fc40[@green{0 18811} @yellow{0xa8fc80}]]]] @green{0 0 0 0 0 0}]] @green{0}] @green{0} 0xc09430[0xc09470[0xb12540[@green{11 115 116 97 116 101 58 101 114 114 111 114}] 0xb124c0[@yellow{0xb12540} @green{0 127 0 0 0 0 0 0 0 0}]] @green{0}] @green{0 0 0 0} 0xc093b0[0xc093f0[0xb12220[@green{11 115 116 97 116 101 58 97 112 112 108 121}] 0xb121a0[@yellow{0xb12220} @green{0 127 0 0 0 0 0 0 0 0}]] @green{0}] @green{0 0 0 0 0 0 0 0 0} 0xc09230[0xc09270[0xc09330[@green{10 112 114 105 109 105 116 105 118 101 63}] 0xc092b0[@yellow{0xc09330} @green{0 127 0 0 0 0 0 0 0 0}]] @green{0}] 0xc091b0[0xc091f0[0xb14850[@green{27 115 116 97 116 101 58 97 100 100 45 112 114 105 109 105 116 105 118 101 45 115 121 109 98 111 108 115}] 0xb13a50[@yellow{0xb14850} @green{0 127} 0xb147d0[0x9c59d0[0x9c5a50[@green{6 115 97 108 105 115 116}] @green{0 127 0 0 0 0 0 0 0 0}] 0xb14810[0x963680[0x963700[@green{3 97 99 99}] @green{0 127 0 0 0 0 0 0 0 0}] @green{0}]] 0xb13ad0[@green{7 2757} 0xb14790[@green{0 2738} @yellow{0x9c59d0}] 0xb14750[@green{0 0}] 0xb14710[@green{0 2739} 0x963680] 0xb13b30[@green{4 2756} 0xb146d0[0xb0cc70[0xb0ccf0[@green{12 102 105 114 115 116 45 115 121 109 98 111 108}] @green{0 127 0 0 0 0 0 0 0 0}] @green{0}] 0xb14570[@green{5 2742} 0x6b2d50[0x65cb40[@green{8 99 111 110 115 58 99 100 114}] @green{0 127} 0x6f91a0[0x957840[0x9578c0[@green{4 99 111 110 115}] @green{0 127 0 0 0 0 0 0 0 0}] @green{0}] 0x61e700[@green{5 250} 0x957670[0x957950[@green{12 99 111 110 115 58 103 101 116 45 99 100 114}] @green{0 127} 0x957910[@yellow{0x957840} @green{0}] 0x9576f0[@green{5 235} 0x954460[0x9548c0[@green{10 98 117 102 102 101 114 58 103 101 116}] @green{0 127} 0x954840[@yellow{0x954760} 0x954880[@yellow{0x954640} @green{0}]] 0x954530[@green{3 193} @yellow{0x954460} 0x954580[0x954720[@green{0 191} @yellow{0x954760}] 0x9545c0[0x954600[@green{0 192} @yellow{0x954640}] @green{0}]]] @green{0 0} 0x9544e0[@green{2 1 0 0 7}] @green{0 0 0}] 0x957740[0x957800[@green{0 233} @yellow{0x957840}] 0x957780[0x9577c0[@green{1 234 1}] @green{0}]]] @green{0}}}
+@emph{;;; [...] this is just the beginning.  Try it!}
+@end example
+There are procedures which walk the @code{symbol:table} structure and
+return a list containing all the symbols bound to procedures or
+to non-procedures; these are handy to get ``global'' information about
+the program state:
+@example
+(e1:toplevel (state:global-names))
+@result{} @emph{;; [huge output]}
+(e1:toplevel (state:procedure-names))
+@result{} @emph{;; [different huge output]}
+@end example
+
+@subsubsection @code{e1:define} is just a macro!
+Many of the details above aren't important in practice: you won't need
+to remember the field order in a symbol object, or to parse
+an @epsilonzero expression data structure at a glance; you certainly
+don't need to remember such encodings by heart.  But what is important
+is that all of this @emph{can be done}, by @emph{accessing reflective
+data as ordinary data structures}: in principle you could define a
+complicated procedure using only @code{buffer:make}, @code{buffer:get}
+and @code{buffer:set!}.  In fact @code{e1:define} is nothing magic:
+@emph{it is itself a macro}, which can define a procedure by
+macroexpanding the procedure definition as provided by the user until
+it reduces to a piece of @epsilonzero code, than sets some symbol
+field.  The result of macroexpanding an @code{e1:define} use will be a
+large @epsilonzero expression which when executed builds
+another @epsilonzero expression, to be associated to a symbol with
+@code{buffer:set!}.
+
+All of this should explain why no case of @epsilonzero expressions
+looks like a global definition: indeed, @emph{global definitions
+aren't in the core language at all}: there's no need for them if we
+can mutate symbol fields.  By mutating such fields at run time, we can
+even write self-modifying programs in a natural way: @code{e1:define}
+expressions can occur in @emph{any} context where another @epsilonone
+expression can occur, even in deeply nested code: differently from
+most languages @epsilonone has no separate ``toplevel forms'', but
+only expressions: and expression syntactically include one another.
+
+As a slightly less trivial example of a global definition, let
+@code{month->days} return the number of days in the given month (as a
+0-based index), for a non-leap year.  We can use a Lisp-style
+@code{e1:case} form (which compares by identity):
+@example
+(e1:define (month->days month-index)
+  (e1:case month-index
+           ((8 3 5 10) @emph{;; 30 days hath September, April, June and November}
+            30)
+           ((1) @emph{;; @dots{}excepting February alone@dots{}}
+            28)
+           (else @emph{;; @dots{}all the rest have thirty-one}
+            31)))
+@end example
+Of course the @code{e1:case} form isn't in @epsilonzero: rather
+it's a macro which gets rewritten into simple @epsilonzero conditionals:
+@example
+(meta:print-procedure-definition 'month->days)
+@print{} Formals: (month-index)
+@print{} [let [_416] be month-index₇₅₃₅₁ in [if _416₇₅₃₅₂ ∈ @{@green{8}, @green{3}, @green{5}, @green{10}@} then @green{30}₇₅₃₅₃ else [if _416₇₅₃₅₄ ∈ @{@green{1}@} then @green{28}₇₅₃₅₅ else @green{31}₇₅₃₅₆]₇₅₃₅₇]₇₅₃₅₈]₇₅₃₅₉
+@end example
+Notice that we've never called @code{month->days} yet: @code{e1:define}
+performed the expansion once and for all at definition time.
+
+The non-procedure case of @code{e1:define} is similar:
+@code{e1:define} macroexpands what the user supplied, obtains
+an @epsilonzero expression, evaluates it, and sets (another) symbol
+field.
+
+@subsection S-expressions
+We've looked at the expansion result, which is to say
+@epsilonzero expressions; now, without looking at the expansion
+process itself, it's time to focus on the @emph{source} of this
+translation: @emph{what} exactly is it that @code{e1:define} (and
+@code{e1:toplevel} as well) eventually rewrites to an @epsilonzero
+expression?
+
+The answer is @emph{an s-expression}: for example @code{(e1:define qwe
+(fixnum:+ 1 2 3 4))} has to turn, somehow, the s-expression
+@code{(fixnum:+ 1 2 3 4)} into an expression: but @code{(fixnum:+ 1 2
+3 4)} is just @emph{a data structure}: in Lisp you would call it a
+``list'', containing a ``symbol'' and four ``numbers''; in
+@epsilonone, to show more clearly that this is a (potentially)
+syntactic object, different from the lists we saw before, we call it
+an @emph{s-list} (pronounced: @emph{ess-list}).  This s-list happens to
+contain an @emph{s-symbol} and four @emph{s-fixnums}.
+@*
+We say that @epsilonone types can be @emph{injected} into s-expressions:
+for example fixnums are injected as s-fixnums, booleans as s-booleans,
+the empty list as the empty s-list, and so on.
+
+If you want to see the expansion of an s-expression into an
+expression, you can use the Guile procedure @code{meta:macroexpand}
+(it's a Guile procedure: mind the quote, and don't use
+@code{e1:toplevel}).  You can see, for example, that @code{fixnum:+}
+can accept any number of arguments in @epsilonone, but when rewritten
+in @epsilonzero @code{fixnum:+} calls become simple (and efficient)
+two-argument calls, possibly nested:
+@todo{shall I hint at how this works?  Later, I'd say}
+@example
+(meta:macroexpand '(fixnum:+ 1 2 3 4))
+@print{} [call fixnum:+ [call fixnum:+ [call fixnum:+ @green{1}₇₅₃₇₃ @green{2}₇₅₃₇₄]₇₅₃₇₅ @green{3}₇₅₃₇₆]₇₅₃₇₇ @green{4}₇₅₃₇₈]₇₅₃₇₉
+(meta:macroexpand '(fixnum:+))
+@print{} @green{0}₇₅₃₈₀
+(meta:macroexpand '(fixnum:+ 20))
+@print{} @green{20}₇₅₃₈₁
+@end example
+
+This is a fundamental difference between @qepsilon and Lisp:
+@emph{@qepsilon is @strong{not} homoiconic}; which is to say,
+in @qepsilon the data structures used to represent syntax (s-conses,
+s-symbols, s-fixnums, the empty s-list) are distinct from expressions:
+one notable feature of Lisp dialect is that data structures and
+expressions is the lack of this distinction.
+
+Quoting and quasiquoting, in @epsilonone, yield @emph{an expression
+evaluating to the given s-expression}; after evaluation, the result is
+the s-expression as supplied.  Let's see:
+@example
+(e1:toplevel 100)
+@result{} @green{100} @emph{;; 100 as a fixnum}
+(e1:toplevel '100)
+@result{} @red{0xb44cf8[@green{2 100}]} @emph{;; 100 as an s-fixnum}
+(e1:toplevel '120)
+@result{} @red{0xb3f030[@green{2 120}]} @emph{;; 120 as an s-fixnum}
+@end example
+You may already have guessed why an s-fixnum is represented as a boxed
+object, containing a word which precedes the actual fixnum value:
+@emph{s-expressions are a sum} --- an open sum, in fact@footnote{Only
+conceptually for the time being, for reasons of convenience while
+bootstrapping.  But the implementation will probably change soon.}.
+@code{@green{2}} happens to be the tag associated to the s-fixnum case
+of s-expressions.  Other types injected into s-expressions have each
+their own tag:
+@example
+(e1:toplevel '())
+@result{} @red{0x1a46830[@green{0 0}]} @emph{;; empty s-list}
+(e1:toplevel '#t)
+@result{} @red{0xb5b170[@green{1 1}]}
+(e1:toplevel '#f)
+@result{} @red{0x1743368[@green{1 0}]} @emph{;; all s-booleans have the same tag}
+(e1:toplevel '"abcdefghijkl")
+@result{} @red{0x1671b68[@green{5} 0xb973a8[@green{12 97 98 99 100 101 102 103 104 105 106 107 108}]]}
+(e1:toplevel 'abcdefghijkl)
+@result{} @red{0xb65100[@green{6} 0x1701f98[0x1702e40[@green{12 97 98 99 100 101 102 103 104 105 106 107 108}] @green{0 127 0 0 0 0 0 0 0 0}]]}
+@end example
+We call @emph{s-conses} the injection of conses, in this case meant in the restricted sense of pairs @emph{of s-expressions only}:
+@example
+(e1:toplevel (cons:make 100 200))
+@result{} @red{0x19c6aa8[@green{100 200}]} @emph{;; @strong{not} an s-expression}
+(e1:toplevel '(100 . 200)) @emph{;; an s-cons of two s-fixnums}
+@result{} @red{0x91a4a0[@green{3} 0x953cb8[0x91dc30[@green{2 100}] 0x920d18[@green{2 200}]]]}
+@end example
+An s-list is either the empty s-list or an s-cons whose right side is
+an s-list.  We call @emph{s-car} and @emph{s-cdr} the left-hand side
+and right-hand side of a cons; by our definition of s-cons, both are
+always s-expressions.
+@example
+(e1:toplevel '(1 . (2 . ()))) @emph{;; an s-cons which is also an s-list}
+@result{} @red{0x92a1c8[@green{3} 0x99ade0[0x9a0a50[@green{2 1}] 0x99adc0[@green{3} 0x99a3c8[0x9a0a70[@green{2 2}] 0x99a3a8[@green{0 0}]]]]]}
+(e1:toplevel '(1 2)) @emph{;; just another way of writing '(1 . (2 . ()))}
+@result{} @red{0x916c00[@green{3} 0x916be0[0x91aa68[@green{2 1}] 0x916bc0[@green{3} 0x91aac8[0x91aa88[@green{2 2}] 0x91aaa8[@green{0 0}]]]]]}
+(e1:toplevel '(quux 2)) @emph{;; this happens to map to an @epsilonzero expression@dots{}}
+@result{} @red{0x16f0aa8[@green{3} 0x16f0ab8[0x16f0b68[@green{6} 0x164c0f8[0x174f320[@green{4 113 117 117 120}] @green{0 127 0 0 0 0 0 0 0 0}]] 0x16f0ac8[@green{3} 0x16f0b08[0x16f0b28[@green{2 2}] 0x16f0b18[@green{0 0}]]]]]}
+(e1:toplevel '(e1:if)) @emph{;; @dots{}this doesn't, but it's still a valid s-expression}
+@result{} @emph{;; [huge structure: e1:if is bound to a macro, indirectly referring many symbols]}
+@end example
+You've already seen that
+the empty s-list has tag @code{@green{0}},
+s-booleans have tag @code{@green{1}},
+s-fixnums @code{@green{2}},
+s-strings @code{@green{5}} and
+s-symbols @code{@green{6}}.
+@c
+But of course you don't
+have to remember such trivialities by heart: there are case-querying procedures for
+injected types.  Case-querying procedures work on any
+s-expression, but of course not on non-s-expression @qepsilon data:
+@example
+(e1:toplevel (sexpression:cons? '0))
+@result{} @green{0} @emph{;; the 0 s-fixnum isn't an s-cons}
+(e1:toplevel (sexpression:fixnum? '0))
+@result{} @green{1} @emph{;; the 0 s-fixnum is an s-fixnum}
+(e1:toplevel (sexpression:fixnum? '#f))
+@result{} @green{0} @emph{;; the #f s-boolean isn't an s-fixnum}
+(e1:toplevel (sexpression:boolean? '#f))
+@result{} @green{1} @emph{;; the #f s-boolean is in fact an s-boolean}
+(e1:toplevel (sexpression:symbol? 'foobar))
+@result{} @green{1}
+(e1:toplevel (sexpression:cons? 7))
+@error{} @emph{failure or crash: there's no s-expression tag in @green{7}}
+@end example
+There are also selector procedures for s-conses substructures; we call
+@emph{s-car} the left element of an s-cons, and @emph{s-cdr} its right
+element.  Selectors are defined for s-car, s-cdr and their
+compositions up to length four (for example the @emph{s-caddr} is the
+s-car of the s-cdr of the s-cdr).  Mutators are also available for
+destructively changing the s-car and s-cdr of a given s-cons.
+@example
+(e1:toplevel (sexpression:car '(2 . 3)))
+@result{} @red{0x103e7b8[@green{2 2}]} @emph{;; 2 as an s-fixnum}
+(e1:toplevel (sexpression:cdr '(2 . 3)))
+@result{} @red{0x1031178[@green{2 3}]} @emph{;; 3 as an s-fixnum}
+(e1:toplevel (sexpression:cdddr '(1 2 3)))
+@result{} @red{0x73a1c0[@green{0 0}]} @emph{;; empty s-list}
+(e1:define sc '(1 . 2))
+(e1:toplevel sc)
+@result{} @red{0x6ff890[@green{3} 0x6ff870[0x6ff830[@green{2 1}] 0x6ff850[@green{2 2}]]]}
+(e1:toplevel (sexpression:set-car! sc '5))
+@c @result{} @emph{;; no results}
+(e1:toplevel sc)
+@result{} @red{0x6ff890[@green{3} 0x6ff870[0x6ff830[@green{2 5}] 0x6ff850[@green{2 2}]]]} @emph{;; the s-car changed}
+(e1:toplevel (sexpression:set-cdr! sc sc))
+(e1:toplevel sc)
+@result{} @red{0x6ff890[@green{3} 0x6ff870[0x6ff830[@green{2 5}] @yellow{0x6ff890}]]} @emph{;; circular s-cons: (5 . (5 . (5 . @dots{})))}
+@end example
+
+S-expression constructors are actually @emph{injection procedures}
+or @emph{injectors},
+useful for converting ordinary untagged data into s-expressions;
+
+@example
+(e1:toplevel (sexpression:inject-boolean #t))
+@result{} @red{0x33d26e0[@green{1 1}]}
+(e1:toplevel (sexpression:inject-fixnum 42))
+@result{} @red{0x33c8020[@green{2 42}]}
+(e1:toplevel (sexpression:inject-symbol (e0:value blah-blah)))
+@result{} @red{0x3405c90[@green{6} 0x33de740[0x33de230[@green{9 98 108 97 104 45 98 108 97 104}] @green{0 127 0 0 0 0 0 0 0 0}]]}
+@end example
+
+@code{sexpression:cons} is a convenience procedure constructing an s-cons
+holding the two given @emph{s-expressions}.
+@*
+It's your responsibility to ensure that s-conses only contain
+s-expressions.  If you put something else in an s-cons field (for
+example if you forget an injector call), you'll obtain a data
+structure which will likely cause problems later:
+@example
+(e1:toplevel (sexpression:cons '1 '#f))
+@result{} @red{0x3440d40[@green{3} 0x3440dd0[0x3440ef0[@green{2 1}] 0x3440e60[@green{1 0}]]]}
+(e1:toplevel (sexpression:cons '1 #f)) @emph{;; say we forget the quote}
+@result{} @red{0x33d3660[@green{3} 0x33d41a0[0x33d4230[@green{2 1}] @green{0}]]} @emph{;; @strong{not} an s-cons: @green{0} isn't an s-expression} @c @emph{;; @strong{dangerous!}  @green{0} isn't an s-expression}
+@end example
+
+Of course ordinary @qepsilon data don't carry any type information, so
+it's your responsibility to use the correct injector:
+
+@example
+(e1:toplevel (sexpression:inject-boolean 0))
+@result{} @red{0x3410340[@green{1 0}]} @emph{;; a @strong{boolean} s-expression #f}
+@end example
+@emph{Ejection procedures} or @emph{ejectors} return the content of a
+given s-expression.  The universal ejector @code{sexpression:eject}
+works on any s-expression case; case-specific ejectors check that the
+s-expression case is correct, then call @code{e1:error} on case mismatch, or
+behave like the universal ejector otherwise.
+@example
+(e1:toplevel (sexpression:eject '1))
+@result{} @green{1}
+(e1:toplevel (sexpression:eject-fixnum '1))
+@result{} @green{1}
+(e1:toplevel (sexpression:eject '#t))
+@result{} @green{1} @emph{;; just the same!}
+(e1:toplevel (sexpression:eject-fixnum '#t))
+@error{} @emph{fail or crash}
+@end example
+
+Ejecting an s-cons yields a pair @emph{of s-expressions}: the pair
+itself has no tag, but the left and right side are the same objects
+contained in the original s-cons, tag and all.
+@example
+(e1:define my-s-cons
+  '(() . #f))
+(e1:toplevel my-s-cons)
+@result{} @red{0x34503c0[@green{3} 0x3450380[0x3450300[@green{0 0}] 0x3450340[@green{1 0}]]]}
+(e1:toplevel (sexpression:eject-cons my-s-cons))
+@result{} @red{0x3450380[0x3450300[@green{0 0}] 0x3450340[@green{1 0}]]} @emph{;; same pointers}
+@end example
+I've already said that quoting expands to an @epsilonzero expression building the given s-expression as a constant data structure.  Now you can understand the expansion of @code{'(1 2)}:
+@example
+(meta:macroexpand ''(1 2)) @emph{;; @strong{two} quotes: you're studying '(1 2)}
+@print{} [call sexpression:cons [call sexpression:make @green{2}₆₉₀₈₂ @green{1}₆₉₀₈₃]₆₉₀₈₄ [call sexpression:cons [call sexpression:make @green{2}₆₉₀₈₅ @green{2}₆₉₀₈₆]₆₉₀₈₇ [call sexpression:make @green{0}₆₉₀₈₈ @green{0}₆₉₀₈₉]₆₉₀₉₀]₆₉₀₉₁]₆₉₀₉₂
+@end example
+It macroexpands to an @epsilonzero expression building the s-expression @code{(1 2)}.  We can confirm this by looking at the result of the evaluation of @code{'(1 2)} in @epsilonone:
+@example
+(e1:toplevel '(1 2))
+@result{} @red{0x346ba10[@green{3} 0x346b9d0[0x346b890[@green{2 1}] 0x346b990[@green{3} 0x346b950[0x346b8d0[@green{2 2}] 0x346b910[@green{0 0}]]]]]}
+@end example
+Indeed it's the s-expression @code{(1 2)}, also written as @code{(1
+. (2 . ()))}: an s-cons holding the s-fixnum @code{1} and another
+s-cons, holding the s-fixnum @code{2} and the empty s-list.
+
+Notice that quoting is different from @code{e1:value}: for example, @code{'42} yields
+the @emph{s-fixnum} @code{42}, while @code{(e1:value 42)} yields the @emph{fixnum} @code{@green{42}}:
+@example
+(e1:toplevel '42)
+@result{} @red{0x819cb30[@green{2 42}]}
+(e1:toplevel (e1:value 42))
+@result{} @green{42}
+@end example
+
+At this point @emph{quasiquoting} shouldn't be very surprising to you,
+even if it's slighly less convenient than in Lisp because of the need
+for injectors.  For example @code{`(1 ,(sexpression:inject-fixnum 2))}
+macroexpands to an @epsilonzero expression building the s-expression
+@code{(1 2)},
+which can also be written as
+@code{(1 . (2 . ()))}:
+@example
+(e1:toplevel `(1 ,(sexpression:inject-fixnum 2)))
+@result{} @red{0x348be00[@green{3} 0x348bdc0[0x348ba40[@green{2 1}] 0x348bd00[@green{3} 0x348bcc0[0x348bb40[@green{2 2}] 0x348bc00[@green{0 0}]]]]]}
+@end example
+Of course the thing gets more interesting if we use non-constants in the unquoted parts:
+@example
+(e1:define my-s-boolean '#t)
+(e1:toplevel `(1 . ,my-s-boolean))
+@result{} @red{0x7e92380[@green{3} 0x7e92340[0x7e921c0[@green{2 1}] 0x7e859a0[@green{1 1}]]]} @emph{;; the s-expression (1 . #t)}
+(e1:define my-s-list '(#f))
+(e1:toplevel my-s-list)
+@result{} @red{0x7edd230[@green{3} 0x7edd1f0[0x7edd170[@green{1 0}] 0x7edd1b0[@green{0 0}]]]} @emph{;; the s-expression (#f) or (#f . ())}
+(e1:toplevel `(,my-s-list))
+@result{} @red{0x7ef9fe0[@green{3} 0x7ef9fa0[0x7edd230[@green{3} 0x7edd1f0[0x7edd170[@green{1 0}] 0x7edd1b0[@green{0 0}]]] 0x7ef9ee0[@green{0 0}]]]} @emph{;; the s-expression ((#f)) or ((#f . ()) . ())}
+(e1:toplevel `(,@@my-s-list)) @emph{;; unquote splicing}
+@result{} @red{0x7f070f0[@green{3} 0x7f070b0[0x7edd170[@green{1 0}] 0x7f06ff0[@green{0 0}]]]} @emph{;; the s-expression (#f), again}
+@end example
+Don't forget to ensure that your unquoted values are always
+s-expressions.  If you omit the needed injection or quoting, you'll
+get a non-s-expression data structure, which will likely to cause
+problems later:
+@example
+(e1:toplevel `(,(sexpression:inject-fixnum 1)))
+@result{} @red{0x817e3d0[@green{3} 0x817e390[0x817e210[@green{2 1}] 0x817e2d0[@green{0 0}]]]} @emph{;; the s-expression (1)}
+(e1:toplevel `(,'1))
+@result{} @red{0x818a6d0[@green{3} 0x818a690[0x818a510[@green{2 1}] 0x818a5d0[@green{0 0}]]]} @emph{;; the same: '1 yields an s-expression}
+(e1:toplevel `(,1))
+@result{} @red{0x8195290[@green{3} 0x8195250[@green{1} 0x8195190[@green{0 0}]]]} @emph{;; @strong{not} a valid s-expression: @green{1} isn't an s-fixnum!}
+@end example
+
+This will be unsurprising for you at this point: quoting and
+quasiquoting are not magic notations at the core of the language:
+@emph{they are defined in @epsilonone as well}, as macros.  S-expressions are not
+the core data structure, being built as they are on buffers and
+fixnums.
+
+It would be possible to build a different personality, completely
+replacing s-expression-based syntax with something else, possibly
+using @epsilonone for the implementation.  I wouldn't accept such a change
+in the official version of @qepsilon without convincing evidence of
+some gain in extensibility, but you can certainly attempt that if you
+want: it's free software; play with it.
+
+@subsubsection What's the point of s-expressions?
+There are two reasons to have s-expressions in @epsilonone:
+@itemize
+@item representing user syntax
+@item selective dynamic typing
+@end itemize
+The first point is obvious: you use s-expressions for
+writing @epsilonone programs, and --- you haven't seen any definitions
+yet, but it's easy to guess --- macros to manipulate them.
+S-expressions are quite a nice way of encoding syntax: in particular
+they are not ambiguous to parse, they are reasonably compact, and they
+lend themselves to automatic manipulation.  Quasiquoting makes it easy
+to write macros in which only some sub-structures are computed;
+s-expression syntax is very regular and easy to learn, even if it looks
+``different'' from conventional languages.
+
+The second point is more interesting, because it shows a fundamental
+difference between @qepsilon and Lisp: in @qepsilon objects have no
+runtime types: @code{@green{0}} may be a fixnum, a sum, a boolean, the
+empty list; but if you decide to use s-expression for some data
+structure, then you gain the flexibility of Lisp (or other
+dynamically-typed languages), @emph{only where you want it}:
+s-expression tags are a form of runtime type representation.
+
+As you saw @qepsilon's s-expressions aren't very efficient: even
+s-fixnums have to be allocated on the heap, and there is no unboxed
+case at all.  I might decide to change this in the future, ideally by
+optimizing some more generic pattern in the representation of sums.
+In any case, making s-expressions more efficient would affect the
+readability of dumps --- which might be still acceptable; Forth, for
+example, follows an untyped model in which there is really no way of
+distinguishing a pointer from a non-pointer: even without any notion
+of boxedness tags, Forthers are happy with the power of their
+language.  They may be right, and destroying our nice colored dumps
+may be acceptable; I'm currently not strong enough at Forth for
+judging myself in a competent way.
+
+Speaking of printed representations, s-expressions also have the
+advantage of being easy to print.  The elements of the
+s-list @code{(0 #f ())}, for example, are all printed differently,
+which may be useful.  At the present time @epsilonone has no
+s-expression printer, even if Jérémie Koenig has kindly contributed a
+nice pretty-printer, that I still have to integrate.
+
+S-expressions are also easy to parse, and I'll have to add that
+support as well; I have a working prototype written in another
+language, to translate by machine into @epsilonone, or re-implement.
+Implementing this @emph{s-expression frontend} is the only step needed
+before dropping Guile as a dependency and let @qepsilon be completely
+self-hosting.  In this case the scanner, which will have to be
+extensible, is way more complex than the parser: here's a
+@emph{complete} attributed grammar to recognize s-expressions; it's an
+LL(1) grammar, which I can easily code by hand as a recursive descent
+parser
+@c without using a generator
+like I already did in the prototype.
+
+Just in case it weren't obvious this is an attributed grammar, not @epsilonone code:
+@example
+@emph{s-expression ::=
+  atom                @{ atom @}
+| ( rest              @{ rest @}
+| prefix s-expression @{ s-cons(lookup(prefix), s-cons(s-expression, ())) @}
+
+rest ::=
+  )                 @{ () @}
+| . s-expression )  @{ s-expression @}
+| s-expression rest @{ s-cons(s-expression, rest) @}}
+@end example
+
+Even in @epsilonone's current state without a working parser and
+printer we can still play with s-expressions in a relatively
+comfortable way.  The trick is using the @emph{Guile conversion
+procedures} I've written to translate between @epsilonone's and
+Guile's incompatible @c is this neeeded?
+s-expressions:
+@code{guile-sexpression->sexpression}
+and
+@code{sexpression->guile-sexpression}.
+@*
+Since we're speaking about Guile procedures, we'll have to call them
+@emph{out of} @code{e1:toplevel}; and since they are procedures and
+not macros, we need to quote their arguments when appropriate
+@emph{in Scheme}.
+@example
+(guile-sexpression->sexpression 15)
+@result{} @red{0x52e0f20[@green{2 15}]} @emph{;; not unlike quoting 15 in @epsilonone@dots{}}
+(e1:toplevel '15)
+@result{} @red{0x52e8800[@green{2 15}]} @emph{;; @dots{}see?}
+@c (guile-sexpression->sexpression '15)
+@c @result{} @red{0x52ec0d0[@green{2 15}]} @emph{;; numbers are self-evaluating in Scheme}
+(guile-sexpression->sexpression 'rhfgkjsdfg)
+@result{} @red{0x52f2220[@green{6} 0x52ea9d0[0x52ea450[@green{10 114 104 102 103 107 106 115 100 102 103}] @green{0 127 0 0 0 0 0 0 0 0}]]}
+(e1:toplevel 'rhfgkjsdfg)
+@result{} @red{0x52f2220[@green{6} 0x52ea9d0[0x52ea450[@green{10 114 104 102 103 107 106 115 100 102 103}] @green{0 127 0 0 0 0 0 0 0 0}]]}
+@end example
+
+@subsection Data conversion between Guile and @epsilonone
+In a similar vein to s-expression conversion procedures,
+I also defined conversion procedures for @epsilonone data different from
+s-expressions.  For example, @code{guile-sexpression->whatever} (I
+should probably rename it) returns a given Guile datum converted into its @epsilonone
+counterpart, as long as it's unboxed:
+@example
+(guile-sexpression->whatever 67)
+@result{} @green{67}
+(guile-sexpression->whatever #\C)
+@result{} @green{67} @emph{;; big C is Unicode code point 67}
+(guile-sexpression->whatever #f)
+@result{} @green{0}
+@end example
+Converting in the other direction requires a different procedure per
+Guile s-expression case; and of course the procedure parameter has to
+be an @epsilonone object, which may force us to use @code{e1:toplevel}:
+@example
+(whatever->guile-boolean (e1:toplevel 1))
+@result{} #t
+(whatever->guile-fixnum (e1:toplevel 1))
+@result{} 1
+@end example
+In practice it's particularly useful to convert @emph{symbols} between
+Guile and @epsilonone, since dumps easily get big for
+globally-bound symbols:
+@example
+(symbol->guile-symbol (e1:toplevel (e1:value symbol:table)))
+@result{} symbol:table
+(guile-symbol->symbol 'aaaaaa)
+@result{} @red{0x536050[0x3271170[@green{6 97 97 97 97 97 97}] @green{0 127 0 0 0 0 0 0 0 0}]}
+(guile-symbol->symbol 'aaaaaa)
+@result{} @red{0x536050[0x3271170[@green{6 97 97 97 97 97 97}] @green{0 127 0 0 0 0 0 0 0 0}]} @emph{;; the same}
+@end example
+
+Converting lists from @epsilonone to Guile is easy if we accept having
+Guile lists of @qepsilon whatevers.  If we want to convert the elements
+as well, we have to use Guile @code{map} (called @code{mapcar} in other Lisps):
+@example
+(list->guile-list (e1:toplevel (list:list 1 2 3 4 5)))
+@result{} (@green{1 2 3 4 5})
+(map whatever->guile-fixnum (list->guile-list (e1:toplevel (list:list 1 2 3 4 5))))
+@result{} (1 2 3 4 5)
+@end example
+Going the other way essentially @emph{forces} use to use some mapping,
+because we can't have whatevers referring arbitrary Guile
+s-expressions --- I've intentionally forbidden it, because it would
+not be useful and would make some bugs very difficult to catch at
+bootstrapping time.  So @code{guile-list->list}, counter-intuitively,
+takes @emph{two} parameters: the Guile list, and an element conversion
+procedure:
+@example
+(guile-list->list '(1 2 3) guile-sexpression->whatever)
+@result{} @red{0x3270ad0[@green{1} 0x3270a90[@green{2} 0x3270a50[@green{3 0}]]]}
+@end example
+You can see which procedures are available in @file{bootstrap/scheme/conversion.scm}.
+
+Of course the very need for this translation between Guile
+and @epsilonone data will go away once I write a proper frontend for
+@qepsilon.
+@*
+On the other hand the distinction between @epsilonone untagged data
+and @epsilonone s-expressions is useful, and will remain.  It's
+perfectly reasonable to think of making a different personality
+without such a distinction --- essentially a Lisp --- but such
+decisions don't belong in @epsilonone, which I want to remain
+low-level enough to be efficient, and to be extensible into various
+directions without being committed to limiting choices.
+
+@c @subsubsection Macros
+
+@c I won't cover macro foundations here, but @epsilonone macros are
+@c actually very easy if you know Common Lisp or Emacs Lisp: you just
+@c have to add injectors.  A macro receives s-expressions as its
+@c parameters, and yields another s-expression.  You can use dotted
+@c parameter lists for representing variadic macro formals, as in Scheme.
+
+@c For convenience, you're allowed not to include the form
+@c @code{e1:define-macro} within in @code{e1:toplevel}, when used in
+@c Guile.
+
+@c @todo{find a better example?}
+
+@c @todo{explain @code{e1:unbundle} first}.
+
+@c @example
+@c (e1:define-macro (my-begin . forms) @emph{;; like (&rest forms) in Common Lisp / Emacs Lisp}
+@c   (e1:cond ((sexpression:null? forms)
+@c             '(e1:bundle)) ;; zero results
+@c            ((sexpression:null? (sexpression:cdr forms))
+@c             (sexpression:car forms)) ;; the only form
+@c            (else
+@c             (e1:unbundle ()
+@c               ,(e1:car forms)
+@c               (my-begin ,@@(e1:cdr forms))))))
+@c (meta:macroexpand '(my-begin 1 2 3))
+@c @result{} 
+@c @end example
+@c ????????????????????/
+
+@c @fill
+
+
+@todo{quoting and quasiquoting: refer @code{e1:value} as mentioned before}
+
+
+@c Let's see an example:
+@c @example
+@c (meta:macroexpand '(e1:define fifty-seven 57))
+@c @print{} [call e1:define-non-procedure-procedure @red{0x10e3780[0x11426b0[@green{11 102 105 102 116 121 45 115 101 118 101 110}] @green{0 127 0 0 0 0 0 0 0 0}]}₆₉₂₂₅ [call sexpression:cons [call sexpression:make @green{2}₆₉₂₂₆ @green{57}₆₉₂₂₇]₆₉₂₂₈ [call sexpression:make @green{0}₆₉₂₂₉ @green{0}₆₉₂₃₀]₆₉₂₃₁]₆₉₂₃₂]₆₉₂₃₃
+@c @end example
+@c In this case the helper procedure
+@c @code{e1:define-non-procedure-procedure} receives @code{(57)} --- or
+@c @code{(57 . ())}, which is exactly the same --- as an s-expression
+@c parameter; so it's @code{e1:define-non-procedure-procedure} which does
+@c all the real work: it macroexpands @code{(57)} into a @emph{sequence}
+@c of @epsilonzero expressions (in @epsilonone definition bodies are
+@c wrapped into an implicit @code{e1:begin}), then @emph{interprets} the
+@c expressions, and writes the final result in the symbol
+@c @code{fifty-seven}.
+@c @c Let's have a very quick look inside
+@c @c @code{e1:define-non-procedure-procedure}:
+@c @c @example
+@c @c (meta:print-procedure-definition 'e1:define-non-procedure-procedure)
+@c @c @print{} Formals: (name-as-symbol form-sequence-as-sexpression)
+@c @c @print{} [let [] be [call string:write @red{0x12dc720[@green{27 68 101 102 105 110 105 110 103 32 116 104 101 32 110 111 110 45 112 114 111 99 101 100 117 114 101 32}]}₅₇₉₅]₅₇₉₆ in [let [] be [call string:write [call symbol:symbol->string name-as-symbol₅₇₉₇]₅₇₉₈]₅₇₉₉ in [let [] be [call string:write @red{0x12dc4a0[@green{4 46 46 46 10}]}₅₈₀₀]₅₈₀₁ in [let [sexpression] be [call e1:macroexpand-sequence-into-sexpression form-sequence-as-sexpression₅₈₀₂]₅₈₀₃ in [let [results] be [call repl:macroexpand-transform-and-execute sexpression₅₈₀₄]₅₈₀₅ in [let [result] be [call list:head results₅₈₀₆]₅₈₀₇ in [call state:global-set! name-as-symbol₅₈₀₈ result₅₈₀₉]₅₈₁₀]₅₈₁₁]₅₈₁₂]₅₈₁₃]₅₈₁₄]₅₈₁₅]₅₈₁₆
+@c @c @end example
+@c @c You don't need to understand all details here but the thing is not
+@c @c terribly difficult, if you consider that much of the code is concerned
+@c @c with printing a message on the console.  The pattern @code{[let [] be
+@c @c @var{expression1} in @var{expression2}]ₕ} is common in @epsilonzero
+@c @c sequential code where @var{expression1}, which doesn't return anything
+@c @c interesting, must be evaluated before @var{expression2}.  The two
+@c @c buffers at @code{0x12dc720} and @code{0x12dc4a0} are the strings
+@c @c @code{"Defining the non-procedure "} and @code{"...\n"}, respectively.
+@c @c Macroexpansion happens in
+@c @c @code{e1:macroexpand-sequence-into-sexpression}, which again is an
+@c @c ordinary procedure, expanding an s-expression data structure into
+@c @c an @epsilonzero expression data structure; this @epsilonzero
+@c @c expression is again injected into an s-expression (for technical,
+@c @c uninteresting reasons).  Then the code is interpreted.
+
+@c @c @code{state:global-set!} does exactly what you think, updating two symbol fields: the flag saying that the symbol is globally bound to a non-procedure, and the value field.
+@c @c @example
+@c @c (meta:print-procedure-definition 'state:global-set!)
+@c @c @print{} Formals: (name value)
+@c @c @print{} [let [] be [call buffer:set! name₂₅₆₅ @green{1}₂₅₆₆ @green{1}₂₅₆₇]₂₅₆₈ in [call buffer:set! name₂₅₆₉ @green{2}₂₅₇₀ value₂₅₇₁]₂₅₇₂]₂₅₇₃
+@c @c @end example
+
+@c @subsection Debugging from Guile
+@c @example
+@c (meta:macroexpand '(fixnum:+))
+@c @print{} @green{0}₁₇₀₂₈₃
+@c (meta:macroexpand '(fixnum:+ 1))
+@c @print{} @green{1}₁₇₀₂₈₄
+@c (meta:macroexpand '(fixnum:+ 1 2))
+@c @print{} [call fixnum:+ @green{1}₁₇₀₂₈₅ @green{2}₁₇₀₂₈₆]₁₇₀₂₈₇
+@c (meta:macroexpand '(fixnum:+ 1 2 3))
+@c @print{} [call fixnum:+ [call fixnum:+ @green{1}₁₇₀₂₈₈ @green{2}₁₇₀₂₈₉]₁₇₀₂₉₀ @green{3}₁₇₀₂₉₁]₁₇₀₂₉₂
+@c (meta:print-macro-definition 'fixnum:+)
+@c @print{} (e1:destructuring-bind many-parameters arguments (quasiquote (variadic:call-associative (unquote (quote 0)) (unquote (quote fixnum:+)) (unquote-splicing many-parameters))))
+@c (meta:print-procedure-definition 'fixnum:+)
+@c @print{} Formals: (a b)
+@c @print{} [primitive fixnum:+ a₃₁ b₃₂]₃₃
+@c @end example
+
+@c @todo{@code{list->guile-list}, @code{guile-list->list}, @code{symbol->guile-symbol}, @code{guile-symbol->symbol}}
+
+@section More advanced @epsilonone topics
+@fill
+
+@subsection Unexec
+Let's define the Fibonacci series, in its naïve exponential-time
+form typical of micro-benchmarks:
+@example
+(e1:define (fibo n)
+  (e1:if (fixnum:< n 2)
+    n
+    (fixnum:+ (fibo (fixnum:- n 2))
+              (fibo (fixnum:1- n)))))
+@end example
+
+Check that it works, paying attention to how long this takes to compute:
+@example
+(e1:toplevel (fibo 32))
+@result{} @green{2178309}
+@end example
+
+Now let's try something cool.  We want to freeze the current global state
+(including globals and procedures) and @emph{unexec} it into an image which,
+when @emph{exec}ed, will compute @code{(fibo 32)} and print the result followed
+by a newline.  Easy:
+@example
+(e1:toplevel (e1:unexec "/tmp/u"
+               (fixnum:write (fibo 32))
+               (string:write "\n")))
+@result{} @emph{;; zero results}
+@end example
+This was fast: clearly the system @emph{didn't} compute @code{(fibo
+32)} this time.  In fact it just created the file @file{/tmp/u}, which
+will perform the slow computation when it's run, starting from the
+global state we've saved --- which, crucially, includes the definition
+of @code{fibo}.
+
+Open a new terminal, without closing the @command{guile+whatever}
+session.  From the new terminal enter the @file{epsilon-trunk}
+directory, then try execing:
+@example
+./bin/epsilon-image-interpreter-smob /tmp/u
+@print{} 2178309
+@end example
+This was about as slow as the interactive system above: in fact
+@file{epsilon-image-interpreter-smob} represents @qepsilon data
+structures using Guile SMOBs, just as @command{guile+whatever}.
+
+But we can exec the same unexeced image with a more efficient runtime:
+@example
+./bin/epsilon-image-interpreter-tagged /tmp/u
+@print{} 2178309
+@end example
+This was much faster.  But we can do even better@footnote{@file{epsilon-image-interpreter-tagged} can be easily optimized, and made nearly as fast as @file{epsilon-image-interpreter-untagged}.}:
+@example
+./bin/epsilon-image-interpreter-untagged /tmp/u
+@print{} 2178309
+@end example
+@file{epsilon-image-interpreter-tagged} represents boxedness tags, but
+@file{epsilon-image-interpreter-untagged} doesn't.  This implies that
+@emph{when execing an unexeced image with
+@file{epsilon-image-interpreter-untagged}, you can't unexec again}; when
+execing with @file{epsilon-image-interpreter-tagged} (or
+@file{epsilon-image-interpreter-smob}), you can.
+
+Let's try (back on the interactive system):
+@example
+(e1:toplevel (e1:unexec "/tmp/u2"
+               (string:write "Now unexecing into /tmp/u3\n")
+               (e1:unexec "/tmp/u3"
+                 (fixnum:write (fibo 32))
+                 (string:write "\n"))))
+@result{} @emph{;; zero results}
+@end example
+Verify that you have no @file{/tmp/u3}.  Exec @file{/tmp/u2} with
+@file{epsilon-image-interpreter-tagged}, and @file{/tmp/u3} will
+appear.  Exec that, and it will compute @code{fibo}.  Notice that you
+can use @file{epsilon-image-interpreter-untagged} on @file{/tmp/u3},
+because @emph{that} doesn't need boxedness tags; but if you try
+running
+@example
+./bin/epsilon-image-interpreter-untagged /tmp/u2
+@end example
+you'll get an error.
+
+@subsubsection Unexec limitations
+@todo{unexec limitations: external state such as open files, pointer identity}
+
+@qepsilon compilers will have the same interface as unexec.  They
+are still a little clumsy to use, so I won't cover them here.  However
+as soon as the interface matures compiling will feel a lot like
+unexecing, except that it will be slower at generating, and much
+faster at executing.
+
+@subsubsection How unexec works
+@fill
+
+@subsection Closures
+
+@fill
+
+
+@subsection Imperative loops
+
+@fill
+
+
+@subsection Pattern matching
+
+@fill
+
+
+@subsection Keyword parameters
+
+@fill
+
+
+@subsection Promises
+
+@fill
+
+
+@subsection Futures
+
+@fill
+
+
+@section Explore the source
+At this point you should be able to understand essentially all of
+@file{core.e}, in which @epsilonzero is defined using itself along with
+reflective structures, and much of @file{epsilon1.scm}, in which
+@epsilonone features are defined one by one.  You will not
+understand the reasons behind some apparently gratuitous complications
+without reading my thesis (they mostly have to do with bootstrapping
+from Guile), but the intent should be clear.
+
+@file{epsilon1.scm} is a case where you can @emph{feel} very clearly how
+the language expressivity accelerates: the beginning is very clumsy,
+but after each extension is defined, it can be used to define the next
+one; at the end of the file, @epsilonone has become pretty powerful.
+
+Even @file{compiler.e} is not overly difficult, except for some
+kludgish solutions in the frontend part.
+
+@section Conclusion
+@todo{You've learned...  That was actually simple: all the difficulty was in understanding the ``big picture'' rationale, and in distinguishing @qepsilon from Guile, which is just a transient implementation problem.  Using @epsilonone itself is easy.}
+
+@todo{I can write another tutorial on syntactic abstraction if there is interest; but later.  Let me do some development as well}
+
+@section For more information
+@todo{@epsilonone doesn't feel very minimalistic}
+
+You're welcome to subscribe to epsilon's mailing list at
+@url{https://lists.gnu.org/mailman/listinfo/epsilon-devel} and ask
+questions publicly.  At the present time there is no @code{-bug} or
+@code{-help} mailing list, so @code{epsilon-devel} is appropriate for
+any kind of discussion about epsilon.  I may activate other lists if
+there is more traffic in the future.
+
+@somewhere{@epsilonone's syntax is encoded by s-expressions, as in
+Lisp dialects (there is a crucial difference, but we will not see it
+now), to make syntactic extension easier.}
+
+@somewhere{@maybe{whatevers can only refer other whatevers}}
+
+@somewhere{final unexec possibly without GC}
+
+@somewhere{means of abstraction, means of combination}
+
+@somewhere{Every @epsilonone form you saw (everything with the
+@samp{e1:} prefix) is defined as a macro}
+
+@somewhere{Pattern-matching is on sums, tuples and records; not on s-expressions, like
+Guile's @code{(ice-9 match)} module.}
+
+@somewhere{A footnote about addresses and moving GCs: it's clear that the current GC is
+not moving, since we've assumed that object address don't
+``spontaneously'' change.  This is definitely useful for debugging;
+however I might relax this constraint in the future.  Currently, I do
+use addresses as keys in associative structures sometimes, which of course
+is only reliable with non-movable addresses.}
+
+@somewhere{@code{e1:define} is in @epsilonone: we don't strictly need
+to have it predefined.  in fact, we can simulate its behavior.}
+
+@somewhere{No error handling in @epsilonone: you should @emph{prevent}
+errors, not recover from them.}
+
+@somewhere{No pointer arithmetics}
+
+@somewhere{S-expressions are for dynamic typing: just like boxedness tags, you can use them @strong{if you want}}
+
+@somewhere{Show something which fails, near the beginning.}
+
+@somewhere{tail calls}
+
+@somewhere{Say "detour" instead of "digression"}
+
+@somewhere{more data structures: hint at hashes.  I also implemented
+association lists@footnote{But their implementation will change in the
+future: they can be more efficient, and efficiency is important when a
+lot of elements are alive --- this is the case of many hash tables,
+containing a large number of (small) buckets.}, and in fact hash
+buckets are alists.}
+
+@somewhere{I'm already requiring a CSS-capable browser, so I can write
+``@qlambda{}-calculus'' with a real ``@qlambda{}''.}
+
+@somewhere{I've heard some Forthers call this kind of reflection
+facility ``browsing''.  I don't know how standard this term is.}

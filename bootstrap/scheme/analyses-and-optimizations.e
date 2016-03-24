@@ -821,6 +821,81 @@
                (e0:expressions-with-constant-folding-where (list:tail es) a))))
 
 
+;;;;; Trivial eq? elimination on epsilon0 expressions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; This by itself is only a minor optimization, but it will make it easier to
+;;; introduce table-based jumps later.
+
+;;; Return a copy of the given expression where conditionals over the result of
+;;; the primitive eq? are replaced with bare conditionals.
+(e1:define (e0:expression-without-trivial-eq?s e)
+  (e1:match e
+    ((or (e0:expression-variable _ _)
+         (e0:expression-value _ _))
+     e)
+    ((e0:expression-bundle _ items)
+     (e0:bundle* (e0:expressions-without-trivial-eq?s items)))
+    ((e0:expression-primitive _ name actuals)
+     (e0:primitive* name
+                    (e0:expressions-without-trivial-eq?s actuals)))
+    ((e0:expression-let _ bound-variables bound-expression body)
+     (e0:let* bound-variables
+              (e0:expression-without-trivial-eq?s bound-expression)
+              (e0:expression-without-trivial-eq?s body)))
+    ((e0:expression-call _ procedure-name actuals)
+     (e0:call* procedure-name
+               (e0:expressions-without-trivial-eq?s actuals)))
+    ((e0:expression-call-indirect _ procedure-expression actuals)
+     (e0:call-indirect* (e0:expression-without-trivial-eq?s procedure-expression)
+                        (e0:expressions-without-trivial-eq?s actuals)))
+    ((e0:expression-if-in _
+                          (e0:expression-primitive _ primitive-name primitive-actuals)
+                          values then-branch else-branch)
+     (e1:if (e1:and (whatever:eq? primitive-name (e1:value whatever:eq?))
+                    (fixnum:= (list:length primitive-actuals) 2)
+                    (fixnum:= (list:length values) 1)
+                    (e1:or (whatever:eq? (list:first values) #f)
+                           (whatever:eq? (list:first values) #t))
+                    (e1:or (e0:expression-value? (list:first primitive-actuals))
+                           (e0:expression-value? (list:second primitive-actuals))))
+       (e1:let* ((first (list:first primitive-actuals))
+                 (second (list:second primitive-actuals))
+                 ((value discriminand)
+                  (e1:if (e0:expression-value? first)
+                    (e1:bundle (e0:expression-value-get-content first) second)
+                    (e1:bundle (e0:expression-value-get-content second) first)))
+                 ((new-then-branch new-else-branch)
+                  (e1:if (list:first values)
+                    (e1:bundle then-branch else-branch)
+                    (e1:bundle else-branch then-branch))))
+         (e0:if-in* discriminand
+                    (list:list value)
+                    (e0:expression-without-trivial-eq?s new-then-branch)
+                    (e0:expression-without-trivial-eq?s new-else-branch)))
+       (e0:if-in* (e0:primitive* primitive-name
+                                 (e0:expressions-without-trivial-eq?s primitive-actuals))
+                  values
+                  (e0:expression-without-trivial-eq?s then-branch)
+                  (e0:expression-without-trivial-eq?s else-branch))))
+    ((e0:expression-if-in _ discriminand values then-branch else-branch)
+     (e0:if-in* (e0:expression-without-trivial-eq?s discriminand)
+                values
+                (e0:expression-without-trivial-eq?s then-branch)
+                (e0:expression-without-trivial-eq?s else-branch)))
+    ((e0:expression-fork _ procedure-name actuals)
+     (e0:fork* procedure-name
+               (e0:expressions-without-trivial-eq?s actuals)))
+    ((e0:expression-join _ future)
+     (e0:join* (e0:expression-without-trivial-eq?s future)))))
+
+(e1:define (e0:expressions-without-trivial-eq?s es)
+  (e1:if (list:null? es)
+    list:nil
+    (list:cons (e0:expression-without-trivial-eq?s (list:head es))
+               (e0:expressions-without-trivial-eq?s (list:tail es)))))
+
+
 ;;;;; Trivial conditional elimination on epsilon0 expressions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -882,5 +957,6 @@
             (e2 (e0:expression-without-useless-lets e1))
             (e3 (e0:expression-without-trivial-lets e2))
             (e4 (e0:expression-with-constant-folding e3))
-            (e5 (e0:expression-without-trivial-if-ins e4)))
-    e5))
+            (e5 (e0:expression-without-trivial-eq?s e4))
+            (e6 (e0:expression-without-trivial-if-ins e5)))
+    e6))

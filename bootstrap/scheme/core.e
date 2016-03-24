@@ -25,7 +25,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (e1:define (whatever:zero? a)
-  (e0:primitive whatever:zero? a))
+  (e0:if-in a (0)
+    (e0:value #t)
+    (e0:value #f)))
 
 ;;; The naming convention ("eq?" instead of "equal?") is a little
 ;;; misleading if we consider the Guile implementation where whatever

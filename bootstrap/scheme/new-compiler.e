@@ -19,6 +19,33 @@
 ;;;;; along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
 
 
+;;;;; Branch hints (FIXME: move back to epsilon1.scm, and apply to e0)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; FIXME: reintegrate this into epsilon1.scm, and add the branch hint
+;;; everywhere.  This will be a conceptually simple but traumatic, incompatible
+;;; change in epsilonzero, also involving the C runtime.
+
+;;; ANF conditionals should use e0:branch-hint: the needed information is
+;;; identical.  Even the control-flow graph in the new optimizer should use
+;;; this, until very late: a taken/not-taken hint only makes sense late in
+;;; compilation, when doing register allocation for weighing the cost of spills,
+;;; and at the very end when the generated code is linearized.
+(e1:define-sum e0:branch-hint
+  (then)
+  (else)
+  (half)
+  (unknown))
+
+(e1:define (e0:hint->string hint)
+  (e1:match hint
+    ((e0:branch-hint-then) "t")
+    ((e0:branch-hint-else) "e")
+    ((e0:branch-hint-half) "h")
+    ((e0:branch-hint-unknown) "u")
+    (else (e1:assert #f))))
+
+
 ;;;;; Administrative Normal Form (ANF) for epsilon0
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -29,11 +56,11 @@
   (let-primitive bounds primitive-name actuals body)
   (let-call bounds procedure-name actuals body)
   (let-call-indirect bounds procedure actuals body)
-  (let-if-in bounds discriminand values then-expression else-expression body)
+  (let-if-in hint bounds discriminand values then-expression else-expression body)
   ;; (let bounds variables body) ;; This doesn't actually exist: see anf:expression-let .
-  (set-let-if-results target-variables source-variables) ;; this is the leaf of then and else branches in let-if
+  (set-let-if-results target-variables source-variables) ;; this is the leaf of then and else branches in let-if-in
   (return variables)
-  (tail-if-in discriminand values then-expression else-expression)
+  (tail-if-in hint discriminand values then-expression else-expression)
   (tail-call procedure-name actuals)
   (tail-call-indirect procedure actuals))
 
@@ -91,8 +118,8 @@
      (fio:write-to port "] in ")
      (anf:write-anf-expression port body)
      (fio:write-to port "]"))
-    ((anf:expression-let-if-in bounds discriminand values then-expression else-expression body)
-     (fio:write-to port "[let-if-in ")
+    ((anf:expression-let-if-in hint bounds discriminand values then-expression else-expression body)
+     (fio:write-to port "[let-if-in" (st (e0:hint->string hint)) " ")
      (anf:write-variables port bounds)
      (fio:write-to port " be [if " (sy discriminand) " in [")
      (anf:write-values port values)
@@ -107,8 +134,8 @@
      (fio:write-to port "[return ")
      (anf:write-variables port variables)
      (fio:write-to port "]"))
-    ((anf:expression-tail-if-in discriminand values then-expression else-expression)
-     (fio:write-to port "[tail-if-in " (sy discriminand) " in [")
+    ((anf:expression-tail-if-in hint discriminand values then-expression else-expression)
+     (fio:write-to port "[tail-if-in" (st (e0:hint->string hint)) " " (sy discriminand) " in [")
      (anf:write-values port values)
      (fio:write-to port "] then ")
      (anf:write-anf-expression port then-expression)
@@ -190,8 +217,9 @@
                                        procedure
                                        (anf:replace-in-list to-replace replacement actuals)
                                        (anf:replace to-replace replacement body)))
-    ((anf:expression-let-if-in bounds discriminand values then-expression else-expression body)
-     (anf:expression-let-if-in bounds
+    ((anf:expression-let-if-in hint bounds discriminand values then-expression else-expression body)
+     (anf:expression-let-if-in hint
+                               bounds
                                (anf:replace-variable to-replace replacement discriminand)
                                values
                                (anf:replace to-replace replacement then-expression)
@@ -199,8 +227,9 @@
                                (anf:replace to-replace replacement body)))
     ((anf:expression-return variables)
      (anf:expression-return (anf:replace-in-list to-replace replacement variables)))
-    ((anf:expression-tail-if-in discriminand values then-expression else-expression)
-     (anf:expression-tail-if-in (anf:replace-variable to-replace replacement discriminand)
+    ((anf:expression-tail-if-in hint discriminand values then-expression else-expression)
+     (anf:expression-tail-if-in hint
+                                (anf:replace-variable to-replace replacement discriminand)
                                 values
                                 (anf:replace to-replace replacement then-expression)
                                 (anf:replace to-replace replacement else-expression)))
@@ -280,7 +309,8 @@
                           bound-variables
                           1
                           (e1:lambda (discriminand-variables)
-                            (anf:expression-tail-if-in (list:head discriminand-variables)
+                            (anf:expression-tail-if-in (e0:branch-hint-unknown) ;; FIXME: take this from e, after I add hints to e0 expressions.
+                                                       (list:head discriminand-variables)
                                                        values
                                                        (anf:convert-tail then-branch
                                                                          bound-variables)
@@ -416,6 +446,7 @@
           1
           (e1:lambda (discriminand-variables)
             (anf:expression-let-if-in
+             (e0:branch-hint-unknown) ;; FIXME: take this from e, after I add hints to e0 expressions.
              result-variables
              (list:head discriminand-variables)
              values
@@ -489,7 +520,7 @@
   (literal bound content)
   (undefined bound)
   (global bound content)
-  (if discriminand values then else)
+  (if hint discriminand values then else)
   (pre-phi bounds sources)
   (phi bounds sources-list) ;; FIXME: remove
   (primitive bounds primitive-name actuals)
@@ -514,8 +545,8 @@
      (fio:write-to port (sy bound) " := undefined"))
     ((dataflow:instruction-global bound global-name)
      (fio:write-to port (sy bound) " := [global " (sy global-name) "]"))
-    ((dataflow:instruction-if discriminand values then else)
-     (fio:write-to port "if " (sy discriminand) " &#x220A; {")
+    ((dataflow:instruction-if hint discriminand values then else)
+     (fio:write-to port "if" (st (e0:hint->string hint)) " " (sy discriminand) " &#x220A; {")
      (anf:write-values port values)
      (fio:write-to port "} goto " (i then) " else " (i else)))
     ((dataflow:instruction-pre-phi bounds sources)
@@ -570,7 +601,7 @@
      (e1:bundle (list:list bound) ()))
     ((dataflow:instruction-global bound global-name)
      (e1:bundle (list:list bound) ()))
-    ((dataflow:instruction-if discriminand values then else)
+    ((dataflow:instruction-if hint discriminand values then else)
      (e1:bundle () (list:list discriminand)))
     ((dataflow:instruction-pre-phi bounds sources)
      (e1:bundle bounds sources))
@@ -700,7 +731,7 @@
         (e1:let* ((predecessor-state (unboxed-hash:get states predecessor-id))
                   (predecessor-instruction (dataflow:state-get-instruction predecessor-state)))
           (e1:match predecessor-instruction
-            ((dataflow:instruction-if _ _ then else)
+            ((dataflow:instruction-if _ _ _ then else)
              (e1:when (fixnum:= then state-id)
                (dataflow:instruction-if-set-then! predecessor-instruction successor-id))
              (e1:when (fixnum:= else state-id)
@@ -797,8 +828,8 @@
         predecessor-id
         (dataflow:instruction-nontail-call-indirect bounds procedure actuals)
         body))
-    ((anf:expression-let-if-in bounds discriminand values then-expression else-expression body)
-     (e1:let* ((instruction (dataflow:instruction-if discriminand values -1 -1))
+    ((anf:expression-let-if-in hint bounds discriminand values then-expression else-expression body)
+     (e1:let* ((instruction (dataflow:instruction-if hint discriminand values -1 -1))
                (if-id (dataflow:graph-add-instruction-after! graph
                                                              instruction
                                                              predecessor-id))
@@ -816,8 +847,8 @@
         graph
         predecessor-id
         (dataflow:instruction-return variables)))
-    ((anf:expression-tail-if-in discriminand values then-expression else-expression)
-     (e1:let* ((instruction (dataflow:instruction-if discriminand values -1 -1))
+    ((anf:expression-tail-if-in hint discriminand values then-expression else-expression)
+     (e1:let* ((instruction (dataflow:instruction-if hint discriminand values -1 -1))
                (id (dataflow:graph-add-instruction-after! graph
                                                           instruction
                                                           predecessor-id))
@@ -1169,7 +1200,7 @@
          (e1:let ((new-env (dataflow:bind-pre-phi new-env bounds sources))
                   (branch-bounds (list:append-reversed bounds branch-bounds)))
            (dataflow:skip-useless-ifs-from! graph id successor-id new-env branch-bounds visited)))
-        ((dataflow:instruction-if variable values then-id else-id)
+        ((dataflow:instruction-if _ variable values then-id else-id)
          (e1:if (alist:has? env variable)
            (e1:let ((successor-id
                      (e1:if (list:has? values (alist:lookup env variable))
@@ -1251,7 +1282,7 @@
       (e1:let ((instruction (dataflow:state-get-instruction state))
                (out-lives (dataflow:state-get-out-lives state)))
         (e1:match instruction
-          ((dataflow:instruction-if _ _ then-id else-id)
+          ((dataflow:instruction-if _ _ _ then-id else-id)
            (e1:when (fixnum:= then-id else-id)
              (fio:write "Removed useless if state " (i state-id) ":  ")
              (dataflow:write-instruction (io:standard-output) instruction)
@@ -1363,7 +1394,7 @@
      (dataflow:instruction-return-set-variables!
          instruction
          (dataflow:replace-in-list variables from to)))
-    ((dataflow:instruction-if discriminand _ _ _)
+    ((dataflow:instruction-if _ discriminand _ _ _)
      (dataflow:instruction-if-set-discriminand!
          instruction
          (dataflow:replace discriminand from to)))
@@ -1530,7 +1561,7 @@
      (dataflow:instruction-return-set-variables!
          instruction
          (dataflow:alpha-convert-variables map variables)))
-    ((dataflow:instruction-if discriminand _ _ _)
+    ((dataflow:instruction-if _ discriminand _ _ _)
      (dataflow:instruction-if-set-discriminand!
          instruction
          (dataflow:alpha-convert-variable map discriminand)))
@@ -1699,7 +1730,7 @@
         ;; Force orderining of conditional branches: then on the left and else
         ;; on the right, on the same rank.
         #;(e1:match instruction
-          ((dataflow:instruction-if _ _ then else)
+          ((dataflow:instruction-if _ _ _ then else)
            (fio:write-to file "  {rank=same " (i then) " -> " (i else)
                          " [/*color=red, style=dashed,*/style=invis, weight=1]};\n"))
           (else)))) ;; do nothing in the other cases.

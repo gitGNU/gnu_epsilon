@@ -955,7 +955,11 @@
 (e1:define (e0:optimize-expression e0)
   (e1:let* ((e1 (e0:expression-without-trivial-bundles e0))
             (e2 (e0:expression-without-useless-lets e1))
-            (e3 (e0:expression-without-trivial-lets e2))
+            ;; FIXME: I'm disabling e0:expression-without-trivial-lets, which
+            ;; may return incorrect results on some expressions; it also crashes
+            ;; on some ill-dimensioned expressions.  Testcase:
+            ;; ;; (e1:define (f) (e1:let* (((a b) 1)) 10)).
+            (e3 e2 #;(e0:expression-without-trivial-lets e2))
             (e4 (e0:expression-with-constant-folding e3))
             (e5 (e0:expression-without-trivial-eq?s e4))
             (e6 (e0:expression-without-trivial-if-ins e5)))

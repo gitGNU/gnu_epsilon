@@ -1,8 +1,8 @@
 ;;; epsilon.el --- GNU epsilon editing mode
 
 ;; Copyright (C) 1986-1988, 1997-1998, 2001-2012  Free Software Foundation, Inc.
-;; Copyright (C) 2013  Luca Saiu
-;; Updated in 2015 and 2016 by Luca Saiu
+;; Copyright (C) 2013, 2016  Luca Saiu
+;; Updated in 2015 by Luca Saiu
 
 ;; Adapted from scheme.el, within the GNU Emacs distribution, by Luca Saiu.
 
@@ -343,7 +343,7 @@ See `run-hooks'."
                        "e1:nonclosure" "e1:call-nonclosure"
                        "e1:closure"
                        "e1:lambda" "e1:ml-lambda" "e1:call-closure"
-                       "e1:while" "e1:do" "e1:doalist" "e1:dobuffer" "e1:dohash" "e1:dolist" "e1:dovector" "e1:dotimes" "e1:for"
+                       "e1:while" "e1:do" "e1:doalist" "e1:dobuffer" "e1:dohash" "e1:dolist" "e1:dovector" "e1:dolist-index" "e1:dovector-index" "e1:dotimes" "e1:for"
                        )))
        (1 font-lock-keyword-face))
       (,(epsilon-at-define-nonprocedure-beginning
@@ -535,6 +535,8 @@ indentation."
 (put 'e1:dohash 'epsilon-indent-function 1)
 (put 'e1:dolist 'epsilon-indent-function 1)
 (put 'e1:dovector 'epsilon-indent-function 1)
+(put 'e1:dolist-index 'epsilon-indent-function 1)
+(put 'e1:dovector-index 'epsilon-indent-function 1)
 (put 'e1:for 'epsilon-indent-function 1)
 (put 'e1:lambda 'epsilon-indent-function 1)
 (put 'e1:ml-lambda 'epsilon-indent-function 1)

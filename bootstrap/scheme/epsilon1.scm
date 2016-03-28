@@ -2242,6 +2242,35 @@
                   (,variable ,vector-expression ,@result-forms)
      ,@body-forms))
 
+;;; A variant of the dolist loop keeping an explicit element index.
+(e1:define-macro (e1:dolist-index (element-variable index-variable list-expression . result-forms) . body-forms)
+  (e1:let ((loop-variable (sexpression:fresh-symbol-with-prefix "dolist-index-loop"))
+           (rest-variable (sexpression:fresh-symbol-with-prefix "dolist-index-rest")))
+    `(e1:let ,loop-variable ((,rest-variable ,list-expression)
+                             (,index-variable 0))
+       (e1:if (list:null? ,rest-variable)
+         (e1:begin
+           ,@result-forms)
+         (e1:let* ((,element-variable (list:head ,rest-variable)))
+           ,@body-forms
+           (,loop-variable (list:tail ,rest-variable)
+                           (fixnum:1+ ,index-variable)))))))
+
+;;; A variant of the dovector loop keeping an explicit element index.
+(e1:define-macro (e1:dovector-index (element-variable index-variable vector-expression . result-forms) . body-forms)
+  (e1:let ((loop-variable (sexpression:fresh-symbol-with-prefix "dovector-index-loop"))
+           (vector-variable (sexpression:fresh-symbol-with-prefix "dovector-vector"))
+           (length-variable (sexpression:fresh-symbol-with-prefix "dovector-index-length")))
+    `(e1:let* ((,vector-variable ,vector-expression)
+               (,length-variable (vector:length ,vector-variable)))
+       (e1:let ,loop-variable ((,index-variable 0))
+         (e1:if (fixnum:= ,index-variable ,length-variable)
+           (e1:begin
+             ,@result-forms)
+           (e1:let* ((,element-variable (vector:get ,vector-variable ,index-variable)))
+             ,@body-forms
+             (,loop-variable (fixnum:1+ ,index-variable))))))))
+
 ;;; Common Lisp-style dotimes.  Differently from Common Lisp, we can
 ;;; have more than one result forms.
 (e1:define-macro (e1:dotimes (variable iteration-no . result-forms) . body-forms)

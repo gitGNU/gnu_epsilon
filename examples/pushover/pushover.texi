@@ -124,7 +124,7 @@ program written in epsilon which is at the same time nontrivial and
 not part of the language implementation itself.
 
 @cindex free software
-Like the rest of GNU epsilon, of course Pushover is free software.
+Like the rest of GNU epsilon, Pushover is free software.
 
 @menu
 * History::      How Pushover came to be.
@@ -217,8 +217,8 @@ bunch of students who had remained until the end.
 @cindex awe
 @cindex teaching
 @cindex blunder
-Then, seeing the computer beat me in a quick game, even despite my
-blunders, and playing against itself raised expressions of wonder and
+Then, seeing the computer beat me in a quick game (even despite my
+blunders) and play against itself raised expressions of wonder and
 a few ooohs --- Those are the best moments about teaching.  At some
 point another little crowd of students who had left before quietly
 came back into the room.  At my interrogative expression they demanded
@@ -268,9 +268,9 @@ the same game as ``Push Over''.
 I wish to thank Mathieu for his nice project specification which
 inspired me to implement the game myself.  His web page, also
 including the specification in French, is
-@url{http://www-lipn.univ-paris13.fr/~lacroix}.  The original idea was
-found on
-@url{http://jeuxstrategieter.free.fr/Push_over_presentation.php} (in
+@url{http://www-lipn.univ-paris13.fr/~lacroix}.  Mathieu told me he found the
+original idea on
+@url{http://jeuxstrategieter.free.fr/Push_over_presentation.php} (again, in
 French).
 
 @c ----------------------------------------------------------------------

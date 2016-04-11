@@ -3511,6 +3511,18 @@
                               set-as-list:empty)))
     (unboxed-hash:set! uh key (set-as-list:with old-set-as-list value))))
 
+(e1:define (string-hash:ensure-non-empty! sh key)
+  (e1:let ((old-set-as-list (e1:if (string-hash:has? sh key)
+                              (string-hash:get sh key)
+                              set-as-list:empty)))
+    (string-hash:set! sh key old-set-as-list)))
+
+(e1:define (string-hash:add-to-set-as-list! sh key value)
+  (e1:let ((old-set-as-list (e1:if (string-hash:has? sh key)
+                              (string-hash:get sh key)
+                              set-as-list:empty)))
+    (string-hash:set! sh key (set-as-list:with old-set-as-list value))))
+
 ;;; FIXME: add other procedure when needed.
 
 

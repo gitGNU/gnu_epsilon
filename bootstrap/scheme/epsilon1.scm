@@ -3766,6 +3766,36 @@
                                 ,@(sexpression:cdr remaining-elements)))))
 
 
+;;;;; Alist variadic macros
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Example: (alist:alist (1 . 2) (3 . 4) (5 . 6))
+(e1:define-macro (alist:alist . pairs)
+  (e1:dolist (scons (sexpression:eject-list pairs))
+    (e1:unless (sexpression:cons? scons)
+      (e1:error "alist:alist: not a list of s-conses")))
+  `(list:list ,@(sexpression:map (e1:lambda (scons)
+                                   `(cons:make ,(sexpression:car scons)
+                                               ,(sexpression:cdr scons)))
+                                 pairs)))
+
+;; Example: (alist:alist-value-keys (x . 2) (y . 4) (z . 6))
+(e1:define-macro (alist:alist-value-keys . pairs)
+  `(alist:alist ,@(sexpression:map (e1:lambda (scons)
+                                     `((e1:value ,(sexpression:car scons))
+                                       .
+                                       ,(sexpression:cdr scons)))
+                                   pairs)))
+
+;; Example: (alist:alist-values (a . b) (c . d) (e . f))
+(e1:define-macro (alist:alist-values . pairs)
+  `(alist:alist ,@(sexpression:map (e1:lambda (scons)
+                                     `((e1:value ,(sexpression:car scons))
+                                       .
+                                       (e1:value ,(sexpression:cdr scons))))
+                                   pairs)))
+
+
 ;;;;; S-list utilities
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

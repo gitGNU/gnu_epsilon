@@ -504,14 +504,19 @@
 (e1:define-record dataflow:graph
   begin-id
   end-id
-  states        ;; unboxed hash: state id -> state
-  successors    ;; unboxed hash: state id -> <next state id> list
-  predecessors) ;; unboxed hash: state id -> <previous state id> list
+  states       ;; unboxed hash: state id -> state
+  successors   ;; unboxed hash: state id -> <next state id> list
+  predecessors ;; unboxed hash: state id -> <previous state id> list
+  places       ;; vector: place id (as vector index) -> place [FIXME: fill after resolution]
+  place-no     ;; allocation counter for place ids
+  constraints) ;; place constraint list
 
 (e1:define-record dataflow:state
-  in-lives   ;; the set-of-list of live variables before the instruction
+  in-lives    ;; the set-of-list of live variables before the instruction
+  in-places   ;; unboxed hash: variable -> place id
   instruction
-  out-lives) ;; the set-of-list of live variables after the instruction
+  out-lives   ;; the set-of-list of live variables after the instruction
+  out-places) ;; unboxed hash: variable -> place id
 
 (e1:define-sum dataflow:instruction
   (begin)
@@ -625,18 +630,25 @@
             (begin-id (dataflow:states-add-state!
                           states
                           (dataflow:state set-as-list:empty
+                                          (unboxed-hash:make)
                                           (dataflow:instruction-begin)
-                                          set-as-list:empty)))
+                                          set-as-list:empty
+                                          (unboxed-hash:make))))
             (end-id (dataflow:states-add-state!
                        states
                        (dataflow:state set-as-list:empty
+                                       (unboxed-hash:make)
                                        (dataflow:instruction-end)
-                                       set-as-list:empty))))
+                                       set-as-list:empty
+                                       (unboxed-hash:make)))))
     (dataflow:graph begin-id
                     end-id
                     states
                     (unboxed-hash:make)
-                    (unboxed-hash:make))))
+                    (unboxed-hash:make)
+                    (unboxed-hash:make)
+                    0
+                    list:nil)))
 
 (e1:define (dataflow:states-next-state states)
   (hash:element-no states))
@@ -688,8 +700,10 @@
 (e1:define (dataflow:graph-add-instruction! graph instruction)
   (e1:let* ((states (dataflow:graph-get-states graph))
             (state (dataflow:state set-as-list:empty
+                                   (unboxed-hash:make)
                                    instruction
-                                   set-as-list:empty))
+                                   set-as-list:empty
+                                   (unboxed-hash:make)))
             (state-id (dataflow:states-add-state! states state)))
     state-id))
 

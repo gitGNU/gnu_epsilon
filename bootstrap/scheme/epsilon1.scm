@@ -3021,6 +3021,62 @@
 ;;; These aren't used in the bootstrap code, so I can afford to define
 ;;; them now in epsilon1, rather than near the beginning in epsilon0.
 
+;;; Return a shallow copy of the given list without the first occurrence of the
+;;; given element compared with eq?, keeping the order.  The result may share
+;;; structure with the argument.  Fail horribly if no element of the given list
+;;; is eq? to the given element.  Not tail-recursive.
+(e1:define (list:without-in-order list element)
+  (e1:let ((head (list:head list))
+           (tail (list:tail list)))
+    (e1:if (whatever:eq? head element)
+      tail
+      (list:cons head
+                 (list:without-in-order tail element)))))
+
+;;; Return -1 if the given list has no element eq? to the given one; otherwise
+;;; return the index of the first eq? element, 0-based.  Tail-recursive.
+(e1:define (list:find list element)
+  (list:find-acc list element 0))
+(e1:define (list:find-acc list element acc)
+  (e1:cond ((list:null? list)
+            -1)
+           ((whatever:eq? (list:head list) element)
+            acc)
+           (else
+            (list:find-acc (list:tail list) element (fixnum:1+ acc)))))
+
+;;; Return a shallow copy of the given list with every element eq? to the
+;;; corresponding element of the original list except for the n-th (0-based),
+;;; which will be the given replacement; fail horribly if the original list
+;;; doesn't have at least n + 1 elements.  Not tail-recursive.
+(e1:define (list:with-nth-element-replaced list n replacement)
+  (e1:if (fixnum:zero? n)
+    (list:cons replacement (list:tail list))
+    (list:cons (list:head list)
+               (list:with-nth-element-replaced (list:tail list)
+                                               (fixnum:1- n)
+                                               replacement))))
+
+;;; Perform the work of list:with-nth-element-replaced, but without failing if
+;;; the given list is too short.  If that is the case this procedure returns a
+;;; list with new additional elements where elements are missing in the given
+;;; list.  The new elements have unspecified values, except for the n-th one
+;;; when the given list has length less than n + 1.
+(e1:define (list:with-nth-element-replaced-safe list n replacement)
+  (e1:cond ((fixnum:zero? n)
+            (e1:if (list:null? list)
+              (list:list replacement)
+              (list:cons replacement (list:tail list))))
+           (bind* ((head tail)
+                   (e1:if (list:null? list)
+                     (e1:bundle 0 (list:list 0))
+                     (e1:bundle (list:head list) (list:tail list)))))
+           (else
+            (list:cons head
+                       (list:with-nth-element-replaced-safe tail
+                                                            (fixnum:1- n)
+                                                            replacement)))))
+
 (e1:define (list:take list n)
   (list:reverse (list:take-reversed list n)))
 

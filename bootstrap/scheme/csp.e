@@ -618,7 +618,7 @@
                                        assignment
                                        penalty
                                        state)
-        (fio:write "Searched for " (i (csp:state-get-steps state)) " steps.\n")
+        #;(fio:write "Searched for " (i (csp:state-get-steps state)) " steps.\n")
         (csp:state-get-best-known state))
       (csp:solution-failure))))
 
@@ -640,7 +640,7 @@
             (e1:let ((this-solution (csp:solution-success penalty assignment)))
               #;(fio:write "Found a solution with penalty " (i penalty)
                          " after " (i (csp:state-get-steps state)) " steps: ")
-              (print-assignment assignment)
+              #;(print-assignment assignment)
               ;; Remember that we found a solution better than the best
               ;; previously known.  This will let branch-and-bound prune more.
               (csp:state-set-best-known! state this-solution)

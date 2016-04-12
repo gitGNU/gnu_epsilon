@@ -190,6 +190,7 @@ EPSILON_LATE_DUMPED_NON_GENERATED_SOURCE_FILES = \
   bootstrap/scheme/fixed-point.e \
   bootstrap/scheme/analyses-and-optimizations.e \
   bootstrap/scheme/compiler.e \
+  bootstrap/scheme/csp.e \
   bootstrap/scheme/new-compiler.e \
   bootstrap/scheme/export-toplevel-forms-to-guile.scm \
   bootstrap/scheme/bootstrap-from-epsilon1.e \

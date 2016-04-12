@@ -50,6 +50,9 @@
                         "bootstrap/scheme/analyses-and-optimizations.e"))
 (e1:load (string:append configuration:abs_top_srcdir
                         configuration:dir_separator
+                        "bootstrap/scheme/csp.e"))
+(e1:load (string:append configuration:abs_top_srcdir
+                        configuration:dir_separator
                         "bootstrap/scheme/new-compiler.e"))
 
 

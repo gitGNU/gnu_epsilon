@@ -87,16 +87,12 @@
   ;; In the closure case closure is the constraint closure as per the comment
   ;; above, name is a string (for printint and debugging), and variables is a
   ;; list.  The last element all-variables is a list of every variable to be
-  ;; passed, including the ones which have already been instantiated.
+  ;; passed, including the ones which have already been instantiated.  The
+  ;; closure case is much more convenient to build using the helper procedures
+  ;; in the following section.
   (closure-internal closure name variables all-variables)
   (or constraint-a constraint-b)
   (not constraint))
-
-;;; Directly building a constraint in the closure case is slightly inconvenient,
-;;; as the caller needs to pass the variable list twice.  This procedure should
-;;; be used as a constructor.
-(e1:define (csp:constraint-closure closure name variables)
-  (csp:constraint-closure-internal closure name variables variables))
 
 ;;; A constraint is a bare constraint with a specified weight.  The weight
 ;;; represents the cost of violating the constraint, which however does not
@@ -116,13 +112,86 @@
                                      (csp:constraint-false))))
 
 
+;;;;; Closure constraints: convenience procedures
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Directly building a constraint in the closure case is slightly inconvenient,
+;;; as the caller needs to pass the variable list twice.  This procedure should
+;;; be used as a constructor.
+(e1:define (csp:constraint-closure closure name variables)
+  (csp:constraint-closure-internal closure name variables variables))
+
+;;; Given a closure taking n parameters, a constraint name and n variables,
+;;; return a new closure constraint.  This is implemented for common values of
+;;; n, and is usually the most convenient way to build a closure constraint;
+;;; see the examples below.
+(e1:define (csp:constraint-nullary unary-closure name)
+  (csp:constraint-closure (csp:nullary-closure->list-closure unary-closure)
+                          name
+                          list:nil))
+(e1:define (csp:constraint-unary unary-closure name variable)
+  (csp:constraint-closure (csp:unary-closure->list-closure unary-closure)
+                          name
+                          (list:list variable)))
+(e1:define (csp:constraint-binary binary-closure name variable-1 variable-2)
+  (csp:constraint-closure (csp:binary-closure->list-closure binary-closure)
+                          name
+                          (list:list variable-1 variable-2)))
+(e1:define (csp:constraint-ternary ternary-closure name variable-1 variable-2
+                                   variable-3)
+  (csp:constraint-closure (csp:ternary-closure->list-closure ternary-closure)
+                          name
+                          (list:list variable-1 variable-2 variable-3)))
+(e1:define (csp:constraint-quaternary quaternary-closure name variable-1 variable-2
+                                      variable-3 variable-4)
+  (csp:constraint-closure (csp:quaternary-closure->list-closure quaternary-closure)
+                          name
+                          (list:list variable-1 variable-2 variable-3 variable-4)))
+;;; In the following examples let X, Y and Z be constraint variables.
+;;; Example (unary nonzero constraint):
+;;; (csp:constraint-unary (e1:lambda (x) (e1:not (fixnum:zero? x)) "nonzero" X))
+;;; Example (binary equality constraint):
+;;; (csp:constraint-binary (e1:lambda (x y) (whatever:eq? x y) "eq?" X Y))
+;;; Example (ternary constraint forcing X < Y + Z):
+;;; (csp:constraint-ternary (e1:lambda (x y z) (fixnum:< x (fixnum:+ y z))) "<+" X Y Z))
+
+;;; Given a closure taking n parameters return a functionally equivalent closure
+;;; taking a single list parameter holding the n original parameters in the same
+;;; order.  The returned closure doesn't check if the list has the right size.
+(e1:define (csp:nullary-closure->list-closure nullary-closure)
+  (e1:lambda (useless-list)
+    (e1:call-closure nullary-closure)))
+(e1:define (csp:unary-closure->list-closure unary-closure)
+  (e1:lambda (list)
+    (e1:call-closure unary-closure
+      (list:head list))))
+(e1:define (csp:binary-closure->list-closure binary-closure)
+  (e1:lambda (list)
+    (e1:call-closure binary-closure
+      (list:first list)
+      (list:second list))))
+(e1:define (csp:ternary-closure->list-closure ternary-closure)
+  (e1:lambda (list)
+    (e1:call-closure ternary-closure
+      (list:first list)
+      (list:second list)
+      (list:third list))))
+(e1:define (csp:quaternary-closure->list-closure quaternary-closure)
+  (e1:lambda (list)
+    (e1:call-closure quaternary-closure
+      (list:first list)
+      (list:second list)
+      (list:third list)
+      (list:fourth list))))
+
+
 ;;;;; Constraint syntactic sugar
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;; The logical connectives and operators in expressions constitute a minimal
-;;; set, which simplify the implementation a little.  However it's convenient
-;;; for the user to be able to express constraints in a slightly richer
-;;; language.
+;;; The logical connectives directly expressible in constraints constitute a
+;;; minimal set, which simplifies the implementation a little.  However it's
+;;; convenient for the user to be able to express constraints in a slightly
+;;; richer language.
 
 ;;; At the present time we spend no effort in normalizing or even trying to
 ;;; simplify constraints.
@@ -241,12 +310,6 @@
 ;;; Given a constraint return the number of variables it involves.
 (e1:define (csp:constraint->arity c)
   (list:length (csp:constraint->variables c)))
-
-(e1:define (csp:constraint-nullary? c)
-  (list:null? (csp:constraint->variables c)))
-
-(e1:define (csp:constraint-unary? c)
-  (fixnum:= 1 (list:length (csp:constraint->variables c))))
 
 
 ;;;;; Constraint instantiation: substitute a variable
@@ -525,23 +588,37 @@
 (e1:define (csp:node-consistency variables wcs)
   (e1:let ((new-variables (box:make alist:nil))
            (weighed-constraints (box:make list:nil))
-           (satisfiable (box:make #t)))
+           (satisfiable (box:make #t))
+           (variable-to-wcs (unboxed-hash:make)))
+    ;; Make a table mapping each variable to the constraints it appears in.
+    ;; This avoids scanning irrelevant constraints when working on the domain of
+    ;; one variable.
+    ;; This makes a set-of-list of weighed constraints, which would be a
+    ;; questionable idea in general but is okay for node consistency, as
+    ;; weighed constraints aren't made, destroyed or changed here: we can just
+    ;; compare them by identity.
+    (e1:dolist (wc wcs)
+      (e1:dolist (variable (csp:weighed-constraint->variables wc))
+        (unboxed-hash:add-to-set-as-list! variable-to-wcs variable wc)))
     (e1:doalist (variable domain variables)
-      (e1:let ((new-domain (box:make list:nil)))
-        ;; Try and instantiate the constraints on every possible value of the
-        ;; variable.  Only add to the new domain the values such that the
-        ;; constraints remain viable.
-        (e1:dolist (value domain)
-          (e1:let ((new-wcs (csp:weighed-constraints-instantiate wcs
-                                                                 variable
-                                                                 value)))
-            (e1:when (csp:weighed-constraints-viable? new-wcs)
-              (box:set! new-domain (list:cons value (box:get new-domain))))))
-        (box:set! new-variables (alist:bind (box:get new-variables)
-                                            variable
-                                            (box:get new-domain)))
-        (e1:when (list:null? (box:get new-domain))
-          (box:set! satisfiable #f))))
+      (e1:when (box:get satisfiable)
+        (unboxed-hash:ensure-non-empty! variable-to-wcs variable)
+        (e1:let ((new-domain (box:make list:nil))
+                 (variable-wcs (unboxed-hash:get variable-to-wcs variable)))
+          ;; Try and instantiate the constraints on every possible value of the
+          ;; variable.  Only add to the new domain the values such that the
+          ;; constraints remain viable.
+          (e1:dolist (value domain)
+            (e1:let ((variable-wcs (csp:weighed-constraints-instantiate variable-wcs
+                                                                        variable
+                                                                        value)))
+              (e1:when (csp:weighed-constraints-viable? variable-wcs)
+                (box:set! new-domain (list:cons value (box:get new-domain))))))
+          (box:set! new-variables (alist:bind (box:get new-variables)
+                                              variable
+                                              (box:get new-domain)))
+          (e1:when (list:null? (box:get new-domain))
+            (box:set! satisfiable #f)))))
     ;; If we emptied a domain there is no point in keeping our constraints.
     ;; Let's replace them all with csp:unsatisfiable-wcs, which will be
     ;; immediately recognized as unsatisfiable; arc consistency will also
@@ -685,7 +762,7 @@
               (e1:assert #f)))))))))
 
 
-;;;;; Value choice heuristics
+;;;;; Value choice heuristic
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; Instantiate the variable over the constraints as every possible element of
@@ -729,7 +806,7 @@
               (loop res more-values)))))
 
 
-;;;;; Variable choice heuristics
+;;;;; Variable choice heuristic
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; Select and return the next variable to assign from the given non-empty

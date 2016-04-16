@@ -3280,11 +3280,27 @@
                (e1:call-closure proc base (list:head list))
                (list:tail list))))
 
-(e1:define (list:map f xs)
+;;; Apply f to every element of xs in order, and return a list with the results,
+;;; in opposite order, prepended to the given list with which the result shares
+;;; structure.  Linear-time and tail-recursive.
+(e1:define (list:map-reversed-into f xs elements-on-the-right)
   (e1:if (list:null? xs)
-     list:nil
-     (list:cons (e1:call-closure f (list:head xs))
-                (list:map f (list:tail xs)))))
+    elements-on-the-right
+    (list:map-reversed-into f
+                            (list:tail xs)
+                            (list:cons (e1:call-closure f (list:head xs))
+                                       elements-on-the-right))))
+
+;;; Apply f to every element of xs in order, and return a fresh list with the
+;;; results, in opposite order.  Linear-time and tail-recursive.
+(e1:define (list:map-reversed f xs)
+  (list:map-reversed-into f xs list:nil))
+
+;;; Apply f to every element of xs in order, and return a fresh list with the
+;;; results, in the same order.  Linear-time and tail-recursive, but less
+;;; efficient than the -revesed version.
+(e1:define (list:map f xs)
+  (list:reverse (list:map-reversed f xs)))
 
 (e1:define (list:exists? p xs)
   (e1:cond ((list:null? xs)

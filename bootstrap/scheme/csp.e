@@ -948,7 +948,7 @@
       (e1:dohash (vs wcs hg)
         (csp:write-variables-as-node-to file vs)
         (fio:write-to file " [label=\""
-                      (i (string-hash:get constraint-no vs))
+                      #;(i (string-hash:get constraint-no vs))
                       "\", width=0.15, shape=\"square\"];\n")
         (e1:dovector (v vs)
           (fio:write-to file (sy v) " [shape=\"circle\"];\n")

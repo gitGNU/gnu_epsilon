@@ -223,25 +223,16 @@
 ;;;;; Constraint printing
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:define (csp:write-expression-to port e)
-  (e1:match e
-    ((csp:expression-variable x)
-     (fio:write-to port "x" (i x)))
-    ((csp:expression-value c)
-     (fio:write-to port "c" (i c)))
-    (else
-     (fio:write-to port "#<unknown CSP expression>")
-     (e1:assert #f))))
 (e1:define (csp:write-constraint-to port c)
   (e1:match c
     ((csp:constraint-false)
      (fio:write-to port "#f"))
     ((csp:constraint-closure-internal _ name variables all-variables)
      (fio:write-to port "[" (st name) " ")
-     (e1:dolist (variable variables)
-       (e1:if (list:has? all-variables variable)
-         (fio:write-to port "?")
-         (print-variable-to port variable))
+     (e1:dolist (variable all-variables)
+       (e1:if (list:has? variables variable)
+         (print-variable-to port variable)
+         (fio:write-to port "#<value>"))
        (fio:write-to port " "))
      (fio:write-to port "]"))
     ((csp:constraint-or ca cb)

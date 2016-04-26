@@ -35,7 +35,8 @@
 (command-line:set-common-options)
 
 ;;; Add the other options we need
-(command-line:add-options (("--no-repl") "don't execute the interactive REPL")
+(command-line:add-options (("--no-banner") "don't show the initial REPL banner")
+                          (("--no-repl") "don't execute the interactive REPL")
                           (("--no-scratch") "don't load the scratch file")
                           #;(("--optimization-level" "--optimize" "-O") fixnum 10 "set optimization level"))
 
@@ -77,7 +78,8 @@ Loop (unless --no-repl is given).")
     (e1:unless (command-line:option-supplied? "--no-scratch")
       (repl:load-scratch))
     (e1:unless (command-line:option-supplied? "--no-repl")
-      (repl:print-banner)
+      (e1:unless (command-line:option-supplied? "--no-banner")
+        (repl:print-banner))
       (repl:repl-helper backtrackable-input-port))))
 (e1:define (repl:repl-helper bp)
   (e1:if (backtrackable-port:eof? bp)

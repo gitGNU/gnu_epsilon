@@ -3850,6 +3850,60 @@
             ,@body-forms)))))
 
 
+;;;;; Advanced list iteration
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Iterate over the possible powers of the given list of the given size.  For
+;;; example, if the list contains 0 and 1 and the size is 3, the combinations
+;;; will be the following lists: 0, 0, 0; 0, 0, 1; 0, 1, 0; 1, 0, 0; 1, 0, 1; 1,
+;;; 1, 0; 1, 1, 1.
+(e1:define-macro (e1:dolistcombinations (list-variable list size . result-forms) . body-forms)
+  (e1:let ((loop-name (sexpression:fresh-symbol-with-prefix "loop"))
+           (counter-name (sexpression:fresh-symbol-with-prefix "counter"))
+           (size-name (sexpression:fresh-symbol-with-prefix "size"))
+           (list-name (sexpression:fresh-symbol-with-prefix "list"))
+           (element-name (sexpression:fresh-symbol-with-prefix "element")))
+    `(e1:let ((,list-name ,list)
+              (,size-name ,size))
+       (e1:let ,loop-name ((,counter-name ,size-name)
+                           (,list-variable list:nil))
+         (e1:if (fixnum:zero? ,counter-name)
+           (e1:begin
+             ,@body-forms)
+           (e1:dolist (,element-name ,list-name)
+             (,loop-name (fixnum:1- ,counter-name)
+                         (list:cons ,element-name ,list-variable)))))
+       ,@result-forms)))
+
+;;; Iterate over the possible powers of the given list, for any size from 0 up
+;;; to size included.
+(e1:define-macro (e1:dolistcombinationsupto (list-variable list size . result-forms) . body-forms)
+  (e1:let ((size-counter-name (sexpression:fresh-symbol-with-prefix "size-counter")))
+    `(e1:dotimes (,size-counter-name ,size ,@result-forms)
+       (e1:dolistcombinations (,list-variable ,list (fixnum:1+ ,size-counter-name))
+         ,@body-forms))))
+
+;;; Iterate over the Cartesian product of lists.  More precisely, given a list
+;;; of lists, bind the given variable to every possible list containing of one
+;;; element from each inner list, in order.  The last element changes most
+;;; rapidly.
+(e1:define-macro (e1:dolistlist (variable list-list . result-forms) . body-forms)
+  (e1:let ((loop-name (sexpression:fresh-symbol-with-prefix "loop"))
+           (list-list-name (sexpression:fresh-symbol-with-prefix "list-list"))
+           (list-name (sexpression:fresh-symbol-with-prefix "list"))
+           (element-name (sexpression:fresh-symbol-with-prefix "element")))
+    `(e1:begin
+       (e1:let ,loop-name ((,variable list:nil)
+                           (,list-list-name ,list-list))
+         (e1:if (list:null? ,list-list-name)
+           (e1:let* ((,variable (list:reverse ,variable)))
+             ,@body-forms)
+           (e1:dolist (,element-name (list:head ,list-list-name))
+             (,loop-name (list:cons ,element-name ,variable)
+                         (list:tail ,list-list-name)))))
+       ,@result-forms)))
+
+
 ;;;;; Formatted output
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

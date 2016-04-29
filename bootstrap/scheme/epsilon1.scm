@@ -3339,6 +3339,481 @@
        ,@result-forms)))
 
 
+;;;;; Nondestructive sets
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Sets implemented as balanced binary binary trees, with non-destructive
+;;; operations.
+
+;;; The construction interface will be simplified after I add functors.  Right
+;;; now an empty structure contains non-procedure symbols for < and =, wich is
+;;; ugly and relatively inefficient, but at least doesn't make usage too
+;;; inconvenient.
+
+(e1:define-record set:set
+  tree
+  ;; FIXME: a lot of operations are slower than they need to be because of this.
+  ;; Do I really need set:size to be O(1)?  It might still be a good idea.
+  ;; Whether the size is stored or not should be one of my functplate
+  ;; parameters.
+  size
+  <
+  =)
+
+;;; Return an empty set.
+(e1:define (set:empty < =)
+  (set:set avl:empty 0 < =))
+
+;;; Return #f if the given set is nonempty, some non-#f object otherwise.
+(e1:define (set:nempty? s)
+  (set:set-get-size s))
+
+;;; Return #f if the given set is empty, some non-#f object otherwise.
+(e1:define (set:empty? s)
+  (e1:not (set:nempty? s)))
+
+;;; Return the number of elements in the given set.  Currently O(1), but this
+;;; may change in the future.
+(e1:define (set:size s)
+  (set:set-get-size s))
+
+(e1:define (set:has? s x)
+  (e1:let ((tree (set:set-get-tree s))
+           (< (set:set-get-< s))
+           (= (set:set-get-= s)))
+    (avl:has? tree x < =)))
+
+(e1:define (set:with s x)
+  (e1:let ((tree (set:set-get-tree s))
+           (< (set:set-get-< s))
+           (= (set:set-get-= s)))
+    (e1:if (avl:has? tree x < =)
+      s
+      (e1:let ((size (set:set-get-size s)))
+        (set:set (avl:with tree x < =)
+                 (fixnum:1+ size)
+                 <
+                 =)))))
+
+(e1:define (set:without s x)
+  (e1:let ((tree (set:set-get-tree s))
+           (< (set:set-get-< s))
+           (= (set:set-get-= s)))
+    (e1:if (avl:has? tree x < =)
+      (e1:let ((size (set:set-get-size s)))
+        (set:set (avl:without tree x < =)
+                 (fixnum:1- size)
+                 <
+                 =))
+      s)))
+
+(e1:define (set:with-list s xs)
+  (e1:if (list:null? xs)
+    s
+    (set:with-list (set:with s (list:head xs))
+                   (list:tail xs))))
+(e1:define (set:without-list s xs)
+  (e1:if (list:null? xs)
+    s
+    (set:without-list (set:without s (list:head xs))
+                      (list:tail xs))))
+
+(e1:define (set:minimum s)
+  (avl:minimum (set:set-get-tree s)))
+
+(e1:define (set:maximum s)
+  (avl:maximum (set:set-get-tree s)))
+
+;;; Return a list containing the elements of s, in order.  The argument is not
+;;; modified.
+(e1:define (set:->list s)
+  (avl:->list (set:set-get-tree s)))
+(e1:define (set:set->list s) (set:->list s)) ;; An alias.
+
+;;; Return a new set containing the union of the elements of s1 and s2, which
+;;; are not altered.  This assumes that s1 and s2 are ordered the same way
+;;; unless exactly one of them is empty, in which case the empty set may be
+;;; ordered in any way.
+(e1:define (set:union s1 s2)
+  (e1:if (fixnum:> (set:set-get-size s1)
+                   (set:set-get-size s2))
+    (set:union s2 s1)
+    (e1:let loop ((rest1 (set:->list s1))
+                  (s2 s2)) ;; order the result like the bigger argument
+      (e1:if (list:null? rest1)
+        s2
+        (loop (list:tail rest1)
+              (set:with s2 (list:head rest1)))))))
+
+;;; Return a new set containing the intersection of the elements of s1 and s2,
+;;; which are not altered.  This assumes that s1 and s2 are ordered the same way
+;;; unless exactly one of them is empty, in which case the empty set may be
+;;; ordered in any way.
+(e1:define (set:intersection s1 s2)
+  (e1:if (fixnum:> (set:set-get-size s1)
+                   (set:set-get-size s2))
+    (set:intersection s2 s1)
+    (e1:let ((< (set:set-get-< s2)) ;; take < and = from the non-empty set
+             (= (set:set-get-= s2)))
+      (e1:let loop ((rest1 (set:->list s1))
+                    (res (set:empty < =)))
+        (e1:cond ((list:null? rest1)
+                  res)
+                 (bind (head1 (list:head rest1))
+                       (tail1 (list:tail rest1)))
+                 ((set:has? s2 head1)
+                  (loop tail1
+                        (set:with res head1)))
+                 (else
+                  (loop tail1 res)))))))
+
+;;; Return a new set containing the elements of s1 which are not in s2; neither
+;;; is altered.  This assumes that s1 and s2 are ordered the same way, unless s2
+;;; is empty: in that case s2 may be ordered in any way.
+(e1:define (set:subtraction s1 s2)
+  (e1:let loop ((rest1 (set:->list s1))
+                (res s1))
+    (e1:cond ((list:null? rest1)
+              res)
+             (bind (head1 (list:head rest1))
+                   (tail1 (list:tail rest1)))
+             ((set:has? s2 head1)
+              (loop tail1
+                    (set:without res head1)))
+             (else
+              (loop tail1 res)))))
+
+;;; FIXME: variadic syntax for set:union and set:intersection is difficult to
+;;; get right at this time because of the neutral element, which will pop up in
+;;; the result when macros are called with zero arguments.  The correct solution
+;;; is supporting variadic operators with at least a given number of mandatory
+;;; arguments.
+
+;;; FIXME: variadic syntax for set:subtraction.  It is not associative, and I'm
+;;; not sure what to do if there are zero or one arguments; failing seems
+;;; reasonable.
+
+(e1:define-macro (e1:doset (element-variable set-expression . result-forms) . body-forms)
+  `(e1:doavl (,element-variable (set:set-get-tree ,set-expression) ,@result-forms)
+     ,@body-forms))
+
+
+;;;;; Nondestructive maps
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Associative maps implemented as balanced binary binary trees, with
+;;; non-destructive operations.
+
+;;; The comment at the beginning of the nondestructive set section also applies
+;;; here.
+
+;;; Maps depend on an ordering of keys and an merging policy on data.  This way
+;;; a map can associate each key to one datum, a list of data, a set of data or
+;;; something more complicated such as a multiset implemented as another map
+;;; from a datum to an occurrence number.  We call this data structure possibly
+;;; holding several data a "representation".
+
+;;; A map having each key associated to exactly one datum is called a "simple"
+;;; map.  Of course in simple maps a datum representation will be the same as
+;;; the datum.
+
+(e1:define-record map:map
+  ;; The underlying tree of bindings, each being a <key, datum representation>
+  ;; pair.
+  tree
+  ;; The number of bindings.
+  size
+  ;; How to compare bindings.  These take two <key, datum representation> pairs
+  ;; as parameters, and only compare the key parts.
+  binding-< binding-=
+  ;; Check whether the given datum representation contains the given datum.  The
+  ;; procedure named here takes the existing datum representation and the datum
+  ;; being queried for belonging, and returns a boolean.  The procedure should
+  ;; have no side effects.
+  datum-singleton
+  ;; How to add a datum to an existing datum in a binding.  The procedure named
+  ;; here takes the currently existing datum from the binding as represented,
+  ;; the new datum to add, and returns the new datum as represented.  The
+  ;; procedure should have no side effects.
+  datum-with
+  ;; How to remove a datum from an existing datum in a binding.  The procedure
+  ;; named here takes the existing datum as represented, the datum to remove,
+  ;; and returns a bundle to two results: the first item is a boolean, #f iff
+  ;; the entire binding should be removed, #t otherwise; the second is the
+  ;; resulting datum representation, only defined if the first item is #t.  The
+  ;; procedure should have no side effects.
+  datum-without)
+
+;;; Versions of datum-singleton, datum-with and datum-without for simple maps.
+;;; These are correct for any datum type comparable with eq?.
+(e1:define (map:datum-singleton-simple-eq? d) d)
+(e1:define (map:datum-with-simple-eq? r d) d)
+(e1:define (map:datum-without-simple-eq? r d)
+  (e1:if (whatever:eq? r d)
+    (e1:bundle #f #f)
+    (e1:bundle #t r)))
+
+;;; Versions of datum-singleton, datum-with and datum-without for multiple maps
+;;; whose data representation is an unordered list, taking multiplicity into
+;;; account (a datum inserted twice disappears after it's removed twice).  These
+;;; are correct for any datum type comparable with eq?.
+(e1:define (map:datum-singleton-list-eq? d) (list:list d))
+(e1:define (map:datum-with-list-eq? r d) (list:cons d r))
+(e1:define (map:datum-without-list-eq? r d)
+  (e1:let ((new-d (list:without r d)))
+    (e1:if (list:null? new-d)
+      (e1:bundle #f #f)
+      (e1:bundle #t new-list))))
+
+;;; Return a new empty map.  Notice that key-< and key-= are different from and
+;;; simpler than binding-< and binding-=.
+(e1:define (map:empty key-< key-= datum-singleton datum-with datum-without)
+  (map:map avl:empty
+           0
+           (e1:nontrivial-nonclosure (pair-a pair-b)
+             (e1:call-indirect key-< (cons:car pair-a) (cons:car pair-b)))
+           (e1:nontrivial-nonclosure (pair-a pair-b)
+             (e1:call-indirect key-= (cons:car pair-a) (cons:car pair-b)))
+           datum-singleton datum-with datum-without))
+
+;;; Helper procedure to make simple maps with eq?-comparable data.
+(e1:define (map:empty-simple-eq? key-< key-=)
+  (map:empty key-< key-=
+             (e1:value map:datum-singleton-simple-eq?)
+             (e1:value map:datum-with-simple-eq?)
+             (e1:value map:datum-without-simple-eq?)))
+
+;;; Helper procedure to make list maps with eq?-comparable data.
+(e1:define (map:empty-list-eq? key-< key-=)
+  (map:empty key-< key-=
+             (e1:value map:datum-singleton-list-eq?)
+             (e1:value map:datum-with-list-eq?)
+             (e1:value map:datum-without-list-eq?)))
+
+;;; Return #f iff the given map is non-empty.
+(e1:define (map:nempty? m)
+  (map:map-get-size m))
+
+;;; Return #f iff the given map is empty.
+(e1:define (map:empty? m)
+  (e1:not (map:nempty? m)))
+
+;;; Return non-#f iff the given map has any binding for the given key.
+(e1:define (map:has? m k)
+  (e1:let ((tree (map:map-get-tree m))
+           (binding-< (map:map-get-binding-< m))
+           (binding-= (map:map-get-binding-= m)))
+    (avl:has? tree (cons:make k #f) binding-< binding-=)))
+
+;;; Return the binding representation in the given map associated to the given
+;;; key, which is assumed to exist.
+(e1:define (map:get-bindingr m k)
+  (e1:let ((tree (map:map-get-tree m))
+           (binding-< (map:map-get-binding-< m))
+           (binding-= (map:map-get-binding-= m)))
+    (avl:get tree (cons:make k #f) binding-< binding-=)))
+
+;;; Return the datum representation in the given map associated to the given
+;;; key, which is assumed to exist.
+(e1:define (map:get-datumr m k)
+  (e1:let ((bindingr (map:get-bindingr m k)))
+    (cons:cdr bindingr)))
+(e1:define (map:get m k) (map:get-datumr m k)) ;; An alias.
+
+;;; Return a new map with the same content as the given one, except that k is
+;;; bound to d.  The result may share structure with m, which is not modified.
+;;; O(log n).
+(e1:define (map:with m k d)
+  (e1:let* ((tree (map:map-get-tree m))
+            (binding-< (map:map-get-binding-< m))
+            (binding-= (map:map-get-binding-= m))
+            (datum-singleton (map:map-get-datum-singleton m))
+            (datum-with (map:map-get-datum-with m))
+            (datum-without (map:map-get-datum-without m))
+            (bindingr (cons:make k #f))
+            (has (avl:has? tree bindingr binding-< binding-=))
+            (new-datumr (e1:if has
+                          (e1:let* ((old-bindingr (avl:get tree bindingr
+                                                           binding-< binding-=))
+                                    (old-datumr (cons:cdr old-bindingr)))
+                            (e1:call-indirect datum-with old-datumr d))
+                          (e1:call-indirect datum-singleton d)))
+            (size (map:map-get-size m))
+            (new-size (e1:if has size (fixnum:1+ size)))
+            (new-tree (avl:with tree
+                                (e1:begin ;; no need to cons a new bindingr
+                                  (cons:set-cdr! bindingr new-datumr)
+                                  bindingr)
+                                binding-<
+                                binding-=)))
+    (map:map new-tree
+             new-size
+             binding-<
+             binding-=
+             datum-singleton
+             datum-with
+             datum-without)))
+
+;;; Return a new map with the same content as the given one, except that k is
+;;; not bound to d.  The result may share structure with m, which is not modified.
+;;; O(log n).
+(e1:define (map:without m k d)
+  (e1:let* ((tree (map:map-get-tree m))
+            (size (map:map-get-size m))
+            (binding-< (map:map-get-binding-< m))
+            (binding-= (map:map-get-binding-= m))
+            (datum-singleton (map:map-get-datum-singleton m))
+            (datum-with (map:map-get-datum-with m))
+            (datum-without (map:map-get-datum-without m))
+            (bindingr (cons:make k #f)))
+    (e1:if (avl:has? tree bindingr binding-< binding-=)
+      (e1:let* ((old-bindingr (avl:get tree bindingr binding-< binding-=))
+                (old-datumr (cons:cdr old-bindingr))
+                ((still-existing new-datumr)
+                 (e1:call-indirect datum-without old-datumr d))
+                (new-size (e1:if still-existing size (fixnum:1- size)))
+                (new-tree (e1:if still-existing
+                            (avl:with tree
+                                      (e1:begin ;; no need to cons a new bindingr
+                                        (cons:set-cdr! bindingr new-datumr)
+                                        bindingr)
+                                      binding-<
+                                      binding-=)
+                            (avl:without tree
+                                         bindingr
+                                         binding-<
+                                         binding-=))))
+        (map:map new-tree
+                 new-size
+                 binding-<
+                 binding-=
+                 datum-singleton
+                 datum-with
+                 datum-without))
+      m)))
+
+;;; Return a new map with the same content as the given one, except that k is
+;;; not bound to any datum.  The result may share structure with m, which is not
+;;; modified.  O(log n).
+(e1:define (map:without-key m k)
+  (e1:let* ((tree (map:map-get-tree m))
+            (size (map:map-get-size m))
+            (binding-< (map:map-get-binding-< m))
+            (binding-= (map:map-get-binding-= m))
+            (datum-singleton (map:map-get-datum-singleton m))
+            (datum-with (map:map-get-datum-with m))
+            (datum-without (map:map-get-datum-without m))
+            (bindingr (cons:make k #f)))
+    (e1:if (avl:has? tree bindingr binding-< binding-=)
+      (e1:let* ((new-size (fixnum:1- size))
+                (new-tree (avl:without tree
+                                       bindingr
+                                       binding-<
+                                       binding-=)))
+        (map:map new-tree
+                 new-size
+                 binding-<
+                 binding-=
+                 datum-singleton
+                 datum-with
+                 datum-without))
+      m)))
+
+;;; Return a new map with the same content as the given one, plus every binding
+;;; from the given alist.  The result may share structure with m, which is not
+;;; modified..
+(e1:define (map:with-alist m alist)
+  (e1:if (list:null? alist)
+    m
+    (e1:let* ((first-binding (list:head alist))
+              (first-key (cons:car first-binding))
+              (first-datum (cons:cdr first-binding)))
+      (map:with-alist (map:with m first-key first-datum)
+                      (list:tail alist)))))
+
+;;; Return a new map with the same content as the given one, minus every binding
+;;; from the given alist.  The result may share structure with m, which is not
+;;; modified..
+(e1:define (map:without-alist m alist)
+  (e1:if (list:null? alist)
+    m
+    (e1:let* ((first-binding (list:head alist))
+              (first-key (cons:car first-binding))
+              (first-datum (cons:cdr first-binding)))
+      (map:without-alist (map:without m first-key first-datum)
+                         (list:tail alist)))))
+
+;;; Return a new map with the same content as the given one, plus every binding
+;;; obtained from the elements in the same position from the given list of keys
+;;; and list of values.  The result may share structure with m, which is not
+;;; modified.
+(e1:define (map:with-lists m keys values)
+  (e1:cond ((e1:and (list:null? keys)
+                    (list:null? values))
+            m)
+           ((e1:or (list:null? keys)
+                   (list:null? values))
+            (e1:error "map:with-lists: lists have different sizes"))
+           (else
+            (map:with-lists (map:with m (list:head keys) (list:head values))
+                            (list:tail keys)
+                            (list:tail values)))))
+
+;;; Return a new map without the same content as the given one, minus every binding
+;;; obtained from the elements in the same position from the given list of keys
+;;; and list of values.  The result may share structure without m, which is not
+;;; modified.
+(e1:define (map:without-lists m keys values)
+  (e1:cond ((e1:and (list:null? keys)
+                    (list:null? values))
+            m)
+           ((e1:or (list:null? keys)
+                   (list:null? values))
+            (e1:error "map:without-lists: lists have different sizes"))
+           (else
+            (map:without-lists (map:without m (list:head keys) (list:head values))
+                               (list:tail keys)
+                               (list:tail values)))))
+
+;;; Return a new map without the same content as the given one, minus every
+;;; binding for the keys in the given list.  The result may share structure
+;;; without m, which is not modified.
+(e1:define (map:without-keys m keys)
+  (e1:if (list:null? keys)
+    m
+    (map:without-keys (map:without-key m (list:head keys))
+                      (list:tail keys))))
+
+;;; FIXME: set operators.  This requires procedures to iterate over data
+;;; representation, so I should probably only do it after implementing
+;;; functplates.
+
+;;; Iterate over the given map, binding to the given name each key and
+;;; corresponding data representation.
+(e1:define-macro (e1:domapr (key-variable datumr-variable map-expression . result-forms)
+                            . body-forms)
+  (e1:let ((binding-name (sexpression:fresh-symbol-with-prefix "binding")))
+    `(e1:doavl (,binding-name (map:map-get-tree ,map-expression) ,@result-forms)
+       (e1:let* ((,key-variable (cons:car ,binding-name))
+                 (,datumr-variable (cons:cdr ,binding-name)))
+         ,@body-forms))))
+
+;;; Iterate over the given map, binding to the given name each key and
+;;; corresponding datum.  The first parameter is the name of an iterating form
+;;; such as e1:dolist, iterating over the elements of data representation.  If a
+;;; key is bound to multiple data then the key is iterated over multiple times.
+(e1:define-macro (e1:domap dorepresentation
+                           (key-variable datum-variable map-expression . result-forms)
+                           . body-forms)
+  (e1:let ((binding-name (sexpression:fresh-symbol-with-prefix "binding"))
+           (datumr-name (sexpression:fresh-symbol-with-prefix "datumr")))
+    `(e1:doavl (,binding-name (map:map-get-tree ,map-expression) ,@result-forms)
+       (e1:let ((,key-variable (cons:car ,binding-name))
+                (,datumr-name (cons:cdr ,binding-name)))
+         (,dorepresentation (,datum-variable ,datumr-name)
+            ,@body-forms)))))
+
+
 ;;;;; Formatted output
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

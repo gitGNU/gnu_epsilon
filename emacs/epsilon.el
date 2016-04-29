@@ -343,7 +343,7 @@ See `run-hooks'."
                        "e1:nonclosure" "e1:call-nonclosure"
                        "e1:closure"
                        "e1:lambda" "e1:ml-lambda" "e1:call-closure"
-                       "e1:while" "e1:do" "e1:doalist" "e1:dobuffer" "e1:dohash" "e1:dolist" "e1:dovector" "e1:doavl" "e1:doset" "e1:dolist-index" "e1:dovector-index" "e1:dotimes" "e1:for"
+                       "e1:while" "e1:do" "e1:doalist" "e1:dobuffer" "e1:dohash" "e1:dolist" "e1:dovector" "e1:doavl" "e1:doset" "e1:domap" "e1:domapr" "e1:dolist-index" "e1:dovector-index" "e1:dotimes" "e1:for"
                        )))
        (1 font-lock-keyword-face))
       (,(epsilon-at-define-nonprocedure-beginning
@@ -537,6 +537,8 @@ indentation."
 (put 'e1:dovector 'epsilon-indent-function 1)
 (put 'e1:doavl 'epsilon-indent-function 1)
 (put 'e1:doset 'epsilon-indent-function 1)
+(put 'e1:domap 'epsilon-indent-function 1)
+(put 'e1:domapr 'epsilon-indent-function 1)
 (put 'e1:dolist-index 'epsilon-indent-function 1)
 (put 'e1:dovector-index 'epsilon-indent-function 1)
 (put 'e1:for 'epsilon-indent-function 1)

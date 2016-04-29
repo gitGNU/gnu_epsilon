@@ -3784,6 +3784,36 @@
     (map:without-keys (map:without-key m (list:head keys))
                       (list:tail keys))))
 
+;;; Return the binding representation as a pair <key, data representation> for
+;;; the minimum key in the map.  O(log n).
+(e1:define (map:minimum-bindingr m)
+  (avl:minimum (map:map-get-tree m)))
+
+;;; Return a two-item bundle holding the minimum key and the corresponding
+;;; datum representation.  O(log n).
+(e1:define (map:minimum m)
+  (e1:let* ((bindingr (map:minimum-bindingr m)))
+    (e1:bundle (cons:car bindingr)
+               (cons:cdr bindingr))))
+
+;;; Return the binding representation as a pair <key, data representation> for
+;;; the maximum key in the map.  O(log n).
+(e1:define (map:maximum-bindingr m)
+  (avl:maximum (map:map-get-tree m)))
+
+;;; Return a two-item bundle holding the maximum key and the corresponding
+;;; datum representation.  O(log n).
+(e1:define (map:maximum m)
+  (e1:let* ((bindingr (map:maximum-bindingr m)))
+    (e1:bundle (cons:car bindingr)
+               (cons:cdr bindingr))))
+
+;;; Return a new alist containing all the <key, data representation> bindings
+;;; from the given map in some unspecified order.  O(n).
+(e1:define (map:->alist m)
+  (avl:->list (map:map-get-tree m)))
+(e1:define (map:map->alist m) (map:->alist m)) ;; An alias.
+
 ;;; FIXME: set operators.  This requires procedures to iterate over data
 ;;; representation, so I should probably only do it after implementing
 ;;; functplates.

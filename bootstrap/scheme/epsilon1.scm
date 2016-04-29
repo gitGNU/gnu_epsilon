@@ -4106,6 +4106,35 @@
            (else
             (list:has? (list:tail list) element))))
 
+(e1:define list:nil-singleton
+  (list:list list:nil))
+
+;;; Given a list return a list of all its possible sublists, each of which is
+;;; the same order as xs but possibly noncontiguous.  The result outer list is
+;;; in no specified order.  The argument is not modified, and the result may
+;;; share structure with it.
+(e1:define (list:sublists xs)
+  (e1:if (list:null? xs)
+    list:nil-singleton
+    (e1:let* ((first (list:head xs))
+              (rest-sublists (list:sublists (list:tail xs))))
+      (list:append-reversed (list:cons-with-reversed-elements first
+                                                              rest-sublists)
+                            rest-sublists))))
+
+;;; Return a new list containing x consed to every element of yss, ordered
+;;; backwards with respect to ys.
+(e1:define (list:cons-with-reversed-elements x yss)
+  (list:cons-with-reversed-elements-acc x yss list:nil))
+(e1:define (list:cons-with-reversed-elements-acc x yss acc)
+  (e1:if (list:null? yss)
+    acc
+    (e1:let* ((ys (list:head yss))
+              (x-cons-ys (list:cons x ys)))
+      (list:cons-with-reversed-elements-acc x
+                                            (list:tail yss)
+                                            (list:cons x-cons-ys acc)))))
+
 
 ;;;;; Element search in vectors or strings
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

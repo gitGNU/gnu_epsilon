@@ -3809,7 +3809,7 @@
                (cons:cdr bindingr))))
 
 ;;; Return a new alist containing all the <key, data representation> bindings
-;;; from the given map in some unspecified order.  O(n).
+;;; from the given map, ordered by key.  O(n).
 (e1:define (map:->alist m)
   (avl:->list (map:map-get-tree m)))
 (e1:define (map:map->alist m) (map:->alist m)) ;; An alias.

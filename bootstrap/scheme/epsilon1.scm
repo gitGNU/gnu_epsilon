@@ -1956,6 +1956,27 @@
 (e1:define-macro (e1:closure . stuff)
   `(closure:make ,@stuff))
 
+;;; Return the name of the procedure name in the given closure.
+(e1:define (e1:closure->closure-procedure-name c)
+  (buffer:get c 0))
+
+;;; Return the list of formals of the given closure, including the closure
+;;; data structure.
+(e1:define (e1:closure->all-formals c)
+  (e1:let* ((closure-procedure-name (e1:closure->closure-procedure-name c)))
+    (state:procedure-get-formals closure-procedure-name)))
+
+;;; Return the list of formals of the given closure, not including the closure
+;;; data structure.
+(e1:define (e1:closure->formals c)
+  (list:tail (e1:closure->all-formals c)))
+
+;;; Return the argument number of the given closure, not including the closure
+;;; data structure.  The results matches the number of actuals to be passed after
+;;; the closure expression in an e1:call-closure form.
+(e1:define (e1:closure->arity c)
+  (list:length (e1:closure->formals c)))
+
 
 ;;;;; Non-closures
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1978,6 +1999,34 @@
 ;;; is trivial:
 (e1:define-macro (e1:call-nonclosure non-closure . actuals)
   `(e0:call-indirect ,non-closure ,@actuals))
+
+;;; Return the name of a fresh nonclosure functionally equivalent to the given
+;;; closure.  This performs a procedure definition.
+(e1:define (e1:closure->nonclosure c)
+  ;; It makes no sense to generate an indirect call, when we already know what
+  ;; procedure will be called: let's not add one more useless level of
+  ;; indirection.
+  (e1:let* ((nonclosure-name (symbol:fresh-with-prefix "nonclosure-name"))
+            (closure-procedure-name (e1:closure->closure-procedure-name c))
+            (formals (e1:closure->formals c))
+            (actual-expressions
+             (list:map (e1:lambda (formal) (e0:variable* formal))
+                       formals))
+            (all-actual-expressions (list:cons (e0:value* c)
+                                               actual-expressions))
+            (body-expression (e0:call* closure-procedure-name
+                                       all-actual-expressions))
+            (body-sexpression
+             (sexpression:list (sexpression:inject-expression body-expression))))
+    (e1:define-procedure-procedure nonclosure-name
+                                   formals
+                                   body-sexpression)
+    nonclosure-name))
+
+;;; Return a nonclosure which can actually access nonlocals.  This performs a
+;;; procedure definition, where the new procedure calls a closure.
+(e1:define-macro (e1:nontrivial-nonclosure formals . body-forms)
+  `(e1:closure->nonclosure (e1:lambda ,formals ,@body-forms)))
 
 
 ;;;;; Local macros

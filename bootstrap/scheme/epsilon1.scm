@@ -2865,6 +2865,431 @@
 ;;; We already defined e1:join, along with futures.
 
 
+;;;;; AVL trees
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; An implementation of balanced binary trees with non-destructive operations.
+;;; Comparison procedures (as non-closures) are passed as parameters thru
+;;; recursive calls, which is inefficient; I will do better later after
+;;; introducing something like ML functors.
+
+(e1:define-sum avl:tree
+  (empty)
+  (non-empty height left element right)) ;; height is a fixnum, left and right are AVL trees.
+
+(e1:define avl:empty
+  (avl:tree-empty))
+
+;;; Return #t if the given tree is empty, #f otherwise.
+(e1:define (avl:empty? t)
+  (e1:match t
+    ((avl:tree-empty)  #t)
+    (else              #f)))
+
+;;; Return the height of the given AVL tree.
+(e1:define (avl:height t)
+  (e1:match t
+    ((avl:tree-empty)
+     0)
+    ((avl:tree-non-empty height _ _ _)
+     height)))
+
+(e1:define (avl:height t)
+  (e1:match t
+    ((avl:tree-empty)
+     0)
+    ((avl:tree-non-empty height _ _ _)
+     height)))
+
+(e1:define (avl:balance t)
+  (e1:match t
+    ((avl:tree-empty)
+     0)
+    ((avl:tree-non-empty _ left _ right)
+     (fixnum:- (avl:height right)
+               (avl:height left)))))
+
+(e1:define (avl:left-child t)
+  (e1:match t
+    ((avl:tree-empty)
+     (e1:error "avl:left-child: empty"))
+    ((avl:tree-non-empty _ left _ _)
+     left)))
+
+(e1:define (avl:root t)
+  (e1:match t
+    ((avl:tree-empty)
+     (e1:error "avl:root: empty"))
+    ((avl:tree-non-empty _ _ root _)
+     root)))
+
+(e1:define (avl:right-child t)
+  (e1:match t
+    ((avl:tree-empty)
+     (e1:error "avl:right-child: empty"))
+    ((avl:tree-non-empty _ _ _ right)
+     right)))
+
+(e1:define (avl:make-non-empty left root right)
+  (avl:tree-non-empty (fixnum:1+ (fixnum:max (avl:height left)
+                                             (avl:height right)))
+                      left
+                      root
+                      right))
+
+;;; Return #t if the given tree has the given element, #f otherwise.
+(e1:define (avl:has? t x < =)
+  (e1:match t
+    ((avl:tree-empty)
+     #f)
+    ((avl:tree-non-empty height left element right)
+     (e1:cond ((e1:call-indirect = x element)
+               #t)
+              ((e1:call-indirect < x element)
+               (avl:has? left x < =))
+              (else
+               (avl:has? right x < =))))))
+
+;;; Return the element of the given tree equal to the given element, or fail.
+(e1:define (avl:get t x < =)
+  (e1:match t
+    ((avl:tree-empty)
+     (e1:error "avl:get: not found"))
+    ((avl:tree-non-empty height left element right)
+     (e1:cond ((e1:call-indirect = x element)
+               element)
+              ((e1:call-indirect < x element)
+               (avl:get left x < =))
+              (else
+               (avl:get right x < =))))))
+
+;;; Return the element of the given tree equal to the given element; if none
+;;; exists return the given default.
+(e1:define (avl:get-or t x default < =)
+  (e1:match t
+    ((avl:tree-empty)
+     default)
+    ((avl:tree-non-empty height left element right)
+     (e1:cond ((e1:call-indirect = x element)
+               element)
+              ((e1:call-indirect < x element)
+               (avl:get-or left x default < =))
+              (else
+               (avl:get-or right x default < =))))))
+
+;;;   r              e
+;;;  / \            / \
+;;; X   e    ->    r   Z
+;;;    / \        / \
+;;;   Y   Z      X   Y
+(e1:define (avl:rotate-left t)
+  (e1:match t
+    ((avl:tree-non-empty _
+                         X
+                         r
+                         (avl:tree-non-empty _ Y e Z))
+     (e1:let* ((hX (avl:height X))
+               (hY (avl:height Y))
+               (hZ (avl:height Z))
+               (max-hX-hY+1 (fixnum:1+ (fixnum:max hX hY))))
+       (avl:tree-non-empty (fixnum:1+ (fixnum:max max-hX-hY+1 hZ))
+                           (avl:tree-non-empty max-hX-hY+1 X r Y)
+                           e
+                           Z)))))
+
+;;;     r          e
+;;;    / \        / \
+;;;   e   Z  ->  X   r
+;;;  / \            / \
+;;; X   Y          Y   Z
+(e1:define (avl:rotate-right t)
+  (e1:match t
+    ((avl:tree-non-empty _
+                         (avl:tree-non-empty _ X e Y)
+                         r
+                         Z)
+     (e1:let* ((hX (avl:height X))
+               (hY (avl:height Y))
+               (hZ (avl:height Z))
+               (max-hY-hZ+1 (fixnum:1+ (fixnum:max hY hZ))))
+       (avl:tree-non-empty (fixnum:1+ (fixnum:max hX max-hY-hZ+1))
+                           X
+                           e
+                           (avl:tree-non-empty max-hY-hZ+1 Y r Z))))
+     (else
+      (e1:error "avl:right-rotate: not of the right shape"))))
+
+;; FIXME: since rotations are always used on newly-created trees, I should make
+;; them destructive for better performance.
+
+(e1:define (avl:rebalance-after-insertion t)
+  (e1:let ((balance (avl:balance t)))
+    (e1:cond ((fixnum:< balance -1)
+              (e1:let ((left (avl:left-child t)))
+                (e1:if (fixnum:= (avl:balance left) -1)
+                  (avl:rotate-right t)
+                  (avl:rotate-right (avl:make-non-empty (avl:rotate-left left)
+                                                        (avl:root t)
+                                                        (avl:right-child t))))))
+             ((fixnum:> balance 1)
+              (e1:let ((right (avl:right-child t)))
+                (e1:if (fixnum:= (avl:balance right) 1)
+                  (avl:rotate-left t)
+                  (avl:rotate-left (avl:make-non-empty (avl:left-child t)
+                                                       (avl:root t)
+                                                       (avl:rotate-right right))))))
+             (else
+              t))))
+
+(e1:define (avl:rebalance-after-removal t)
+  (e1:let ((balance (avl:balance t)))
+    (e1:cond ((fixnum:< balance -1)
+              (e1:let ((left (avl:left-child t)))
+                (e1:if (fixnum:= (avl:balance left) 1)
+                  (avl:rotate-right (avl:make-non-empty (avl:rotate-left left)
+                                                        (avl:root t)
+                                                        (avl:right-child t)))
+                  (avl:rotate-right t))))
+             ((fixnum:> balance 1)
+              (e1:let ((right (avl:right-child t)))
+                (e1:if (fixnum:= (avl:balance right) -1)
+                  (avl:rotate-left (avl:make-non-empty (avl:left-child t)
+                                                       (avl:root t)
+                                                       (avl:rotate-right right)))
+                  (avl:rotate-left t))))
+             (else
+              t))))
+
+;;; Return a new tree having the same elements as t, with x added or replaced.
+;;; The result may share structure with t, which is not mofified.  O(log n)
+(e1:define (avl:with t x < =)
+  (e1:match t
+    ((avl:tree-empty)
+     (avl:tree-non-empty 1 t x t))
+    ((avl:tree-non-empty height left root right)
+     (e1:if (e1:call-indirect = x root)
+       (avl:tree-non-empty height left x right)
+       (avl:rebalance-after-insertion
+          (e1:let* (((left right)
+                     (e1:if (e1:call-indirect < x root)
+                       (e1:bundle (avl:with left x < =) right)
+                       (e1:bundle left (avl:with right x < =)))))
+            (avl:make-non-empty left
+                                root
+                                right)))))))
+
+;;; Return a new tree having the same elements as t, with x removed if present
+;;; in t -- if x was not in t then the result has the same elements as t.  The
+;;; result may share structure with t, which is not mofified.  O(log n).
+(e1:define (avl:without t x < =)
+  (e1:match t
+    ((avl:tree-empty)
+     t)
+    ((avl:tree-non-empty height left root right)
+     (avl:rebalance-after-removal
+        (e1:cond ((e1:call-indirect = x root)
+                  (avl:without-root t < =))
+                 ((e1:call-indirect < x root)
+                  (avl:make-non-empty (avl:without left x < =)
+                                      root
+                                      right))
+                 (else
+                  (avl:make-non-empty left
+                                      root
+                                      (avl:without right x < =))))))))
+
+;;; Return the minimum element of the given tree, which is not modified.
+;;; O(log n).
+(e1:define (avl:minimum t)
+  (avl:minimum-helper t (avl:root t)))
+(e1:define (avl:minimum-helper t candidate)
+  (e1:match t
+    ((avl:tree-non-empty _ left root _)
+     (avl:minimum-helper left root))
+    ((avl:tree-empty)
+     candidate)))
+
+;;; Return the maximum element of the given tree, which is not modified.
+;;; O(log n).
+(e1:define (avl:maximum t)
+  (avl:maximum-helper t (avl:root t)))
+(e1:define (avl:maximum-helper t candidate)
+  (e1:match t
+    ((avl:tree-non-empty _ _ root right)
+     (avl:maximum-helper right root))
+    ((avl:tree-empty)
+     candidate)))
+
+(e1:define (avl:root-inorder-successor t)
+  (avl:minimum (avl:right-child t)))
+
+(e1:define (avl:without-root t < =)
+  (e1:match t
+    ((avl:tree-non-empty height left root right)
+     (e1:cond ((avl:empty? right)
+               left)
+              ((avl:empty? (avl:left-child right))
+               (avl:make-non-empty left (avl:root right) (avl:right-child right)))
+              (else
+               (e1:let ((inorder-successor (avl:root-inorder-successor t)))
+                 (avl:make-non-empty left
+                                     inorder-successor
+                                     (avl:without right inorder-successor < =))))))
+    ((avl:tree-empty)
+     (e1:assert #f))
+    (else
+     (e1:assert #f))))
+
+;;; Return an AVL tree containing the same elements as t, with the elements from
+;;; the list xs added or replaced.  The result may share structure with t.  No
+;;; argument is modified.
+(e1:define (avl:with-list t xs < =)
+  (e1:if (list:null? xs)
+    t
+    (e1:let ((new-t (avl:with t (list:head xs) < =)))
+      #;(avl:check-height new-t)
+      #;(avl:check-balance new-t)
+      (avl:with-list new-t
+                     (list:tail xs)
+                     <
+                     =))))
+
+;;; Return an AVL tree containing the same elements as t, minus the elements
+;;; from the list xs.  The result may share structure with t.  No argument is
+;;; modified.
+(e1:define (avl:without-list t xs < =)
+  (e1:if (list:null? xs)
+    t
+    (e1:let ((new-t (avl:without t (list:head xs) < =)))
+      #;(avl:check-height new-t)
+      #;(avl:check-balance new-t)
+      (avl:without-list new-t
+                        (list:tail xs)
+                        <
+                        =))))
+
+;;; Return the number of elements in the given tree.  O(n).
+(e1:define (avl:size t)
+  (e1:match t
+    ((avl:tree-empty)
+     0)
+    ((avl:tree-non-empty _ left _ right)
+     (fixnum:+ (avl:size left)
+               1
+               (avl:size right)))))
+
+;;; Return a list having the same element as the given tree, in order.  O(n).
+(e1:define (avl:->list t)
+  (avl:->list-acc t list:nil))
+(e1:define (avl:->list-acc t acc)
+  (e1:match t
+    ((avl:tree-empty)
+     acc)
+    ((avl:tree-non-empty height left root right)
+     (e1:let ((new-acc (avl:->list-acc right acc)))
+       (avl:->list-acc left
+                       (list:cons root new-acc))))))
+
+(e1:define (avl:avl->list t) (avl:->list t)) ;; an alias.
+
+;;; Return a tree having the same elements as the given list, which doesn't need
+;;; to be in any order.  O(n*log(n)).
+(e1:define (avl:list-> xs < =)
+  (avl:with-list avl:empty xs < =))
+
+(e1:define (avl:list->avl xs < =) (avl:list-> xs < =)) ;; an alias.
+
+;;; Return the actual height of the given tree, ignoring what is stored.  This
+;;; is only useful for debugging.
+(e1:define (avl:height-slow t)
+  (e1:match t
+    ((avl:tree-empty)
+     0)
+    ((avl:tree-non-empty _ left _ right)
+     (fixnum:1+ (fixnum:max (avl:height-slow left)
+                            (avl:height-slow right))))))
+
+;;; Check that the balance of the given tree corresponds to what is stored.
+;;; This is only useful for debugging.
+(e1:define (avl:check-balance t)
+  (e1:assert (fixnum:< (fixnum:absolute-value (avl:balance t)) 2))
+  (e1:match t
+    ((avl:tree-empty))
+    ((avl:tree-non-empty _ left _ right)
+     (avl:check-balance left)
+     (avl:check-balance right))))
+
+;;; Check that the height of the given tree corresponds to what is stored.  This
+;;; is only useful for debugging.
+(e1:define (avl:check-height t)
+  (e1:match t
+    ((avl:tree-empty))
+    ((avl:tree-non-empty height left _ right)
+     (e1:assert (fixnum:= height (avl:height-slow t)))
+     (avl:check-height left)
+     (avl:check-height right))))
+
+;;; Return an AVL tree of fixnums in [0, limit).
+(e1:define (avl:iota limit)
+  (avl:iota-acc (fixnum:1- limit)
+                avl:empty))
+(e1:define (avl:iota-acc current acc)
+  (e1:if (fixnum:< current 0)
+    acc
+    (avl:iota-acc (fixnum:1- current)
+                  (avl:with acc current (e1:value fixnum:<) (e1:value fixnum:=)))))
+
+;;; Return a new tree containing the union of the elements of the given trees,
+;;; which are not modified.
+(e1:define (avl:union t1 t2 < =)
+  (e1:if (avl:empty? t1)
+    t2
+    (e1:let* ((e1 (avl:root t1))
+              (rest1 (avl:without-root t1 < =)))
+      (avl:union rest1 (avl:with t2 e1 < =) < =))))
+
+;;; Return a new tree containing the intersection of the elements of the given
+;;; trees, which are not modified.
+(e1:define (avl:intersection t1 t2 < =)
+  (avl:intersection-acc t1 t2 < = avl:empty))
+(e1:define (avl:intersection-acc t1 t2 < = acc)
+  (e1:cond ((avl:empty? t1)
+            acc)
+           (bind (e1 (avl:root t1))
+                 (rest1 (avl:without-root t1 < =)))
+           ((avl:has? t2 e1 < =)
+            (avl:intersection-acc rest1 t2 < = (avl:with acc e1 < =)))
+           (else
+            (avl:intersection-acc rest1 t2 < = acc))))
+
+;;; Return a new tree containing the elements of t1 without the elements of t2.
+;;; t2 is allowed to contain elements not in t1.  The arguments are not
+;;; modified.
+(e1:define (avl:subtraction t1 t2 < =)
+  (e1:cond ((avl:empty? t2)
+            t1)
+           (bind (e2 (avl:root t2))
+                 (rest2 (avl:without-root t2 < =)))
+           ((avl:has? t1 e2 < =)
+            (avl:subtraction (avl:without t1 e2 < =) rest2 < =))
+           (else
+            (avl:subtraction t1 rest2 < =))))
+
+;;; Iterate over the elements of an AVL tree, in order.  Every step takes O(1)
+;;; time and non-tail recursion has a total depth of O(log n).
+(e1:define-macro (e1:doavl (element-variable avl-expression . result-forms) . body-forms)
+  (e1:let ((loop-variable (sexpression:fresh-symbol-with-prefix "doavl-loop"))
+           (subtree-variable (sexpression:fresh-symbol-with-prefix "doavl-subtree")))
+    `(e1:begin
+       (e1:let ,loop-variable ((,subtree-variable ,avl-expression))
+         (e1:unless (avl:empty? ,subtree-variable)
+           (,loop-variable (avl:left-child ,subtree-variable))
+           (e1:let* ((,element-variable (avl:root ,subtree-variable)))
+             ,@body-forms)
+           (,loop-variable (avl:right-child ,subtree-variable))))
+       ,@result-forms)))
+
+
 ;;;;; Formatted output
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

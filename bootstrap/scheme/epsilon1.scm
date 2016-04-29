@@ -3605,6 +3605,12 @@
            (binding-= (map:map-get-binding-= m)))
     (avl:has? tree (cons:make k #f) binding-< binding-=)))
 
+;;; Return the number of binding representations in the map, which is to say the
+;;; number of keys.
+(e1:define (map:bindingr-no m)
+  (map:map-get-size m))
+(e1:define (map:key-no m) (map:bindingr-no m)) ;; An alias.
+
 ;;; Return the binding representation in the given map associated to the given
 ;;; key, which is assumed to exist.
 (e1:define (map:get-bindingr m k)

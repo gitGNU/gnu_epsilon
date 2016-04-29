@@ -43,8 +43,8 @@ struct ejit_thread_state
   long result_no;
 };
 
-#define STACK_ELEMENT_NO        5000//10000
-#define RETURN_STACK_ELEMENT_NO 2000//5000
+#define STACK_ELEMENT_NO        50000//10000
+#define RETURN_STACK_ELEMENT_NO 20000//5000
 
 ejit_thread_state_t
 ejit_make_thread_state (void)

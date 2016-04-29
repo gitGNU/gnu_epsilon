@@ -3853,11 +3853,28 @@
 ;;;;; Advanced list iteration
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;; Iterate over the possible powers of the given list of the given size.  For
-;;; example, if the list contains 0 and 1 and the size is 3, the combinations
-;;; will be the following lists: 0, 0, 0; 0, 0, 1; 0, 1, 0; 1, 0, 0; 1, 0, 1; 1,
-;;; 1, 0; 1, 1, 1.
-(e1:define-macro (e1:dolistcombinations (list-variable list size . result-forms) . body-forms)
+;;; Iterate over the possible power lists of the given size of the gieen list,
+;;; where the rightmost element changes most rapidly.  For example, if the list
+;;; contains 0 and 1 and the size is 3, the combinations will be the following
+;;; lists: 0, 0, 0; 0, 0, 1; 0, 1, 0; 1, 0, 0; 1, 0, 1; 1, 1, 0; 1, 1, 1.
+(e1:define-macro (e1:dolist-combinations
+                    (list-variable list size . result-forms) . body-forms)
+  `(e1:dolist-combinations-possibly-in-order #t
+      (,list-variable ,list ,size ,@result-forms)
+     ,@body-forms))
+
+;;; Same as e1:dolist-combinations, covering all the same lists but in an
+;;; unspecified order.  This is more efficient than e1:dolist-combinations.
+(e1:define-macro (e1:dolist-combinations-fast
+                    (list-variable list size . result-forms) . body-forms)
+  `(e1:dolist-combinations-possibly-in-order #f
+      (,list-variable ,list ,size ,@result-forms)
+     ,@body-forms))
+
+;;; The common implementation of e1:dolist-combinations and
+;;; e1:dolist-combinations-fast .
+(e1:define-macro (e1:dolist-combinations-possibly-in-order
+                    in-order (list-variable list size . result-forms) . body-forms)
   (e1:let ((loop-name (sexpression:fresh-symbol-with-prefix "loop"))
            (counter-name (sexpression:fresh-symbol-with-prefix "counter"))
            (size-name (sexpression:fresh-symbol-with-prefix "size"))
@@ -3868,7 +3885,9 @@
        (e1:let ,loop-name ((,counter-name ,size-name)
                            (,list-variable list:nil))
          (e1:if (fixnum:zero? ,counter-name)
-           (e1:begin
+           (e1:let* ,(e1:if (sexpression:eject-boolean in-order)
+                       `((,list-variable (list:reverse ,list-variable)))
+                       '())
              ,@body-forms)
            (e1:dolist (,element-name ,list-name)
              (,loop-name (fixnum:1- ,counter-name)
@@ -3877,17 +3896,35 @@
 
 ;;; Iterate over the possible powers of the given list, for any size from 0 up
 ;;; to size included.
-(e1:define-macro (e1:dolistcombinationsupto (list-variable list size . result-forms) . body-forms)
+(e1:define-macro (e1:dolist-combinations-up-to
+                    (list-variable list size . result-forms) . body-forms)
+  `(e1:dolist-combinations-up-to-possibly-in-order #t
+      (,list-variable ,list ,size ,@result-forms)
+     ,@body-forms))
+
+;;; Same as e1:dolist-combinations-up-to, covering all the same lists but in an
+;;; unspecified order.  This is more efficient than e1:dolist-combinations.
+(e1:define-macro (e1:dolist-combinations-up-to-fast
+                    (list-variable list size . result-forms) . body-forms)
+  `(e1:dolist-combinations-up-to-possibly-in-order #f
+      (,list-variable ,list ,size ,@result-forms)
+     ,@body-forms))
+
+;;; The common implementation of e1:dolist-combinations-up-to and
+;;; e1:dolist-combinations-up-to-fast .
+(e1:define-macro (e1:dolist-combinations-up-to-possibly-in-order
+                    in-order (list-variable list size . result-forms) . body-forms)
   (e1:let ((size-counter-name (sexpression:fresh-symbol-with-prefix "size-counter")))
-    `(e1:dotimes (,size-counter-name ,size ,@result-forms)
-       (e1:dolistcombinations (,list-variable ,list (fixnum:1+ ,size-counter-name))
+    `(e1:dotimes (,size-counter-name (fixnum:1+ ,size) ,@result-forms)
+       (e1:dolist-combinations-possibly-in-order ,in-order
+          (,list-variable ,list ,size-counter-name)
          ,@body-forms))))
 
 ;;; Iterate over the Cartesian product of lists.  More precisely, given a list
 ;;; of lists, bind the given variable to every possible list containing of one
 ;;; element from each inner list, in order.  The last element changes most
 ;;; rapidly.
-(e1:define-macro (e1:dolistlist (variable list-list . result-forms) . body-forms)
+(e1:define-macro (e1:dolist-list (variable list-list . result-forms) . body-forms)
   (e1:let ((loop-name (sexpression:fresh-symbol-with-prefix "loop"))
            (list-list-name (sexpression:fresh-symbol-with-prefix "list-list"))
            (list-name (sexpression:fresh-symbol-with-prefix "list"))

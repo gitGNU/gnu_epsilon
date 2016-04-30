@@ -729,7 +729,8 @@ dist_man_MANS += \
 
 ## ####################################################### Examples: begin
 EXTRA_DIST += \
-  examples/pushover/pushover.e
+  examples/pushover/pushover.e \
+  examples/sieve/sieve.e
 PUSHOVER_MANUAL_FILES = \
   examples/pushover/pushover.info \
   examples/pushover/pushover.html \

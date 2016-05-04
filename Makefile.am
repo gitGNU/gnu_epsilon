@@ -637,8 +637,8 @@ BUILT_SOURCES += \
   @abs_top_builddir@/doc/epsilon-tutorial-tex.texi \
   @abs_top_builddir@/doc/epsilon-tutorial-nottex.texi
 @abs_top_builddir@/doc/epsilon-tutorial-nottex.texi: doc/epsilon-tutorial.texi.in
-	cat "$^" \
-	  > "$@"
+	mkdir "`dirname -- $@`" &> /dev/null
+	cat "$^" > "$@"
 @abs_top_builddir@/doc/epsilon-tutorial-tex.texi: @abs_top_builddir@/doc/epsilon-tutorial-nottex.texi
 	cat "$^" \
 	  | tr '\n' '\000' \

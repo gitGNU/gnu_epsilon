@@ -3196,8 +3196,8 @@
   (e1:if (list:null? xs)
     t
     (e1:let ((new-t (avl:with t (list:head xs) < =)))
-      #;(avl:check-height new-t)
-      #;(avl:check-balance new-t)
+      ;;(avl:check-height new-t)
+      ;;(avl:check-balance new-t)
       (avl:with-list new-t
                      (list:tail xs)
                      <
@@ -3210,8 +3210,8 @@
   (e1:if (list:null? xs)
     t
     (e1:let ((new-t (avl:without t (list:head xs) < =)))
-      #;(avl:check-height new-t)
-      #;(avl:check-balance new-t)
+      ;;(avl:check-height new-t)
+      ;;(avl:check-balance new-t)
       (avl:without-list new-t
                         (list:tail xs)
                         <
@@ -4354,6 +4354,24 @@
 (e1:define-macro (promise:delay . forms)
   `(tuple:make 0
                (e1:lambda () ,@forms)))
+
+;;; Return a trivial promise which is ready at creation time.  This is useful as
+;;; an optimization in cases where a promise is expected but its value is
+;;; already known at initialization time.
+(e1:define (promise:trivial value)
+  (tuple:make 1 value))
+
+;;; See Scheme SRFI-45.  FIXME: write at least the rationale in a comment.
+(e1:define-macro (promise:lazy . forms)
+  `(promise:delay (promise:force (e1:begin ,@forms))))
+
+;;; Define a procedure or non-procedure using the syntax of e1:define , wrapping
+;;; the definition body in a promise:lazy form.  This is particularly useful to
+;;; define procedures taking a promise and returning another promise, which should
+;;; only start forcing the argument when their result is forced.
+(e1:define-macro (e1:define-lazy name-and-possibly-args . forms)
+  `(e1:define ,name-and-possibly-args
+     (promise:lazy ,@forms)))
 
 ;;; Promises are part of epsilon1: let's give operations convenient names:
 (e1:define-macro (e1:delay . stuff)

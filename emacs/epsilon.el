@@ -308,7 +308,8 @@ See `run-hooks'."
       (,(epsilon-at-define-nonprocedure-beginning
          (regexp-opt '("e1:define"
                        "e1:define-non-procedure"
-                       "e1:define-regexp")))
+                       "e1:define-regexp"
+                       "e1:define-lazy")))
        (1 font-lock-keyword-face)
        (2 font-lock-variable-name-face))
       (,(epsilon-at-define-nonprocedure-beginning
@@ -318,7 +319,8 @@ See `run-hooks'."
       (,(epsilon-at-define-procedure-beginning
          (regexp-opt '("e1:define"
                        "e1:define-procedure"
-                       "e1:define-with-keywords")))
+                       "e1:define-with-keywords"
+                       "e1:define-lazy")))
        (1 font-lock-keyword-face)
        (2 font-lock-function-name-face)
        (3 font-lock-variable-name-face))
@@ -376,7 +378,8 @@ See `run-hooks'."
                 "e1:define" "\\|"
                 "e1:define-procedure" "\\|"
                 "e1:define-non-procedure" "\\|"
-                "e1:define-macro"
+                "e1:define-macro" "\\|"
+                "e1:define-lazy"
                 "\\)\\>")
        (1 font-lock-warning-face))
       ))
@@ -510,6 +513,7 @@ indentation."
 (put 'e1:define-procedure 'epsilon-indent-function 1)
 (put 'e1:define-non-procedure 'epsilon-indent-function 1)
 (put 'e1:define-macro 'epsilon-indent-function 1)
+(put 'e1:define-lazy 'epsilon-indent-function 1)
 (put 'e1:trivial-define-macro 'epsilon-indent-function 1)
 (put 'e1:define-record 'epsilon-indent-function 1)
 (put 'e1:define-sum 'epsilon-indent-function 1)

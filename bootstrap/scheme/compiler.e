@@ -580,7 +580,7 @@
                                                configuration:LDFLAGS)
                       #:LIBS (string:append configuration:LIBS
                                             " "
-                                            "-lepsilondriver-native-untagged -lepsilonruntime-untagged -lepsilonutility")))
+                                            "-lepsilondriver-c-untagged -lepsilonruntime-untagged -lepsilonutility")))
 
 (e1:define (compiler:c-compile-to-assembly main target-file-name)
   (e1:let* ((data-graph (data-graph:graph-from-compiled-only main))

@@ -1,6 +1,7 @@
 /* Backend-specific runtime: C backend.
 
    Copyright (C) 2013 Luca Saiu
+   Updated in 2016 by Luca Saiu
 
    This file is part of GNU epsilon.
 
@@ -22,8 +23,11 @@
 #include "runtime/runtime.h"
 #include "config.h"
 
-void epsilon_run_thread_context(epsilon_thread_context_t thread_context,
-                                void *compiled_procedure_address){
-  void (*compiled_procedure_as_function_pointer)(void) = compiled_procedure_address;
-  compiled_procedure_as_function_pointer();
+void
+epsilon_run_thread_context(epsilon_thread_context_t thread_context,
+                           void *compiled_procedure_address)
+{
+  void (*compiled_procedure_as_function_pointer) (epsilon_value*)
+    = compiled_procedure_address;
+  compiled_procedure_as_function_pointer (thread_context->stack);
 }

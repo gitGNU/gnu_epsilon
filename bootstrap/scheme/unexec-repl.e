@@ -60,6 +60,7 @@
                     "command-line.e"
                     "repl.e"
                     "compiler.e"
+                    "stream.e"
                     "analyses-and-optimizations.e"
                     "csp.e"
                     "new-compiler.e")

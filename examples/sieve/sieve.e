@@ -53,16 +53,21 @@
 ;;;;; Sieve
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:define (sieve:make-buffer bit-no)
+(e1:define (sieve:make-buffer bit-no quiet)
+  ;; FIXME: define (and use here) a fixnum:/-rounded-up procedure.
   (e1:let* ((buffer-cell-no (fixnum:1+ (fixnum:/ bit-no sieve:bits-per-cell)))
             (buffer (buffer:make buffer-cell-no)))
     (e1:dotimes (i buffer-cell-no)
-      (buffer:set! buffer i -1))
+      (buffer:initialize! buffer i -1))
     (sieve:set-bit! buffer 0 #f)
     (sieve:set-bit! buffer 1 #f)
     (e1:let outer-loop ((i 2))
       (e1:when (fixnum:< i bit-no)
-        (sieve:set-bit! buffer i #t)
+        (e1:unless quiet
+          (fio:write (i i) "\n"))
+        ;; FIXME: comment.  The commented-out line coming next isn't needed as
+        ;; long as I print primes on the fly, as I'm doing now.
+        #;(sieve:set-bit! buffer i #t)
         (e1:let inner-loop ((j (fixnum:* i 2)))
           (e1:when (fixnum:< j bit-no)
             (sieve:set-bit! buffer j #f)
@@ -78,10 +83,9 @@
            (else
             (sieve:next-prime-from buffer bit-no (fixnum:1+ i)))))
 
-(e1:define (sieve:prime? buffer n)
+#;(e1:define (sieve:prime? buffer n)
   (sieve:get-bit buffer n))
-
-(e1:define (sieve:print-primes buffer bit-no)
+#;(e1:define (sieve:print-primes buffer bit-no)
   (e1:let loop ((i 0))
     (e1:when (fixnum:< i bit-no)
       (e1:when (sieve:prime? buffer i)
@@ -96,7 +100,7 @@
 (command-line:set-common-options)
 
 ;;; Add the other options we need
-(command-line:add-options (("--quiet")
+(command-line:add-options (("--quiet" "-q")
                            "sieve but don't print the list of primes"))
 
 ;;; Set the information displayed by --version and --help .
@@ -117,9 +121,8 @@
 (e1:define (sieve:main)
   (command-line:process-args)
   (e1:let* ((arguments (command-line:non-option-list))
-            (() (e1:unless (fixnum:= (list:length arguments) 1)
-                  (e1:error "There should be exactly one argument, the limit")))
-            (limit (reader:string->fixnum (list:first arguments)))
-            (buffer (sieve:make-buffer limit)))
-    (e1:unless (command-line:option-supplied? "--quiet")
-      (sieve:print-primes buffer limit))))
+            (limit (e1:if (fixnum:= (list:length arguments) 1)
+                     (reader:string->fixnum (list:first arguments))
+                     (e1:error "There should be exactly one argument, the limit"))))
+    (sieve:make-buffer limit
+                       (command-line:option-supplied? "--quiet"))))

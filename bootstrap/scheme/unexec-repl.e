@@ -30,30 +30,39 @@
 #;(e1:define bootstrap:repl-image-file-name "/tmp/foo.u")
 ;;; -----------------------------------------------------------
 
+;;;;; Syntax for loading predefined files from the right path
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; The argument is a string, holding a file name with no directories.  The file
+;;; is taken from the source directory.  [FIXME: I should probably generalize it
+;;; to use the installation path when installed].
+(e1:define (e1:load-predefined-file file-name)
+  (e1:load (string:append configuration:abs_top_srcdir
+                          configuration:dir_separator
+                          "bootstrap/scheme"
+                          configuration:dir_separator
+                          file-name)))
+
+;;; Load every file given as a parameter.  Every parameter should be an
+;;; expression evaluating to a string, to be passed to e1:load-predefined-file .
+(e1:define-macro (e1:load-predefined . file-names)
+  (e1:if (sexpression:null? file-names)
+    '(e1:begin) ;; some code expects a 0-dimension expression in the end.
+    `(e1:begin
+       (e1:load-predefined-file ,(sexpression:car file-names))
+       (e1:load-predefined ,@(sexpression:cdr file-names)))))
+
+
 ;;;;; Load advanced epsilon1 features
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:load (string:append configuration:abs_top_srcdir
-                        configuration:dir_separator
-                        "bootstrap/scheme/fixed-point.e"))
-(e1:load (string:append configuration:abs_top_srcdir
-                        configuration:dir_separator
-                        "bootstrap/scheme/command-line.e"))
-(e1:load (string:append configuration:abs_top_srcdir
-                        configuration:dir_separator
-                        "bootstrap/scheme/repl.e"))
-(e1:load (string:append configuration:abs_top_srcdir
-                        configuration:dir_separator
-                        "bootstrap/scheme/compiler.e"))
-(e1:load (string:append configuration:abs_top_srcdir
-                        configuration:dir_separator
-                        "bootstrap/scheme/analyses-and-optimizations.e"))
-(e1:load (string:append configuration:abs_top_srcdir
-                        configuration:dir_separator
-                        "bootstrap/scheme/csp.e"))
-(e1:load (string:append configuration:abs_top_srcdir
-                        configuration:dir_separator
-                        "bootstrap/scheme/new-compiler.e"))
+(e1:load-predefined "fixed-point.e"
+                    "command-line.e"
+                    "repl.e"
+                    "compiler.e"
+                    "analyses-and-optimizations.e"
+                    "csp.e"
+                    "new-compiler.e")
 
 
 ;;;;; Unexec a non-Guile REPL

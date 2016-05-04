@@ -2569,6 +2569,9 @@
 ;;;;; Friendly syntax for unexec
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;; A temporary definition to be replaced below, for early unexecs.
+(e1:define (jit:unjit!))
+
 ;;; We want to be able to refer nonlocals (which are actually inter-process
 ;;; nonlocals!) from the unexeced expression.  This is why the unexeced
 ;;; expression ends up calling to a zero-argument closure having a global name,
@@ -2585,6 +2588,8 @@
     `(e1:let* ((,closure-name (e1:lambda () ,@forms))
                (,main-expression-name (e0:call* (e1:value ,main-procedure-name)
                                                 (list:list))))
+       ;; UnJIT every procedure.  See the comment in the JIT section below.
+       (jit:unjit!)
        ;; BEWARE: Calling state:global-set! without passing thru e1:define might
        ;; interact badly with transforms on globals (which I currently have no
        ;; use for, and might actually be flawed as a concept).
@@ -6899,6 +6904,38 @@
     (e1:unless (sexpression:eof-object? s)
       (repl:macroexpand-transform-and-execute s)
       (e1:load-helper file-name bp))))
+
+
+;;;;; JIT support
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; This is temporary code, for the C threaded-code system which I plan to
+;;; largely rewrite.  Anyway, suboptimal as it is, the sytem is still useful
+;;; even now.
+
+;;; Run the given expression on the JIT, automatically compiling any procedure
+;;; still not JITted the first time it's encountered.  This currently prints the
+;;; results, even if they are zero or more than one, but doesn't return
+;;; anything.
+(e1:define-macro (jit:run . code)
+  (e1:let ((expression-name (sexpression:fresh-symbol)))
+    `(e1:let ((,expression-name
+               (repl:macroexpand-and-transform '(e1:begin
+                                                  ,@code))))
+       ;;(fio:write "JITting " (e ,expression-name) "...\n")
+       (e1:primitive jit:run ,expression-name))))
+
+;;; Add a compact prefix syntax for running on the JIT.  This is convenient for
+;;; interactive use.
+(e1:toplevel (reader:define-simple-prefix ",jit" jit:run))
+
+;;; Uncompile every procedure.  This is useful to do before unexecing, since
+;;; jitted code is out of the epsilon heap and doesn't survive unexec: after
+;;; exec'ing symbols would hold foreign pointers to nonexisting objects.
+(e1:define (jit:unjit!)
+  (e1:dohash (_ s symbol:table)
+    (symbol:symbol-set-compiled-procedure! s #f)
+    (symbol:symbol-set-compiled-procedure-data! s #f)))
 
 
 ;;;;; Guile-compatibility macro to help bootstrap

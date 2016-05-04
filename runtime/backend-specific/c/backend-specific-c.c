@@ -24,8 +24,8 @@
 #include "config.h"
 
 void
-epsilon_run_thread_context(epsilon_thread_context_t thread_context,
-                           void *compiled_procedure_address)
+epsilon_run_thread_context (epsilon_thread_context_t thread_context,
+                            void *compiled_procedure_address)
 {
   void (*compiled_procedure_as_function_pointer) (epsilon_value*)
     = compiled_procedure_address;

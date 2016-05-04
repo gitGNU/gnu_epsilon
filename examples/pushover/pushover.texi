@@ -97,7 +97,7 @@ text is also available at @url{http://www.gnu.org/licenses/fdl.html}.
 @insertcopying
 @end ifnottex
 
-@c@node Top
+@c @node Top
 @c Foo.
 @menu
 * Introduction::    What this is all about.

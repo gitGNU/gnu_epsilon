@@ -509,7 +509,7 @@
   predecessors ;; unboxed hash: state id -> <previous state id> list
   places       ;; vector: place id (as vector index) -> place [FIXME: fill after resolution]
   place-no     ;; allocation counter for place ids
-  constraints) ;; place constraint list
+  csp-problem) ;; place constraint-satisfaction problem
 
 (e1:define-record dataflow:state
   in-lives    ;; the set-of-list of live variables before the instruction

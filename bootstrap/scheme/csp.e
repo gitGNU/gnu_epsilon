@@ -322,10 +322,7 @@
                                                                    index
                                                                    v)))
                       (e1:call-closure closure updated-actuals))))
-                 (new-name (string:append name
-                                          "["
-                                          (symbol:symbol->string x)
-                                          "/?]"))
+                 (new-name (string:append name "*"))
                  (new-variables (list:without-in-order variables x)))
          (csp:constraint-closure-internal new-closure
                                           new-name

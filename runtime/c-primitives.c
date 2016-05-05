@@ -60,7 +60,8 @@ static char **epsilon_argv;
 
 /* The primitive function arrays.  They refer the same primitives in the same order. */
 static epsilon_int epsilon_c_primitive_no = 0;
-epsilon_c_primitive_function epsilon_c_primitive_functions[EPSILON_MAXIMUM_C_PRIMITIVE_NO];
+epsilon_c_primitive_function const
+epsilon_c_primitive_functions[EPSILON_MAXIMUM_C_PRIMITIVE_NO];
 struct epsilon_c_primitive_descriptor epsilon_c_primitive_descriptors[EPSILON_MAXIMUM_C_PRIMITIVE_NO];
 
 inline void epsilon_call_c_primitive_by_index(epsilon_int index, epsilon_value *stack){

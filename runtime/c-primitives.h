@@ -90,7 +90,8 @@ void epsilon_call_c_primitive_by_index(epsilon_int index, epsilon_value *stack);
 
 /* This is a way of avoiding the overhead of epsilon_call_c_primitive_by_index,
    particularly useful from generated assembly code: */
-extern epsilon_c_primitive_function epsilon_c_primitive_functions[];
+extern const epsilon_c_primitive_function const
+epsilon_c_primitive_functions[];
 extern struct epsilon_c_primitive_descriptor epsilon_c_primitive_descriptors[];
 
 #endif // #ifndef __EPSILON_C_PRIMITIVES__

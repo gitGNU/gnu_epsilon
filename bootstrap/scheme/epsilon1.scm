@@ -3958,6 +3958,8 @@
             `(io:write-symbol ,port (e0:value ,s)))
            ((sexpression:fixnum? s)
             `(io:write-fixnum ,port ,s))
+           ((sexpression:fixed-point? s)
+            `(printer:write-fixed-point ,port ,s))
            ((sexpression:boolean? s)
             `(io:write-boolean ,port ,s))
            ((sexpression:character? s)

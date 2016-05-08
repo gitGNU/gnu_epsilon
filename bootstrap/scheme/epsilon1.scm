@@ -4987,6 +4987,260 @@
              (,loop-name (slist:cdr ,slist-name))))))))
 
 
+;;;;; Doubly-linked lists
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Since doubly linked lists (from now on "dlists") are used in a strongly
+;;; imperative way, normally without sharing, it makes sense to keep a separate
+;;; header to be able to efficiently compute length.
+(e1:define-record dlist:dlist
+  head    ;; a node
+  tail    ;; a node
+  length) ;; a fixnum
+
+;;; The internal implementation of a dlist node.  Manually updating nodes while
+;;; keeping every pointer consistent is error-prone, so the user should
+;;; typically call the procedures below to add and remove nodes to a given list,
+;;; and treat the node datatype as abstract.
+(e1:define-sum dlist:node
+  (nil)
+  (node element previous next))
+
+;; A few convenient aliases for node procedures.
+(e1:define (dlist:node-null? n)
+  (dlist:node-nil? n))
+(e1:define (dlist:node-nnull? n)
+  (e1:not (dlist:node-nil? n)))
+(e1:define (dlist:node element previous next) ;; Make a new node.
+  (dlist:node-node element previous next))
+(e1:define (dlist:node-get n) ;; Return the element in a given node.
+  (dlist:node-node-get-element n))
+(e1:define (dlist:node-set! n e) ;; Change the element in a given node.
+  (dlist:node-node-set-element! n e))
+
+;;; Return a new empty dlist.
+(e1:define (dlist:empty)
+  (dlist:dlist (dlist:node-nil)
+               (dlist:node-nil)
+               0))
+
+;;; Return non-#f iff the give dlist is not empty.
+(e1:define (dlist:nempty? d)
+  ;; The dlist is empty when any of the three fields is zero.  They will always
+  ;; be zero at the same time, so we can check the most convenient one.
+  (dlist:dlist-get-head d))
+
+;;; Return non-#f iff the give dlist is empty.
+(e1:define (dlist:empty? d)
+  (e1:not (dlist:nempty? d)))
+
+;;; Change the given dlist to be empty.
+(e1:define (dlist:empty! d)
+  (dlist:dlist-set-head d (dlist:node-nil))
+  (dlist:dlist-set-tail d (dlist:node-nil))
+  (dlist:dlist-set-length d 0))
+
+;;; Return the number of elements of the given dlist, as a fixnum.
+(e1:define (dlist:length d)
+  (dlist:dlist-get-length d))
+
+;;; Given a dlist return its head node, or empty.
+(e1:define (dlist:head d)
+  (dlist:dlist-get-head d))
+
+;;; Given a dlist return its tail node, or empty.
+(e1:define (dlist:tail d)
+  (dlist:dlist-get-tail d))
+
+;;; Given a dlist node reutrn its previous node, or empty.
+(e1:define (dlist:previous n)
+  (dlist:node-node-get-previous n))
+
+;;; Given a dlist node reutrn its next node, or empty.
+(e1:define (dlist:next n)
+  (dlist:node-node-get-next n))
+
+;;; Prepend a new node holding the given element to the given dlist.
+(e1:define (dlist:prepend-element! d e)
+  (e1:let* ((old-head (dlist:head d))
+            (new-node (dlist:node-node e
+                                       (dlist:node-nil)
+                                       old-head))
+            (old-length (dlist:length d)))
+    (dlist:dlist-set-head! d new-node)
+    (e1:if (dlist:node-nil? old-head)
+      (dlist:dlist-set-tail! d new-node)
+      (dlist:node-node-set-previous! old-head new-node))
+    (dlist:dlist-set-length! d (fixnum:1+ old-length))))
+
+;;; Append a new node holding the given element to the given dlist.
+(e1:define (dlist:append-element! d e)
+  (e1:let* ((old-tail (dlist:tail d))
+            (new-node (dlist:node-node e
+                                       old-tail
+                                       (dlist:node-nil)))
+            (old-length (dlist:length d)))
+    (dlist:dlist-set-tail! d new-node)
+    (e1:if (dlist:node-nil? old-tail)
+      (dlist:dlist-set-head! d new-node)
+      (dlist:node-node-set-next! old-tail new-node))
+    (dlist:dlist-set-length! d (fixnum:1+ old-length))))
+
+;;; Prepend zero or more elements.  Each prepend is executed sequentially,
+;;; therefore the elements will appear in reversed order in the result with
+;;; respect to the source order.
+(e1:define-macro (dlist:prepend-elements! dlist . elements)
+  (e1:let ((dlist-name (sexpression:fresh-symbol-with-prefix "dlist")))
+    `(e1:let* ((,dlist-name ,dlist))
+       ,@(sexpression:map (e1:lambda (element)
+                            `(dlist:prepend-element! ,dlist-name ,element))
+                          elements))))
+
+;;; Append zero or more elements.
+(e1:define-macro (dlist:append-elements! dlist . elements)
+  (e1:let ((dlist-name (sexpression:fresh-symbol-with-prefix "dlist")))
+    `(e1:let* ((,dlist-name ,dlist))
+       ,@(sexpression:map (e1:lambda (element)
+                            `(dlist:append-element! ,dlist-name ,element))
+                          elements))))
+
+;;; "Literal" syntax: build and return a fresh dlist containing the given
+;;; elements in order.  Each element is evaluated.
+(e1:define-macro (dlist:dlist . elements)
+  (e1:let ((dlist-literal-name (sexpression:fresh-symbol-with-prefix "dlist-literal")))
+    `(e1:let* ((,dlist-literal-name (dlist:empty)))
+       (dlist:append-elements! ,dlist-literal-name ,@elements)
+       ,dlist-literal-name)))
+
+;;; "Literal" syntax: build and return a fresh dlist containing the given
+;;; elements in order.  Each element is *not* evaluated.
+(e1:define-macro (e1:value-dlist . elements)
+  `(dlist:dlist ,@(sexpression:map (e1:lambda (element) `(e1:value ,element))
+                                   elements)))
+
+;;; Iteration syntax.  The variable is bound to each *element*, not to each node.
+(e1:define-macro (e1:dodlist (variable dlist . result-forms) . body-forms)
+  `(e1:dodlist-direction #t #t (,variable ,dlist ,@result-forms) ,@body-forms))
+
+;;; Iteration syntax: iterate backwards, from the tail to the head.  The
+;;; variable is bound to each *element*, not to each node.
+(e1:define-macro (e1:dodlist-reverse (variable dlist . result-forms) . body-forms)
+  `(e1:dodlist-direction #t #f (,variable ,dlist ,@result-forms) ,@body-forms))
+
+;;; Iteration syntax: iterate backwards, from the tail to the head.  The
+;;; variable is bound to each *node*, not to each element.
+(e1:define-macro (e1:dodlist-node-reverse (variable dlist . result-forms) . body-forms)
+  `(e1:dodlist-direction #f #t (,variable ,dlist ,@result-forms) ,@body-forms))
+
+;;; Iteration syntax.  The variable is bound to each *node*, not to each element.
+(e1:define-macro (e1:dodlist-node (variable dlist . result-forms) . body-forms)
+  `(e1:dodlist-direction #f #f (,variable ,dlist ,@result-forms) ,@body-forms))
+
+;;; The common implementation of e1:dodlist , e1:dodlist-reverse , e1:dodlist-node
+;;; and e1:dodlist-node-reverse .
+(e1:define-macro (e1:dodlist-direction element forward (variable dlist . result-forms) . body-forms)
+  (e1:let ((loop-name (sexpression:fresh-symbol-with-prefix "dodlist-loop"))
+           (dlist-name (sexpression:fresh-symbol-with-prefix "dlist"))
+           (node-name (sexpression:fresh-symbol-with-prefix "node"))
+           (element (sexpression:eject-boolean element))
+           (forward (sexpression:eject-boolean forward)))
+    `(e1:let* ((,dlist-name ,dlist))
+       (e1:let ,loop-name ((,node-name (,(e1:if forward
+                                           'dlist:head
+                                           'dlist:tail)
+                                        ,dlist-name)))
+         (e1:if (dlist:node-nil? ,node-name)
+           (e1:begin
+             ,@result-forms)
+           (e1:let* ((,variable ,(e1:if element
+                                   `(dlist:node-get ,node-name)
+                                   node-name)))
+             ,@body-forms
+             (,loop-name (,(e1:if forward
+                             'dlist:next
+                             'dlist:previous)
+                          ,node-name))))))))
+
+;;; Return the nth node of the given list, 0-based.  Undefined behavior if the
+;;; dlist is too short.  O(n).
+(e1:define (dlist:nth d n)
+  (dlist:nth-with-nodes (dlist:head d) n))
+(e1:define (dlist:nth-with-nodes node n)
+  (e1:if (fixnum:zero? n)
+    node
+    (dlist:nth-with-nodes (dlist:node-node-get-next node) (fixnum:1- n))))
+
+;;; Return the nth node of the given list counting from the tail, 0-based.
+;;; Undefined behavior if the dlist is too short.  O(n).
+(e1:define (dlist:-nth d n)
+  (dlist:-nth-with-nodes (dlist:tail d) n))
+(e1:define (dlist:-nth-with-nodes node n)
+  (e1:if (fixnum:zero? n)
+    node
+    (dlist:-nth-with-nodes (dlist:node-node-get-previous node) (fixnum:1- n))))
+
+;;; Given a dlist and a node, add a new node containing the given element right
+;;; before the given node.  The given node must not be null, and must belong to
+;;; the dlist.  O(1).
+(e1:define (dlist:add-element-before! d n e)
+  ;; old-previous n -- old-previous new-node n
+  (e1:let* ((old-head (dlist:head d))
+            (old-previous (dlist:node-node-get-previous n))
+            (new-node (dlist:node-node e
+                                       old-previous
+                                       n))
+            (old-length (dlist:length d)))
+    (dlist:node-node-set-previous! n new-node)
+    (e1:if (dlist:node-null? old-previous)
+      (dlist:dlist-set-head! d new-node)
+      (dlist:node-node-set-next! old-previous new-node))
+    (dlist:dlist-set-length! d (fixnum:1+ old-length))))
+
+;;; Given a dlist and a node, add a new node containing the given element right
+;;; after the given node.  The given node must not be null, and must belong to
+;;; the dlist.  O(1).
+(e1:define (dlist:add-element-after! d n e)
+  ;; n old-next -- n new-node old-next
+  (e1:let* ((old-tail (dlist:tail d))
+            (old-next (dlist:node-node-get-next n))
+            (new-node (dlist:node-node e
+                                       n
+                                       old-next))
+            (old-length (dlist:length d)))
+    (dlist:node-node-set-next! n new-node)
+    (e1:if (dlist:node-null? old-next)
+      (dlist:dlist-set-tail! d new-node)
+      (dlist:node-node-set-previous! old-next new-node))
+    (dlist:dlist-set-length! d (fixnum:1+ old-length))))
+
+;;; Remove the given node from the given dlist.  The node must belong to the
+;;; dlist.  The previous and next pointer in the node are *not* updated for
+;;; efficiency, but of course they become invalid after removal: the node is
+;;; effectively detached from the dlist.
+(e1:define (dlist:remove! d n)
+  ;; old-previous n old-next -- old-previous old-next
+  (e1:let* ((old-previous (dlist:node-node-get-previous n))
+            (old-next (dlist:node-node-get-next n))
+            (old-length (dlist:length d)))
+    (e1:if (dlist:node-null? old-previous)
+      (dlist:dlist-set-head! d old-next)
+      (dlist:node-node-set-next! old-previous old-next))
+    (e1:if (dlist:node-null? old-next)
+      (dlist:dlist-set-tail! d old-previous)
+      (dlist:node-node-set-previous! old-next old-previous))
+    (dlist:dlist-set-length! d (fixnum:1- old-length))
+    ;; ;; FIXME: this should be removed for efficiency, even if I'm sure it will
+    ;; ;; prevent bugs.  Remove links from the detached node.
+    ;; (dlist:node-node-set-previous! n (dlist:node-nil))
+    ;; (dlist:node-node-set-next! n (dlist:node-nil))
+    ))
+
+;;; FIXME: Add whole-dlist append.  Explain in comments that there must be no
+;;; sharing.
+
+;;; FIXME: add stack, queue and dequeue operators on dlists.
+
+
 ;;;;; S-expression printing (the printer subsystem)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

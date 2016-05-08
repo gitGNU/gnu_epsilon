@@ -4973,6 +4973,19 @@
 (e1:define (sexpression:iota fixnum-size)
   (sexpression:inject-fixnums (list:iota fixnum-size)))
 
+;;; Iteration over s-lists.
+(e1:define-macro (e1:doslist (variable slist . result-forms) . body-forms)
+  (e1:let ((loop-name (sexpression:fresh-symbol-with-prefix "doslist-loop"))
+           (slist-name (sexpression:fresh-symbol-with-prefix "slist")))
+    `(e1:let* ((,slist-name ,slist))
+       (e1:let ,loop-name ((,slist-name ,slist-name))
+         (e1:if (sexpression:null? ,slist-name)
+           (e1:begin
+             ,@result-forms)
+           (e1:let* ((,variable (sexpression:car ,slist-name)))
+             ,@body-forms
+             (,loop-name (slist:cdr ,slist-name))))))))
+
 
 ;;;;; S-expression printing (the printer subsystem)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

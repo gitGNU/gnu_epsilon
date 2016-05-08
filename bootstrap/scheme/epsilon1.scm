@@ -5036,9 +5036,9 @@
 
 ;;; Change the given dlist to be empty.
 (e1:define (dlist:empty! d)
-  (dlist:dlist-set-head d (dlist:node-nil))
-  (dlist:dlist-set-tail d (dlist:node-nil))
-  (dlist:dlist-set-length d 0))
+  (dlist:dlist-set-head! d (dlist:node-nil))
+  (dlist:dlist-set-tail! d (dlist:node-nil))
+  (dlist:dlist-set-length! d 0))
 
 ;;; Return the number of elements of the given dlist, as a fixnum.
 (e1:define (dlist:length d)

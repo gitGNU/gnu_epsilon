@@ -1,6 +1,6 @@
 ;;;;; Fixed-point numbers in -*- epsilon -*-.
 
-;;;;; Copyright (C) 2013, 2014, 2015  Luca Saiu
+;;;;; Copyright (C) 2013, 2014, 2015, 2016  Luca Saiu
 
 ;;;;; This file is part of GNU epsilon.
 
@@ -16,6 +16,22 @@
 
 ;;;;; You should have received a copy of the GNU General Public License
 ;;;;; along with GNU epsilon.  If not, see <http://www.gnu.org/licenses/>.
+
+
+;;; I am far from an expert in numerical analysis.  This implementation seems to
+;;; be good enough but it was not conceived paying attention to errors bounds --
+;;; which in the case of fixed-point numbers are absolute, and not relative like
+;;; for floating-point numbers.
+
+;;; Moreover, this implementation is also almost certainly much less efficient
+;;; than it could be.
+
+;;; Anyway I regard both issues as not terribly urgent right now.  Replacing
+;;; individual procedures later as needed shouldn't be traumatic, as the
+;;; implementation consists of small, very weakly coupled procedures.
+;;; Inefficient and imprecise as it may be, epsilon already has a simple but
+;;; usable mathematical library, good enough for the occasional non-integer
+;;; computation and for graphics.
 
 
 ;;; Fixed-point numbers

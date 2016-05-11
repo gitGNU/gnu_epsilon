@@ -448,9 +448,14 @@
           u
           (fixedpoint:+ acc (fixnum:logic-right-shift acc k))))))
 
-;;; Exponentiation with a generic base.
+;;; Exponentiation with a generic base.  When the base is zero return zero
+;;; unless the exponent is also zero, in which case return one.
 (e1:define (fixedpoint:pow b x)
-  (fixedpoint:exp (fixedpoint:* (fixedpoint:log b) x)))
+  (e1:if (fixedpoint:= b 0)
+    (e1:if (fixedpoint:= x 0)
+      fixedpoint:1
+      0)
+    (fixedpoint:exp (fixedpoint:* (fixedpoint:log b) x))))
 
 ;;; Exponentiation with common bases, optimized to avoid the logarithm.
 (e1:define fixedpoint:log2 (fixedpoint:log fixedpoint:2))

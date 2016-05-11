@@ -514,18 +514,67 @@
   (fixedpoint:half (fixedpoint:+ x y)))
 
 
-;;;;; Fixed-point inverse trigonometric functions
+;;;;; Arctangent
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;; Return an approximation of the arctangent of the given argument.
+(e1:define (fixedpoint:atan x)
+  (e1:if (fixedpoint:< x fixedpoint:0)
+    (fixedpoint:negate (fixedpoint:atan-nonnegative (fixedpoint:negate x)))
+    (fixedpoint:atan-nonnegative x)))
 
-;; atan(x) = sum(0, oo, (-1)^n * z^(2n+1) / (2n + 1) for all z s.t. |z| <= 1, z <> +-i
+;;; The maximum r, in modulo, for which fixedpoint:atan-in-range provides an
+;;; accurate result.
+(e1:define fixedpoint:atan-in-range-maximum-r
+  (fixnum:/ 1.0 10))
 
-(e1:define (fixedpoint:atan y)
-  (fixedpoint:atan2 y fixedpoint:1))
+;;; Return an approximation of the arctangent of the given argument, which must be nonnegative.
+(e1:define (fixedpoint:atan-nonnegative x)
+  ;; First perform argument reduction, then call fixedpoint:atan-in-range and
+  ;; multiply its result by the appropriate factor.  The idea is well explained
+  ;; in [fxtbook §32.1.4 "Argument reduction for arctan"].  [FIXME: I don't see
+  ;; a way to avoid divisions, as hinted at in the same section?]  I require the
+  ;; argument to be nonnegative to avoid absolute value computations in the
+  ;; loop.
+  (e1:let loop ((fixnum-factor 1)
+                (r x))
+    (e1:if (fixedpoint:<= r fixedpoint:atan-in-range-maximum-r)
+      (fixnum:* fixnum-factor
+                (fixedpoint:atan-in-range r))
+      (loop (fixnum:double fixnum-factor)
+            (fixedpoint:/ r
+                          (fixedpoint:1+
+                            (fixedpoint:sqrt
+                              (fixedpoint:1+ (fixedpoint:* r r)))))))))
 
-;; FIXME: also implement hypot [https://en.wikipedia.org/wiki/Hypot ]
-;; FIXME: implement atan2
-;; FIXME: add a macro letting the user call atan with either one or two arguments.
+;;; Return an approximation of the arctangent of r, which should be accurate in
+;;; a small neighborhood of zero, using a MacLaurin polynomial, currently of
+;;; degree 7.  FIXME: I should define an efficient way to compute polynomials,
+;;; based on macros.  This would be efficient with a good compiler after
+;;; unrolling, but is quite ugly and difficult to generalize.
+(e1:define (fixedpoint:atan-in-range r)
+  (e1:let ((n 7))
+    (e1:let loop ((i 1)
+                  (res fixedpoint:0)
+                  (sign-factor fixedpoint:1)
+                  (r**i r))
+      (e1:if (fixedpoint:> i n)
+        res
+        (loop (fixnum:+ i 2)
+              (fixedpoint:+ res
+                            (fixedpoint:* (fixnum:/ sign-factor i)
+                                          r**i))
+              (fixedpoint:negate sign-factor)
+              (fixedpoint:* r**i r r))))))
+
+;;; FIXME: replace this with an implementation of atan2, and make atan a simple
+;;; wrapper.
+;;; FIXME: also implement hypot [https://en.wikipedia.org/wiki/Hypot ]
+;;; FIXME: add a macro letting the user call atan with either one or two arguments.
+
+
+;;;;; Other fixed-point inverse trigonometric functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (e1:define (fixedpoint:asin x)
   (fixedpoint:atan (fixedpoint:/ x

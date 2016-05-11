@@ -567,24 +567,61 @@
               (fixedpoint:negate sign-factor)
               (fixedpoint:* r**i r r))))))
 
-;;; FIXME: replace this with an implementation of atan2, and make atan a simple
-;;; wrapper.
 ;;; FIXME: also implement hypot [https://en.wikipedia.org/wiki/Hypot ]
-;;; FIXME: add a macro letting the user call atan with either one or two arguments.
+
+
+;;;;; Two-argument arctangent
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Return an approximation of atan2 of y and x, or zero if both arguments are
+;;; zero.
+(e1:define (fixedpoint:atan2 y x)
+  (e1:cond ((fixedpoint:> x 0)
+            (fixedpoint:atan (fixedpoint:/ y x)))
+           ((fixedpoint:< x 0)
+            (e1:if (fixedpoint:>= y 0)
+              (fixedpoint:+ (fixedpoint:atan (fixedpoint:/ y x))
+                            fixedpoint:pi)
+              (fixedpoint:- (fixedpoint:atan (fixedpoint:/ y x))
+                            fixedpoint:pi)))
+           ;; x is zero.
+           ((fixedpoint:> y 0)
+            (fixedpoint:- fixedpoint:pi/2
+                          (fixedpoint:atan (fixedpoint:/ x y))))
+           ((fixedpoint:< y 0)
+            (fixedpoint:- fixedpoint:-pi/2
+                          (fixedpoint:atan (fixedpoint:/ x y))))
+           (else ;; Both y and x are zero.
+            0)))
+
+;;; Convenient Lisp-style syntax for calling atan with either one or two
+;;; arguments.  Of course here the function to be called is determined at
+;;; macroexpansion time.
+(e1:define-macro (fixedpoint:atan first-argument . rest)
+  (e1:cond ((sexpression:null? rest)
+            `(e1:call fixedpoint:atan ,first-argument))
+           ((e1:not (sexpression:list? rest))
+            (e1:error "fixedpoint:atan: called with weird actuals"))
+           ((e1:not (fixnum:= (sexpression:length rest) 1))
+            (e1:error "fixedpoint:atan: called with more than two actuals"))
+           (else ;; rest is a one-element s-list
+            `(e1:call fixedpoint:atan2 ,first-argument ,@rest))))
 
 
 ;;;;; Other fixed-point inverse trigonometric functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;; Return an approximation of the arcsine of the argument.
 (e1:define (fixedpoint:asin x)
-  (fixedpoint:atan (fixedpoint:/ x
-                                 (fixedpoint:sqrt (fixedpoint:- fixedpoint:1
-                                                                (fixedpoint:square x))))))
+  (fixedpoint:atan2 x
+                    (fixedpoint:sqrt (fixedpoint:- fixedpoint:1
+                                                   (fixedpoint:square x)))))
 
+;;; Return an approximation of the arccosine of the argument.
 (e1:define (fixedpoint:acos x)
-  (fixedpoint:atan (fixedpoint:/ (fixedpoint:sqrt (fixedpoint:- fixedpoint:1
-                                                                (fixedpoint:square x)))
-                                 x)))
+  (fixedpoint:atan2 (fixedpoint:sqrt (fixedpoint:- fixedpoint:1
+                                                   (fixedpoint:square x)))
+                    x))
 
 
 ;;;;; Fixed-point hyperbolic functions

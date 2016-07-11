@@ -2927,6 +2927,7 @@
 ;;; recursive calls, which is inefficient; I will do better later after
 ;;; introducing something like ML functors.
 
+;;; The user is not supposed to directly build trees with constructors.
 (e1:define-sum avl:tree
   (empty)
   (non-empty height left element right)) ;; height is a fixnum, left and right are AVL trees.

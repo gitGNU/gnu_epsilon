@@ -2948,13 +2948,6 @@
     ((avl:tree-non-empty height _ _ _)
      height)))
 
-(e1:define (avl:height t)
-  (e1:match t
-    ((avl:tree-empty)
-     0)
-    ((avl:tree-non-empty height _ _ _)
-     height)))
-
 (e1:define (avl:balance t)
   (e1:match t
     ((avl:tree-empty)

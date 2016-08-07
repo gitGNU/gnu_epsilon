@@ -120,7 +120,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; Return the n-th element of the given stream (0-based), forcing the spine up
-;;; to its cons but forcing any other element.
+;;; to its cons but not forcing any other element.
 (e1:define (stream:nth stream n)
   (e0:if-in n (0)
     (stream:head stream)

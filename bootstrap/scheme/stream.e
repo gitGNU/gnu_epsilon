@@ -174,8 +174,9 @@
                                (stream:cons-promise-procedure (stream:head-promise s)
                                                               acc))))
 
-;;; This (when forced) forces (part of) the spine of the s, but not its
-;;; elements.
+;;; Given a stram s and a natural fixnum n, return a new stream holding its
+;;; first n elements.  This (when forced) forces (part of) the spine of s, but
+;;; not its elements.
 (e1:define-lazy (stream:take s n)
   (e1:cond ((fixnum:= n 0)
             stream:nil)
@@ -186,8 +187,10 @@
                                  (stream:take (stream:tail s)
                                               (fixnum:1- n))))))
 
-;;; Return a stream which, when forced, will return the rest of the given stream
-;;; after n conses.  No element is forced.
+;;; Given a stram s and a natural fixnum n return a stream which, when forced,
+;;; will return the rest of the given stream after n conses.  No element is
+;;; forced, but forcing the results causes the forcing of the first n conses of
+;;; s.
 (e1:define-lazy (stream:drop s n)
   (e1:cond ((fixnum:= n 0)
             s)
@@ -196,8 +199,8 @@
            (else
             (stream:drop (stream:tail s) (fixnum:1- n)))))
 
-;;; This forces (part of) the spine of the list, but not the elements except for
-;;; the last one.
+;;; Return the last element of the given stream.  This forces the whole
+;;; spine of the stream, but not its elements except for the last one.
 (e1:define (stream:last s)
   (e1:if (stream:null? s)
     (e1:error "stream:last: null stream")
@@ -226,7 +229,7 @@
                                    (stream:list-> (list:tail xs)))))
 (e1:define (stream:list->stream xs) (stream:list-> xs)) ;; An alias.
 
-;;; Given a stream return a list of its n first elements.
+;;; Given a stream return a list of its first n elements.
 (e1:define (stream:take-list s n)
   (e1:cond ((fixnum:= n 0)
             list:nil)
@@ -241,6 +244,8 @@
 ;;;;; Literal, so to speak, syntax
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;; Return a stream holding the given elements, in order.  No element is
+;;; evaluated, and no part of the stream is built, until the result is forced.
 (e1:define-macro (stream:stream . elements)
   (e1:if (sexpression:null? elements)
     'stream:nil
@@ -273,7 +278,7 @@
 ;;;;; Stream higher-order procedures
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(e1:define-lazy(stream:map f s)
+(e1:define-lazy (stream:map f s)
   (e1:if (stream:null? s)
     stream:nil
     (stream:cons (e1:call-closure f (stream:head s))

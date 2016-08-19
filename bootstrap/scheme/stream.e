@@ -1,4 +1,4 @@
-;;;;; This is -*- epsilon -*- with some Scheme
+;;;;; This is -*- epsilon -*-.
 ;;;;; Lazy, potentially infinite streams
 
 ;;;;; Copyright (C) 2016 Luca Saiu

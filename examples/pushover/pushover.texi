@@ -145,16 +145,17 @@ Between late 2015 and early 2016 I was in charge of supervising a
 Computer Science students at a technological university institute
 near Paris.
 
-@cindex student
 @cindex C
+@cindex France
+@cindex student
 The students had about four weeks to implement a board game in C,
 working in pairs.  The version they had to turn in was @emph{for two
 human players only}, without computer play of any kind.
 @*
 When first reading the specification I recognized the game as a slight
-variant of something I had played once a few years before at a Summer
-picnic in the park, on a wooden set brought along by some friend of a
-friend.
+variant of something I had played once a few years before at during a
+Summer picnic at Parc de Sceaux, on a wooden set brought along by some
+friend of a friend.
 
 @cindex helper function
 @cindex beginner
@@ -166,7 +167,7 @@ to satisfy a strict set of requirements meant to guide them into
 writing first the helper functions they were to be needing later.
 Everything looked quite sensible.
 
-When I came to finally see the final work by my first group one Friday
+When I eventually came to see the final work by my first group one Friday
 afternoon I felt disheartened.  Many students had done badly, never
 overcoming their initial difficulties with pointers; a few programs
 did not even compile, many more failed to work correctly and almost
@@ -238,11 +239,12 @@ questions about programming and languages.
 @cindex Lacroix, Mathieu
 Some days later I had a short discussion with Mathieu about
 introducing this kind of more advanced problems as optional tasks for
-the best students; possibly something like what I did could have been
-attempted right in the first session.  Possibly.  We did not come to a
-satisfactory answer, as it is not easy to motivate promising beginners
-without scaring off the weaker majority at the same time.  Anyway I am
-glad to have followed my intuition showing the minimax program.
+the best students: we teachers could have shown something like what I
+did right at the beginning of the first session.  Possibly.  We did
+not come to a satisfactory answer, as it is not easy to motivate
+promising beginners without scaring off the weaker majority at the
+same time.  Anyway I am glad to have followed my intuition showing the
+minimax program.
 @cindex beauty
 There was some real beauty hidden right
 behind the beginner problem, needing just to be pointed at.
@@ -333,8 +335,8 @@ up to the extent permitted by law.
 This Pushover manual is free documentation, and therefore you are free
 to share and change it as well.  The applicable license for the manual
 is the GNU Free Documentation License.  A copy is distributed in the
-file @file{doc/COPYING.DOC} in the epsilon sources, or you can read it
-on the web at @url{http://www.gnu.org/licenses/fdl.html}.
+file @file{doc/COPYING.DOC} in the epsilon sources, and you can also
+read it on the web at @url{http://www.gnu.org/licenses/fdl.html}.
 
 @c ----------------------------------------------------------------------
 @node Contributing
@@ -353,7 +355,7 @@ can find the Pushover source code in @file{examples/pushover.e}, in
 the Git repository and the source tarballs.
 @cindex mailing list
 As is the case for most free software development the preferred
-communication medium about GNU epsilon is the mailing list.
+communication medium about GNU epsilon is a mailing list.
 Discussions about Pushover are on-topic in epsilon lists.
 
 @cindex bug reporting
@@ -371,7 +373,7 @@ include some detail or not, do.
 @cindex development
 @cindex mailing list
 In case you want to participate in the project development or discuss
-please make sure to have read @ref{Implementation}, and write to
+please make sure to have read @ref{Implementation}, and then write to
 @email{epsilon-devel@@gnu.org}.  As of early 2016 @code{bug-epsilon}
 is an alias for @code{epsilon-devel} and there is no specific ``help''
 list, but I can easily add more mailing lists should the need ever arise.
@@ -472,7 +474,7 @@ may be empty or occupied by one @emph{piece} of either color.
 @end smallexample
 @cindex start
 @cindex position
-@caption{The initial position of a size-3 pushover board, showing no
+@caption{The initial position of a size-3 Pushover board, showing no
 pieces.  The first move by Black will fill any one case in the
 perimeter; the central case is not reachable by the first move.}
 @end float
@@ -777,20 +779,26 @@ combinatorial game.
 Any notion of game complexity for combinatorial games depends on the game
 @emph{branching factor} and its @emph{game-tree depth}.
 
+@emph{FIXME: the followin paragraph is not completely exact.  The initial
+complexity is less than @math{4n}: the board is empty, therefore
+pushing ``into an angle'' has the same effect independently from the
+direction.  This changes later, when rows and columns fill.}
+
+
 The branching factor for Pushover is maximum at the beginning of a
 game, being exactly @math{4n} with a board of size @math{n},
 decreasing near endgame.  Games can last at least tens to hundreds of
-moves, and game length grows as the board size grows.
+moves, and the game length grows as the board size grows.
 @cindex chess
 Branching factors for other combinatorial games are usually more
 variable; chess has a branching factor around @math{35} on average.
 
 @c Go is much more complex, with a branching factor of @math{250}.
 @cindex chess
-Without having developed any formal analysis (depth in particular
-requires heavy computations to measure) I conjecture that Pushover
-becomes more complex than chess for boards of size 7-8, and
-possibly already at size 6.
+Without having developed any formal analysis (estimating typical
+values for either the game depth or the branching factor at a given
+depth is nontrivial) I conjecture that Pushover becomes more complex
+than chess for boards of size 7-8, and possibly already at size 6.
 
 @cindex advantage
 @cindex Black
@@ -806,8 +814,8 @@ size increases.
 Most game theory considerations are moot when considering the
 current implementation, which is sequential and inefficient even when
 compiled due to a combination of a naïf compiler, suboptimal
-algorithms and a memory system fundamentally inadequate to collect the
-generated rate of short-lived data.
+algorithms and a memory system fundamentally inadequate to collect
+short-lived data generated at a fast rate.
 @cindex minimax
 @cindex alpha-beta pruning
 @cindex heuristic
@@ -850,7 +858,7 @@ final position is reached.
 
 @menu
 * Player types::               How to specify human and non-human players.
-* Command-line options::       Invoking pushover to start a given type of game.
+* Command-line options::       Invoking Pushover to start a given type of game.
 * Performance considerations:: Deep search is slow.
 @end menu
 
@@ -907,10 +915,10 @@ At the prompt a human player can also quit the program by typing
 @cindex depth, analysis
 A human player may optionally benefit from @emph{computer
 hints}, computed with the minimax algorithm described right
-below.  If hints are enabled then the computer search for an
+below.  If hints are enabled then the computer searches for an
 optimal move at the specified depth in plies, and presents it to the
 user; the user is then free to follow the computer suggestion or
-reject it and play a different move altogether.
+reject it and play a different move.
 
 @cindex alpha-beta pruning
 @cindex depth, analysis
@@ -931,9 +939,10 @@ exponential in time, but not in space.
 @cindex determinism
 @cindex optimal move
 In minimax play the computer normally chooses a random move within the
-set of moves which are considered optimal by the algorithm, but it can
-be also made deterministic --- in which cases the computer always
-plays the first optimal move according to some fixed order.
+set of moves which are considered optimal by the algorithm, but
+computer play can also be made deterministic --- in which cases the
+computer always plays the first optimal move according to some fixed
+order.
 
 @cindex dumb
 @cindex random
@@ -954,7 +963,7 @@ Two deterministic algorithms played against one another are prone to
 enter a @emph{game loop}, endlessly playing the same sequence of
 moves; in rare circumstances nondeterministic algorithms may enter a
 game loop as well, for example when the set of optimal moves is a
-singleton for two consecutive moves, and the second move yields the
+singleton for two consecutive plies, and the second move yields the
 same position as before the first move.
 @cindex loop breaking
 @cindex threefold repetition
@@ -1047,7 +1056,7 @@ statistics.  Tournament mode is off by default.
 @end table
 @*
 The last two options below, likely the most commonly used, determine
-the player type of each side:
+the player type for each side:
 @table @option
 @cindex @option{--black}
 @cindex @option{--white}

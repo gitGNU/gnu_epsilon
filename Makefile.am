@@ -637,12 +637,13 @@ BUILT_SOURCES += \
   @abs_top_builddir@/doc/epsilon-tutorial-tex.texi \
   @abs_top_builddir@/doc/epsilon-tutorial-nottex.texi
 @abs_top_builddir@/doc/epsilon-tutorial-nottex.texi: doc/epsilon-tutorial.texi.in
-	mkdir "`dirname -- $@`" &> /dev/null
+	mkdir "`dirname -- $@`" &> /dev/null || true
 	cat "$^" > "$@"
 @abs_top_builddir@/doc/epsilon-tutorial-tex.texi: @abs_top_builddir@/doc/epsilon-tutorial-nottex.texi
 	cat "$^" \
 	  | tr '\n' '\000' \
-	  | sed 's/[₀₁₂₃₄₅₆₇₈₉]//g' > "$@.tmp.1"
+	  | sed 's/[₀₁₂₃₄₅₆₇₈₉]//g' \
+	  | sed 's/∈/$$\in$$/g' > "$@.tmp.1"
 	for x in `seq 1 100`; do \
 	  sed 's/@\(mycolor\|green\|yellow\|red\)\({[^{}]*}\)/\2/g' < "$@.tmp.1" > "$@.tmp.2"; \
 	  mv "$@.tmp.2" "$@.tmp.1"; \

@@ -46,6 +46,9 @@ AC_DEFINE_UNQUOTED(SHORT_COPYRIGHT_NOTICE, "Copyright (C) Luca Saiu 2016",
 AC_SUBST(configuration_date, "$(date '+%Y-%m-%d')")
 AC_SUBST(configuration_time, "$(date '+%H:%M:%S')")
 
+# Check that the source directory is not something absurd.
+AC_CONFIG_SRCDIR([NO-WARRANTY])
+
 # Use ./build-aux/ as the directory where to find auxiliary configuration-time
 # scripts:
 AC_CONFIG_AUX_DIR([build-aux])

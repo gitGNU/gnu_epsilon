@@ -6814,7 +6814,7 @@
 ;;; The following is a procedure only because of a stupid bootstrapping problem
 ;;; I need to work around until I finally break compatibility with my naive
 ;;; Scheme implementation.
-(e1:define (a-procedure-to-be-called-once-with-should-be-a-toplevel-sequence)
+(e1:define (a-procedure-to-be-called-once-which-should-be-a-toplevel-sequence)
   (item-list:add-first!
      reader:item-list-box
      (e1:value ignorable)
@@ -6965,7 +6965,7 @@
                                                       (symbol:string->symbol
                                                        (reader:unescape-symbol-literal string))
                                                       locus)))))
-(e1:toplevel (a-procedure-to-be-called-once-with-should-be-a-toplevel-sequence))
+(e1:toplevel (a-procedure-to-be-called-once-which-should-be-a-toplevel-sequence))
 
 
 ;;;;; Character and string escaping

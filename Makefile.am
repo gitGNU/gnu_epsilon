@@ -193,6 +193,7 @@ EPSILON_LATE_DUMPED_NON_GENERATED_SOURCE_FILES = \
   bootstrap/scheme/compiler.e \
   bootstrap/scheme/csp.e \
   bootstrap/scheme/new-compiler.e \
+  bootstrap/scheme/stream.e \
   bootstrap/scheme/export-toplevel-forms-to-guile.scm \
   bootstrap/scheme/bootstrap-from-epsilon1.e \
   bootstrap/scheme/bootstrap-from-epsilon1-secondary.e \

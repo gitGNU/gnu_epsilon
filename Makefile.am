@@ -1,11 +1,10 @@
 ## Process this file with automake to produce Makefile.in -*-Makefile-*-
 
 ## This file is part of GNU epsilon
-## Copyright (C) 2006, 2007, 2008, 2013, 2014, 2015, 2016 Luca Saiu
+## Copyright (C) 2006, 2007, 2008, 2013, 2014, 2015, 2016, 2017 Luca Saiu
 ## (based on the eAM and NAUSEA Makefile.am files, both by Luca Saiu)
 ## Copyright (C) 2012 Université Paris 13
 ## Copyright (C) 2012 Luca Saiu
-## Updated in 2017 by Luca Saiu
 
 ## Written by Luca Saiu
 
@@ -854,7 +853,7 @@ bootstrap-repl: bootstrap-repl-from-epsilon1
 # modification times will ensure that the uncompressed file isn't overwritten
 # when it's been intentionally replaced by a newer version -- the compressed
 # version will be older in that case.
-@abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u: @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz
+@abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u: @top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz
 	mkdir @abs_top_builddir@/bootstrap-dumps/ || true
 	unxz - < "$<" > "$@"
 
@@ -867,8 +866,8 @@ bootstrap-repl: bootstrap-repl-from-epsilon1
 ## The sleep/touch hack serves to keep the uncompressed image newer than the
 ## compressed version; without that dependencies would force another useless
 ## bootstrap from the new compressed image.
-compress-bootstrap-repl: @abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u
-	if test @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz -ot "$<"; then \
+compress-bootstrap-repl: @top_builddir@/bootstrap-dumps/bootstrap-repl.u
+	if test @top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz -ot "$<"; then \
 	  echo "Compressing the bootstrap REPL..."; \
 	  xz -9 - < "$<" > @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz--tmp && \
 	    mv @abs_top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz--tmp \
@@ -882,6 +881,21 @@ compress-bootstrap-repl: @abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u
 EXTRA_DIST += \
   bootstrap-dumps/bootstrap-repl.u.xz
 dist-hook: compress-bootstrap-repl dist-hook-git-versioning
+
+# The target file should only be regenerated in two cases:
+#  i) manually via compress-bootstrap-repl , therefore *without* invoking this
+#     rule;
+# ii) when the file is missing, in practice when building from Git without a
+#     distributed bootstrap REPL image.
+# So in case ii), when the file is missing, this rule fires.  It's slow,
+# particularly since it runs as a dependency of another bootstrap, but it's a
+# good idea to use Guile only to generate the first image.
+@top_srcdir@/bootstrap-dumps/bootstrap-repl.u.xz:
+	@echo "You are not starting from a distributed bootstrap REPL image."
+	@echo "Building one from Guile."
+	@$(MAKE) bootstrap-repl-from-guile && \
+	  $(MAKE) compress-bootstrap-repl && \
+	  @echo "Now you have a bootstrap REPL image.  This will be used to make a REPL."
 
 ## This is convenient to run the REPL from the build directory.
 repl: repl-from-epsilon1

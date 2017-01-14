@@ -881,7 +881,7 @@ compress-bootstrap-repl: @abs_top_builddir@/bootstrap-dumps/bootstrap-repl.u
 	fi
 EXTRA_DIST += \
   bootstrap-dumps/bootstrap-repl.u.xz
-dist-hook: compress-bootstrap-repl
+dist-hook: compress-bootstrap-repl dist-hook-git-versioning
 
 ## This is convenient to run the REPL from the build directory.
 repl: repl-from-epsilon1

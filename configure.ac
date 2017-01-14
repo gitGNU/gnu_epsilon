@@ -33,7 +33,7 @@ m4_include([guile.m4])
 # The canonical GNUlib way to obtain version from git would be
 # m4_esyscmd([build-aux/git-version-gen .tarball-version]),
 AC_INIT([GNU epsilon],
-        m4_esyscmd([build-aux/get-version-from-git]),
+        m4_esyscmd([build-aux/git-version-gen .tarball-version]),
         [bug-epsilon@gnu.org],
         [epsilon],
         [http://www.gnu.org/software/epsilon])

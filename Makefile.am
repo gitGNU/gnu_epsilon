@@ -5,6 +5,7 @@
 ## (based on the eAM and NAUSEA Makefile.am files, both by Luca Saiu)
 ## Copyright (C) 2012 Université Paris 13
 ## Copyright (C) 2012 Luca Saiu
+## Updated in 2017 by Luca Saiu
 
 ## Written by Luca Saiu
 
@@ -634,12 +635,14 @@ TEXI2PDF = \
   $(TEXI2DVI) --pdf --batch $(TEXIINFO_OPTIONS)
 
 BUILT_SOURCES += \
-  @abs_top_builddir@/doc/epsilon-tutorial-tex.texi \
-  @abs_top_builddir@/doc/epsilon-tutorial-nottex.texi
-@abs_top_builddir@/doc/epsilon-tutorial-nottex.texi: doc/epsilon-tutorial.texi.in
+  @top_builddir@/doc/epsilon-tutorial-tex.texi \
+  @top_builddir@/doc/epsilon-tutorial-nottex.texi
+EXTRA_DIST += \
+  doc/epsilon-tutorial.texi.in
+@top_builddir@/doc/epsilon-tutorial-nottex.texi: doc/epsilon-tutorial.texi.in
 	mkdir "`dirname -- $@`" &> /dev/null || true
 	cat "$^" > "$@"
-@abs_top_builddir@/doc/epsilon-tutorial-tex.texi: @abs_top_builddir@/doc/epsilon-tutorial-nottex.texi
+@top_builddir@/doc/epsilon-tutorial-tex.texi: @top_builddir@/doc/epsilon-tutorial-nottex.texi
 	cat "$^" \
 	  | tr '\n' '\000' \
 	  | sed 's/[₀₁₂₃₄₅₆₇₈₉]//g' \
@@ -653,8 +656,8 @@ BUILT_SOURCES += \
 	  | tr '\000' '\n' \
 	  > "$@"
 doc_epsilon_TEXINFOS = \
-  @abs_top_builddir@/doc/epsilon-tutorial-tex.texi \
-  @abs_top_builddir@/doc/epsilon-tutorial-nottex.texi
+  @top_builddir@/doc/epsilon-tutorial-tex.texi \
+  @top_builddir@/doc/epsilon-tutorial-nottex.texi
 
 info_TEXINFOS = doc/epsilon.texi
 epsilon_TEXINFOS = \

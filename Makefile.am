@@ -902,26 +902,39 @@ esrc_pkgdata_DATA += \
 
 ## ####################################################### versioning: begin
 EXTRA_DIST += \
-	$(top_srcdir)/build-aux/get-version-from-git \
-	$(top_srcdir)/.tarball-version
-# backslash
-#	$(top_srcdir)/.version $(top_srcdir)/.tarball-version
-# BUILT_SOURCES += \
-# 	$(top_srcdir)/.version
-# $(top_srcdir)/.version:
-# 	echo $(VERSION) > $@-t && mv $@-t $@
+  build-aux/git-version-gen
+EXTRA_DIST += \
+  $(top_srcdir)/.version
+BUILT_SOURCES += \
+  $(top_srcdir)/.version
 
-# BUILT_SOURCES += \
-# 	.version
-# dist-hook: .tarball-version
-# 	echo $(VERSION) > $(distdir)/.tarball-version
+$(top_srcdir)/.version:
+	echo $(VERSION) > $@-t && mv $@-t $@
 
-# Fail if .tarball-version, which is supposed to be manually written,
-# doesn't exist.
-dist-hook: $(top_srcdir)/.tarball-version
+dist-hook-git-versioning:
+	echo $(VERSION) > $(distdir)/.tarball-version
 
-# dist-hook: .tarball-version
-# 	echo $(VERSION) > $(distdir)/.tarball-version
+# EXTRA_DIST += \
+# 	$(top_srcdir)/build-aux/get-version-from-git \
+# 	$(top_srcdir)/.tarball-version
+# # backslash
+# #	$(top_srcdir)/.version $(top_srcdir)/.tarball-version
+# # BUILT_SOURCES += \
+# # 	$(top_srcdir)/.version
+# # $(top_srcdir)/.version:
+# # 	echo $(VERSION) > $@-t && mv $@-t $@
+
+# # BUILT_SOURCES += \
+# # 	.version
+# # dist-hook: .tarball-version
+# # 	echo $(VERSION) > $(distdir)/.tarball-version
+
+# # Fail if .tarball-version, which is supposed to be manually written,
+# # doesn't exist.
+# dist-hook: $(top_srcdir)/.tarball-version
+
+# # dist-hook: .tarball-version
+# # 	echo $(VERSION) > $(distdir)/.tarball-version
 ## ####################################################### versioning: end
 
 ## Scratch

@@ -895,7 +895,7 @@ dist-hook: compress-bootstrap-repl dist-hook-git-versioning
 	@echo "Building one from Guile."
 	@$(MAKE) bootstrap-repl-from-guile && \
 	  $(MAKE) compress-bootstrap-repl && \
-	  @echo "Now you have a bootstrap REPL image.  This will be used to make a REPL."
+	  echo "Now you have a bootstrap REPL image.  This will be used to make a REPL."
 
 ## This is convenient to run the REPL from the build directory.
 repl: repl-from-epsilon1
